@@ -1,0 +1,185 @@
+/**
+ * @file memory.cpp
+ * @brief Implementation of flat RAM and MMIO bus routing.
+ *
+ * * Notes:
+ * - Uses std::memcpy for memory access to bypass strict-aliasing issues.
+ * - MMIOBus utilizes a linear search for region dispatch; suitable for
+ * small numbers of devices (UART, Timer, RAM, etc.).
+ */
+
+#include "memory.hpp"
+
+#include <algorithm>
+#include <cassert>
+
+namespace riscv {
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * FlatMemory Implementation
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+FlatMemory::FlatMemory(addr_t base_addr, size_t size)
+    : base_addr_(base_addr)
+    , ram_(size, 0)
+{
+    /* Ensure addr_t isn't overflowed during range checks later */
+    assert(base_addr + size >= base_addr && "Memory region wraps around address space");
+}
+
+MemoryResult FlatMemory::read32(addr_t addr) const
+{
+    if (!in_range(addr, 4)) return {0, 1, false};
+    u32 value;
+    std::memcpy(&value, &ram_[addr - base_addr_], 4);
+    return {value, 1, true};
+}
+
+MemoryResult FlatMemory::write32(addr_t addr, u32 value)
+{
+    if (!in_range(addr, 4)) return {0, 1, false};
+    std::memcpy(&ram_[addr - base_addr_], &value, 4);
+    return {value, 1, true};
+}
+
+MemoryResult FlatMemory::read16(addr_t addr) const
+{
+    if (!in_range(addr, 2)) return {0, 1, false};
+    u16 value;
+    std::memcpy(&value, &ram_[addr - base_addr_], 2);
+    return {value, 1, true};
+}
+
+MemoryResult FlatMemory::write16(addr_t addr, u16 value)
+{
+    if (!in_range(addr, 2)) return {0, 1, false};
+    std::memcpy(&ram_[addr - base_addr_], &value, 2);
+    return {value, 1, true};
+}
+
+MemoryResult FlatMemory::read8(addr_t addr) const
+{
+    if (!in_range(addr, 1)) return {0, 1, false};
+    return {ram_[addr - base_addr_], 1, true};
+}
+
+MemoryResult FlatMemory::write8(addr_t addr, u8 value)
+{
+    if (!in_range(addr, 1)) return {0, 1, false};
+    ram_[addr - base_addr_] = value;
+    return {value, 1, true};
+}
+
+void FlatMemory::load(addr_t addr, std::span<const u8> data)
+{
+    if (!in_range(addr, data.size()))
+        throw MemoryAccessException(addr, true);
+    std::copy(data.begin(), data.end(), ram_.begin() + (addr - base_addr_));
+}
+
+bool FlatMemory::valid_address(addr_t addr, size_t size) const
+{
+    return in_range(addr, size);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * MMIOBus Implementation
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+void MMIOBus::set_default(std::shared_ptr<Memory> mem)
+{
+    default_mem_ = std::move(mem);
+}
+
+void MMIOBus::map(addr_t base, addr_t size, std::shared_ptr<Memory> device,
+                  std::string name)
+{
+    /* Clean up overlapping or identical base mappings */
+    unmap(base);
+    regions_.push_back({base, size, std::move(device), std::move(name)});
+}
+
+void MMIOBus::unmap(addr_t base)
+{
+    std::erase_if(regions_, [base](const Region& r) { return r.base == base; });
+}
+
+Memory* MMIOBus::find_region(addr_t addr, addr_t* offset) const
+{
+    for (auto& r : regions_) {
+        /* Check if addr falls within [base, base + size) */
+        if (addr >= r.base && addr < r.base + r.size) {
+            if (offset) *offset = addr - r.base;
+            return r.device.get();
+        }
+    }
+
+    /* Fallback: route absolute address to default memory if it exists */
+    if (offset) *offset = addr;
+    return default_mem_.get();
+}
+
+/* ────────── Forwarding Logic ────────── */
+
+MemoryResult MMIOBus::read32(addr_t addr) const
+{
+    addr_t offset;
+    Memory* mem = find_region(addr, &offset);
+    return mem ? mem->read32(offset) : MemoryResult{0, 1, false};
+}
+
+MemoryResult MMIOBus::read16(addr_t addr) const
+{
+    addr_t offset;
+    Memory* mem = find_region(addr, &offset);
+    return mem ? mem->read16(offset) : MemoryResult{0, 1, false};
+}
+
+MemoryResult MMIOBus::read8(addr_t addr) const
+{
+    addr_t offset;
+    Memory* mem = find_region(addr, &offset);
+    return mem ? mem->read8(offset) : MemoryResult{0, 1, false};
+}
+
+/* ========== Write Forwarding ========== */
+
+MemoryResult MMIOBus::write32(addr_t addr, u32 value)
+{
+    addr_t offset;
+    Memory* mem = find_region(addr, &offset);
+    return mem ? mem->write32(offset, value) : MemoryResult{0, 1, false};
+}
+
+MemoryResult MMIOBus::write16(addr_t addr, u16 value)
+{
+    addr_t offset;
+    Memory* mem = find_region(addr, &offset);
+    return mem ? mem->write16(offset, value) : MemoryResult{0, 1, false};
+}
+
+MemoryResult MMIOBus::write8(addr_t addr, u8 value)
+{
+    addr_t offset;
+    Memory* mem = find_region(addr, &offset);
+    return mem ? mem->write8(offset, value) : MemoryResult{0, 1, false};
+}
+
+void MMIOBus::load(addr_t addr, std::span<const u8> data)
+{
+    addr_t offset;
+    Memory* mem = find_region(addr, &offset);
+    if (!mem)
+        throw MemoryAccessException(addr, true);
+    mem->load(offset, data);
+}
+
+bool MMIOBus::valid_address(addr_t addr, size_t size) const {
+    for (const auto& r : regions_) {
+        if (addr >= r.base && (addr + size) <= (r.base + r.size))
+            return true;
+    }
+    return default_mem_ && default_mem_->valid_address(addr, size);
+}
+
+} // namespace riscv

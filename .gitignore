@@ -1,0 +1,32 @@
+# Prerequisites
+*.d
+
+# Object files and Libraries
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Directories
+build/
+benchmark/
+benchmark_scripts/
+doc/
+
+# Binaries / Code Dumps
+.bin
+/core
+vgcore.*
+
+# Experimental files
+exp_*
+
+# requirements.txt - add in benchmarking/documentation update
+requirements.txt
