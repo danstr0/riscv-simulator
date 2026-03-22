@@ -60,6 +60,14 @@ const char* op_name(Op op) {
         case Op::SRA:     return "sra";
         case Op::OR:      return "or";
         case Op::AND:     return "and";
+        case Op::MUL:     return "mul";
+        case Op::MULH:    return "mulh";
+        case Op::MULHSU:  return "mulhsu";
+        case Op::MULHU:   return "mulhu";
+        case Op::DIV:     return "div";
+        case Op::DIVU:    return "divu";
+        case Op::REM:     return "rem";
+        case Op::REMU:    return "remu";
         case Op::FENCE:   return "fence";
         case Op::ECALL:   return "ecall";
         case Op::EBREAK:  return "ebreak";
@@ -273,6 +281,20 @@ DecodedInst Decoder::decode_op(u32 inst, addr_t pc)
 
     u32 funct3 = bits(inst, 14, 12);
     u32 funct7 = bits(inst, 31, 25);
+
+    if (funct7 == 0b0000001) {
+        switch (funct3) {
+            case 0b000: d.op = Op::MUL;    break;
+            case 0b001: d.op = Op::MULH;   break;
+            case 0b010: d.op = Op::MULHSU; break;
+            case 0b011: d.op = Op::MULHU;  break;
+            case 0b100: d.op = Op::DIV;    break;
+            case 0b101: d.op = Op::DIVU;   break;
+            case 0b110: d.op = Op::REM;    break;
+            case 0b111: d.op = Op::REMU;   break;
+        }
+        return d;
+    }
 
     switch (funct3) {
         case 0b000:

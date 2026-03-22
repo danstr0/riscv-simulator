@@ -120,7 +120,7 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
     u32 rs2_val = regs_[inst.rs2];
 
     switch (inst.op) {
-        /* ----- Loads & Stores ----- */
+        /* Loads & Stores */
         case Op::LB: case Op::LH: case Op::LW:
         case Op::LBU: case Op::LHU:
             result = execute_load(inst);
@@ -134,7 +134,7 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
             if (result.ok) stats_.stores++;
             break;
 
-        /* ----- Branches ----- */
+        /* Branches */
         case Op::BEQ:  result.branch_taken = cond_eq(rs1_val, rs2_val);  goto branch_common;
         case Op::BNE:  result.branch_taken = cond_ne(rs1_val, rs2_val);  goto branch_common;
         case Op::BLT:  result.branch_taken = cond_lt(rs1_val, rs2_val);  goto branch_common;
@@ -149,7 +149,7 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
             if (result.branch_taken) stats_.branches_taken++;
             break;
 
-        /* ----- Jumps ----- */
+        /* Jumps */
         case Op::JAL:
             result.rd_value = pc_ + 4;
             set_reg(inst.rd, *result.rd_value);
@@ -166,7 +166,7 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
             stats_.jumps++;
             break;
 
-        /* ----- Upper Immediates ----- */
+        /* Upper Immediates */
         case Op::LUI:
             result.rd_value = static_cast<u32>(inst.imm);
             set_reg(inst.rd, *result.rd_value);
@@ -177,7 +177,7 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
             set_reg(inst.rd, *result.rd_value);
             break;
 
-        /* ----- Arithmetic (Immediate) ----- */
+        /* Arithmetic (Immediate) */
         case Op::ADDI:  set_reg(inst.rd, alu_add(rs1_val, static_cast<u32>(inst.imm)));  break;
         case Op::SLTI:  set_reg(inst.rd, alu_slt(rs1_val, static_cast<u32>(inst.imm)));  break;
         case Op::SLTIU: set_reg(inst.rd, alu_sltu(rs1_val, static_cast<u32>(inst.imm))); break;
@@ -188,7 +188,7 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
         case Op::SRLI:  set_reg(inst.rd, alu_srl(rs1_val, static_cast<u32>(inst.imm)));  break;
         case Op::SRAI:  set_reg(inst.rd, alu_sra(rs1_val, static_cast<u32>(inst.imm)));  break;
 
-        /* ----- Arithmetic (Register) ----- */
+        /* Arithmetic (Register) */
         case Op::ADD:  set_reg(inst.rd, alu_add(rs1_val, rs2_val));  break;
         case Op::SUB:  set_reg(inst.rd, alu_sub(rs1_val, rs2_val));  break;
         case Op::SLL:  set_reg(inst.rd, alu_sll(rs1_val, rs2_val));  break;
@@ -200,7 +200,17 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
         case Op::OR:   set_reg(inst.rd, alu_or(rs1_val, rs2_val));   break;
         case Op::AND:  set_reg(inst.rd, alu_and(rs1_val, rs2_val));  break;
 
-        /* ----- System ----- */
+        /* RV32M Multiply / Divide */
+        case Op::MUL:    set_reg(inst.rd, alu_mul(rs1_val, rs2_val));    break;
+        case Op::MULH:   set_reg(inst.rd, alu_mulh(rs1_val, rs2_val));   break;
+        case Op::MULHSU: set_reg(inst.rd, alu_mulhsu(rs1_val, rs2_val)); break;
+        case Op::MULHU:  set_reg(inst.rd, alu_mulhu(rs1_val, rs2_val));  break;
+        case Op::DIV:    set_reg(inst.rd, alu_div(rs1_val, rs2_val));    break;
+        case Op::DIVU:   set_reg(inst.rd, alu_divu(rs1_val, rs2_val));   break;
+        case Op::REM:    set_reg(inst.rd, alu_rem(rs1_val, rs2_val));    break;
+        case Op::REMU:   set_reg(inst.rd, alu_remu(rs1_val, rs2_val));   break;
+
+        /* System */
         case Op::ECALL:  result.ecall = true; break;
         case Op::EBREAK: result.ebreak = true; break;
         case Op::FENCE:  break;  // NOP in single-threaded context

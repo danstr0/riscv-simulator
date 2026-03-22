@@ -19,6 +19,7 @@
 #include <cassert>
 #include <format>
 #include <iostream>
+#include <limits>
 
 namespace riscv {
 
@@ -320,6 +321,57 @@ bool PipelinedCPU::tick()
                 case Op::OR:    mem_out.alu_result = rs1 | rs2; break;
                 case Op::AND:   mem_out.alu_result = rs1 & rs2; break;
                 
+                /* RV32M Multiply / Divide */
+                case Op::MUL: mem_out.alu_result = rs1 * rs2; break;
+                case Op::MULH: {
+                    i64 r = static_cast<i64>(static_cast<i32>(rs1))
+                          * static_cast<i64>(static_cast<i32>(rs2));
+
+                    mem_out.alu_result = static_cast<u32>(static_cast<u64>(r) >> 32);
+                    break;
+                }
+                case Op::MULHSU: {
+                    i64 r = static_cast<i64>(static_cast<i32>(rs1))
+                          * static_cast<i64>(static_cast<u64>(rs2));
+                    
+                    mem_out.alu_result = static_cast<u32>(static_cast<u64>(r) >> 32);
+                    break;
+                }
+                case Op::MULHU: {
+                    u64 r = static_cast<u64>(rs1) * static_cast<u64>(rs2);
+
+                    mem_out.alu_result = static_cast<u32>(r >> 32);
+                }
+                case Op::DIV: {
+                    if (rs2 ==0) { mem_out.alu_result = ~u32{0}; break; }
+                    auto sa = static_cast<i32>(rs1);
+                    auto sb = static_cast<i32>(rs2);
+
+                    if (sa == std::numeric_limits<i32>::min() && sb == -1)
+                        mem_out.alu_result = static_cast<u32>(sa);
+                    else
+                        mem_out.alu_result = static_cast<u32>(sa / sb);
+                    break;
+                }
+                case Op::DIVU: {
+                    mem_out.alu_result = (rs2 == 0) ? ~u32{0} : rs1 / rs2;
+                    break;
+                }
+                case Op::REM: {
+                    if (rs2 == 0) { mem_out.alu_result = rs1; break; }
+                    auto sa = static_cast<i32>(rs1);
+                    auto sb = static_cast<i32>(rs2);
+
+                    if (sa == std::numeric_limits<i32>::min() && sb == -1)
+                        mem_out.alu_result = 0;
+                    else
+                        mem_out.alu_result = static_cast<u32>(sa % sb);
+                    break;
+                }
+                case Op::REMU:
+                    mem_out.alu_result = (rs2 == 0) ? rs1 : rs1 % rs2;
+                    break;
+
                 /* System */
                 case Op::FENCE: case Op::ECALL: case Op::EBREAK:
                     break;
