@@ -13,7 +13,7 @@
  * The caller is responsible for updating the PC using @ref ExecuteResult.next_pc.
  * - **Register x0:** Rigorously maintained as 0. Writes to index 0 are discarded.
  *
- * @note Reference: RISC-V Unprivileged ISA Specification v20260120, §2.1.
+ * @note Reference: RISC-V Unprivileged ISA Specification v20260120, §2.1, §12.1.
  */
 
 #pragma once
@@ -22,6 +22,7 @@
 #include "memory.hpp"
 
 #include <array>
+#include <limits>
 #include <optional>
 
 namespace riscv {
@@ -128,11 +129,8 @@ private:
     addr_t              pc_ = 0;
     CpuStats            stats_;
 
-    /* ───────────────────────────────────────────────────────────────────
-     * Internal ALU Operations
-     * ───────────────────────────────────────────────────────────────────
-     * Shift amounts are masked with 0x1F to restrict shifts to 0-31 bits.
-     */
+    /** @name Internal ALU operations */
+    /** @{ */
 
     static constexpr u32 alu_add(u32 a, u32 b) noexcept { return a + b; }
     static constexpr u32 alu_sub(u32 a, u32 b) noexcept { return a - b; }
@@ -167,19 +165,87 @@ private:
         return a < b ? 1u : 0u;
     }
 
-    /* ────────── Branch Conditions ────────── */
+    /** @} */
 
+    /** @name RV32M multiply/divide (spec §12.1) */
+    /** @{ */
+
+    static constexpr u32 alu_mul(u32 a, u32 b) noexcept { return a * b; }
+    
+    static constexpr u32 alu_mulh(u32 a, u32 b) noexcept
+    {
+        i64 result = static_cast<i64>(static_cast<i32>(a))
+                   * static_cast<i64>(static_cast<i32>(b));
+
+        return static_cast<u32>(static_cast<u64>(result) >> 32);
+    }
+
+    static constexpr u32 alu_mulhsu(u32 a, u32 b) noexcept
+    {
+        i64 result = static_cast<i64>(static_cast<i32>(a))
+                   * static_cast<i64>(static_cast<u64>(b));
+        
+        return static_cast<u32>(static_cast<u64>(result) >> 32);
+    }
+
+    static constexpr u32 alu_mulhu(u32 a, u32 b) noexcept
+    {
+        u64 result = static_cast<u64>(a) * static_cast<u64>(b);
+        
+        return static_cast<u32>(result >> 32);
+    }
+
+    static constexpr u32 alu_div(u32 a, u32 b) noexcept
+    {
+        if (b == 0) return ~u32{0};   /* -1 */
+        auto sa = static_cast<i32>(a);
+        auto sb = static_cast<i32>(b);
+
+        if (sa == std::numeric_limits<i32>::min() && sb == -1)
+            return static_cast<u32>(sa);
+
+        return static_cast<u32>(sa / sb);
+    }
+
+    static constexpr u32 alu_divu(u32 a, u32 b) noexcept
+    {
+        return b == 0 ? ~u32{0} : a / b;
+    }
+
+    static constexpr u32 alu_rem(u32 a, u32 b) noexcept
+    {
+        if (b == 0) return a;
+        auto sa = static_cast<i32>(a);
+        auto sb = static_cast<i32>(b);
+
+        if (sa == std::numeric_limits<i32>::min() && sb == -1)
+            return 0;
+
+        return static_cast<u32>(sa % sb);
+    }
+
+    static constexpr u32 alu_remu(u32 a, u32 b) noexcept
+    {
+        return b == 0 ? a : a % b;
+    }
+
+    /** @} */
+
+    /** @name Branch conditions */
+    /** @{ */
     static constexpr bool cond_eq(u32 a, u32 b)  noexcept { return a == b; }
     static constexpr bool cond_ne(u32 a, u32 b)  noexcept { return a != b; }
     static constexpr bool cond_lt(u32 a, u32 b)  noexcept { return static_cast<i32>(a) < static_cast<i32>(b); }
     static constexpr bool cond_ge(u32 a, u32 b)  noexcept { return static_cast<i32>(a) >= static_cast<i32>(b); }
     static constexpr bool cond_ltu(u32 a, u32 b) noexcept { return a < b; }
     static constexpr bool cond_geu(u32 a, u32 b) noexcept { return a >= b; }
+    /** @} */
 
-    /* ────────── Memory Sub-executors ────────── */
-
+    /** @name Memory sub-executors */
+    /** @{ */
     ExecuteResult execute_load(const DecodedInst& inst);
     ExecuteResult execute_store(const DecodedInst& inst);
+    /** @} */
 };
 
 } // namespace riscv
