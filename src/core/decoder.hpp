@@ -3,7 +3,8 @@
  * @brief Instruction decoder for the RV32I base integer instruction set.
  *
  * Implements the full decode stage: opcode dispatch, field extraction, and
- * immediate reconstruction for all six instruction formats (R, I, S, B, U, J).
+ * immediate reconstruction for all six instruction formats (R, I, S, B, U, J),
+ * as well as RV32M instructions.
  *
  * @section DECODE_PROCESS Decode Process
  * 1. **Opcode Identification:** The lower 7 bits ([6:0]) determine the @ref Format.
@@ -11,7 +12,7 @@
  * 3. **Immediate Reconstruction:** Bit-shuffling is performed according to the
  * instruction format to produce a sign-extended 32-bit immediate.
  *
- * @see RISC-V Unprivileged ISA Specification §2.1.
+ * @see RISC-V Unprivileged ISA Specification §2.1, §12.1.
  */
 
 #pragma once
@@ -70,6 +71,10 @@ enum class Op : u8 {
     /* Register-register arithmetic (R-type) */
     ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND,
 
+    /* RV32M integer multiply/divide (R-type, funct7 = 0000001) */
+    MUL, MULH, MULHSU, MULHU,
+    DIV, DIVU, REM, REMU,
+
     /* System / synchronization */
     FENCE,
     ECALL,
@@ -113,7 +118,7 @@ struct DecodedInst {
     u32    raw = 0;     ///< Original 32-bit instruction word for debugging.
     addr_t pc  = 0;     ///< Address of this instruction.
     
-    /* ========== Query Helpers ========== */
+    /* ────────── Query Helpers ────────── */
 
     /** @brief Returns true if this instruction updates a destination register. */
     [[nodiscard]] constexpr bool writes_rd() const noexcept
