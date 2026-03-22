@@ -662,9 +662,9 @@ TEST(decode_invalid_all_ones) {
 }
 
 TEST(decode_invalid_r_type_funct7) {
-    // An R-type instruction with funct3=000 but funct7=0000001 (M extension
-    // MUL, which isn't implemented) should decode as INVALID.
-    auto inst = Decoder::decode(0x022081b3);
+    // An R-type instruction with funct3=000 but funct7=0000010
+    // Not assigned to any standard extension - should decode as INVALID.
+    auto inst = Decoder::decode(0x042081b3);
     ASSERT_EQ(inst.op, Op::INVALID);
     return true;
 }
