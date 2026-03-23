@@ -34,6 +34,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -257,7 +258,10 @@ private:
     
     mutable PipelineStats stats_{};
     bool                  trace_ = false;
-    
+
+    /// LR/SC reservation
+    std::optional<addr_t> reservation_;
+
     /** @name Branch prediction state */
     /** @{ */
     
