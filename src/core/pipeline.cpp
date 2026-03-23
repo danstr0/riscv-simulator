@@ -41,6 +41,7 @@ void PipelinedCPU::reset()
     for (auto& s : stages_) s.clear();
     halted_ = false;
     flush_pipeline_ = false;
+    reservation_.reset();
     stats_.reset();
     std::fill(bht_.begin(), bht_.end(), u8{0});
 }
@@ -131,8 +132,52 @@ bool PipelinedCPU::tick()
                         r = memory_->read16(addr);
                         wb_out.rd_val = r.value & 0xFFFFu;
                         break;
-                    default:
+
+                    /* RV32A Atomics (memory operation) */
+                    case Op::LR_W: {
+                        r = memory_->read32(addr);
+                        wb_out.rd_val = r.value;
+                        reservation_ = addr;
                         break;
+                    }
+                    case Op::SC_W: {
+                        if (reservation_.has_value() && reservation_.value() == addr) {
+                            memory_->write32(addr, mem_in.rs2_val);
+                            wb_out.rd_val = 0;  /* success */
+                        } else {
+                            wb_out.rd_val = 1;  /* failure */
+                        }
+                        reservation_.reset();
+                        break;
+                    }
+                    case Op::AMOSWAP_W: case Op::AMOADD_W: case Op::AMOXOR_W:
+                    case Op::AMOAND_W:  case Op::AMOOR_W:
+                    case Op::AMOMIN_W:  case Op::AMOMAX_W:
+                    case Op::AMOMINU_W: case Op::AMOMAXU_W: {
+                        r = memory_->read32(addr);
+                        u32 old_val = r.value;
+                        u32 rs2v    = mem_in.rs2_val;
+                        u32 new_val;
+                        switch (mem_in.inst.op) {
+                            case Op::AMOSWAP_W: new_val = rs2v; break;
+                            case Op::AMOADD_W:  new_val = old_val + rs2v; break;
+                            case Op::AMOXOR_W:  new_val = old_val ^ rs2v; break;
+                            case Op::AMOAND_W:  new_val = old_val & rs2v; break;
+                            case Op::AMOOR_W:   new_val = old_val | rs2v; break;
+                            case Op::AMOMIN_W:  new_val = (static_cast<i32>(old_val) < static_cast<i32>(rs2v)) ? old_val 
+                                                                                                               : rs2v; break;
+                            case Op::AMOMAX_W:  new_val = (static_cast<i32>(old_val) > static_cast<i32>(rs2v)) ? old_val 
+                                                                                                               : rs2v; break;
+                            case Op::AMOMINU_W: new_val = (old_val < rs2v) ? old_val : rs2v; break;
+                            case Op::AMOMAXU_W: new_val = (old_val > rs2v) ? old_val : rs2v; break;
+                            default: new_val = old_val; break;
+                        }
+                        memory_->write32(addr, new_val);
+                        wb_out.rd_val = old_val;
+                        break;
+                    }
+
+                    default: break;
                 }
             } else if (mem_in.mem_write) {
                 u32 val = mem_in.rs2_val;
@@ -142,6 +187,7 @@ bool PipelinedCPU::tick()
                     case Op::SW: memory_->write32(addr, val); break;
                     default: break;
                 }
+                if (reservation_.has_value()) reservation_.reset();
             } else {
                 wb_out.rd_val = mem_in.alu_result;
             }
@@ -370,6 +416,19 @@ bool PipelinedCPU::tick()
                 }
                 case Op::REMU:
                     mem_out.alu_result = (rs2 == 0) ? rs1 : rs1 % rs2;
+                    break;
+
+                /* RV32A Atomics (address computation) */
+                case Op::LR_W:
+                case Op::SC_W:
+                case Op::AMOSWAP_W: case Op::AMOADD_W: case Op::AMOXOR_W:
+                case Op::AMOAND_W:  case Op::AMOOR_W:
+                case Op::AMOMIN_W:  case Op::AMOMAX_W:
+                case Op::AMOMINU_W: case Op::AMOMAXU_W:
+                    mem_out.alu_result = rs1;
+                    mem_out.rs2_val    = rs2;
+                    mem_out.mem_read   = true;
+                    mem_out.reg_write  = true;
                     break;
 
                 /* System */

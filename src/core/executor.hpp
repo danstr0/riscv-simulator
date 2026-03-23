@@ -129,6 +129,12 @@ private:
     addr_t              pc_ = 0;
     CpuStats            stats_;
 
+    /**
+     * @brief LR/SC reservation address. Set by LR.W, cleared by SC.W
+     * or any store to the reserved address.
+     */
+    std::optional<addr_t> reservation_;
+
     /** @name Internal ALU operations */
     /** @{ */
 

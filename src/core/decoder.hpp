@@ -3,8 +3,7 @@
  * @brief Instruction decoder for the RV32I base integer instruction set.
  *
  * Implements the full decode stage: opcode dispatch, field extraction, and
- * immediate reconstruction for all six instruction formats (R, I, S, B, U, J),
- * as well as RV32M instructions.
+ * immediate reconstruction for all six instruction formats (R, I, S, B, U, J).
  *
  * @section DECODE_PROCESS Decode Process
  * 1. **Opcode Identification:** The lower 7 bits ([6:0]) determine the @ref Format.
@@ -26,8 +25,8 @@ namespace riscv {
 /**
  * @brief Primary Opcodes (inst[6:0]).
  *
- * Only encodings for the RV32I base ISA are defined here. Extension opcodes
- * (e.g., M, A, F, D) are omitted.
+ * Encodings for the RV32I base ISA, as well as the RV32A extension,
+ * are defined here.
  */
 enum class Opcode : u8 {
     LOAD      = 0b0000011,  ///< LB, LH, LW, LBU, LHU
@@ -35,6 +34,7 @@ enum class Opcode : u8 {
     OP_IMM    = 0b0010011,  ///< ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI
     AUIPC     = 0b0010111,  ///< AUIPC
     STORE     = 0b0100011,  ///< SB, SH, SW
+    AMO       = 0b0101111,  ///< LR.W, SC.W, AMO*
     OP        = 0b0110011,  ///< ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND
     LUI       = 0b0110111,  ///< LUI
     BRANCH    = 0b1100011,  ///< BEQ, BNE, BLT, BGE, BLTU, BGEU
@@ -74,6 +74,19 @@ enum class Op : u8 {
     /* RV32M integer multiply/divide (R-type, funct7 = 0000001) */
     MUL, MULH, MULHSU, MULHU,
     DIV, DIVU, REM, REMU,
+
+    /* RV32A atomic memory operations (R-type) */
+    LR_W,
+    SC_W,
+    AMOSWAP_W,
+    AMOADD_W,
+    AMOXOR_W,
+    AMOAND_W,
+    AMOOR_W,
+    AMOMIN_W,
+    AMOMAX_W,
+    AMOMINU_W,
+    AMOMAXU_W,
 
     /* System / synchronization */
     FENCE,
@@ -156,7 +169,8 @@ struct DecodedInst {
     [[nodiscard]] constexpr bool is_store()  const noexcept { return op >= Op::SB && op <= Op::SW; }
     [[nodiscard]] constexpr bool is_branch() const noexcept { return op >= Op::BEQ && op <= Op::BGEU; }
     [[nodiscard]] constexpr bool is_jump()   const noexcept { return op == Op::JAL || op == Op::JALR; }
-    
+    [[nodiscard]] constexpr bool is_atomic() const noexcept { return op >= Op::LR_W && op <= Op::AMOMAXU_W; }
+
     /** @brief Generates standard RISC-V assembly string (e.g., "addi a0, sp, 16"). */
     [[nodiscard]] std::string disassemble() const;
 };
@@ -187,6 +201,7 @@ private:
     static DecodedInst decode_branch(u32 inst, addr_t pc);
     static DecodedInst decode_op_imm(u32 inst, addr_t pc);
     static DecodedInst decode_op(u32 inst, addr_t pc);
+    static DecodedInst decode_amo(u32 inst, addr_t pc);
     static DecodedInst decode_system(u32 inst, addr_t pc);
     
     /**
