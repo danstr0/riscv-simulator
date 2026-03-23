@@ -23,51 +23,70 @@ namespace riscv {
 
 const char* op_name(Op op) {
     switch (op) {
-        case Op::LB:      return "lb";
-        case Op::LH:      return "lh";
-        case Op::LW:      return "lw";
-        case Op::LBU:     return "lbu";
-        case Op::LHU:     return "lhu";
-        case Op::SB:      return "sb";
-        case Op::SH:      return "sh";
-        case Op::SW:      return "sw";
-        case Op::BEQ:     return "beq";
-        case Op::BNE:     return "bne";
-        case Op::BLT:     return "blt";
-        case Op::BGE:     return "bge";
-        case Op::BLTU:    return "bltu";
-        case Op::BGEU:    return "bgeu";
-        case Op::JAL:     return "jal";
-        case Op::JALR:    return "jalr";
-        case Op::LUI:     return "lui";
-        case Op::AUIPC:   return "auipc";
-        case Op::ADDI:    return "addi";
-        case Op::SLTI:    return "slti";
-        case Op::SLTIU:   return "sltiu";
-        case Op::XORI:    return "xori";
-        case Op::ORI:     return "ori";
-        case Op::ANDI:    return "andi";
-        case Op::SLLI:    return "slli";
-        case Op::SRLI:    return "srli";
-        case Op::SRAI:    return "srai";
-        case Op::ADD:     return "add";
-        case Op::SUB:     return "sub";
-        case Op::SLL:     return "sll";
-        case Op::SLT:     return "slt";
-        case Op::SLTU:    return "sltu";
-        case Op::XOR:     return "xor";
-        case Op::SRL:     return "srl";
-        case Op::SRA:     return "sra";
-        case Op::OR:      return "or";
-        case Op::AND:     return "and";
-        case Op::MUL:     return "mul";
-        case Op::MULH:    return "mulh";
-        case Op::MULHSU:  return "mulhsu";
-        case Op::MULHU:   return "mulhu";
-        case Op::DIV:     return "div";
-        case Op::DIVU:    return "divu";
-        case Op::REM:     return "rem";
-        case Op::REMU:    return "remu";
+        case Op::LB:  return "lb";
+        case Op::LH:  return "lh";
+        case Op::LW:  return "lw";
+        case Op::LBU: return "lbu";
+        case Op::LHU: return "lhu";
+        case Op::SB:  return "sb";
+        case Op::SH:  return "sh";
+        case Op::SW:  return "sw";
+
+        case Op::BEQ:  return "beq";
+        case Op::BNE:  return "bne";
+        case Op::BLT:  return "blt";
+        case Op::BGE:  return "bge";
+        case Op::BLTU: return "bltu";
+        case Op::BGEU: return "bgeu";
+
+        case Op::JAL:  return "jal";
+        case Op::JALR: return "jalr";
+
+        case Op::LUI:   return "lui";
+        case Op::AUIPC: return "auipc";
+
+        case Op::ADDI:  return "addi";
+        case Op::SLTI:  return "slti";
+        case Op::SLTIU: return "sltiu";
+        case Op::XORI:  return "xori";
+        case Op::ORI:   return "ori";
+        case Op::ANDI:  return "andi";
+        case Op::SLLI:  return "slli";
+        case Op::SRLI:  return "srli";
+        case Op::SRAI:  return "srai";
+
+        case Op::ADD:  return "add";
+        case Op::SUB:  return "sub";
+        case Op::SLL:  return "sll";
+        case Op::SLT:  return "slt";
+        case Op::SLTU: return "sltu";
+        case Op::XOR:  return "xor";
+        case Op::SRL:  return "srl";
+        case Op::SRA:  return "sra";
+        case Op::OR:   return "or";
+        case Op::AND:  return "and";
+
+        case Op::MUL:    return "mul";
+        case Op::MULH:   return "mulh";
+        case Op::MULHSU: return "mulhsu";
+        case Op::MULHU:  return "mulhu";
+        case Op::DIV:    return "div";
+        case Op::DIVU:   return "divu";
+        case Op::REM:    return "rem";
+        case Op::REMU:   return "remu";
+
+        case Op::LR_W:      return "lr.w";
+        case Op::SC_W:      return "sc.w";
+        case Op::AMOSWAP_W: return "amoswap.w";
+        case Op::AMOADD_W:  return "amoadd.w";
+        case Op::AMOXOR_W:  return "amoxor.w";
+        case Op::AMOAND_W:  return "amoand.w";
+        case Op::AMOOR_W:   return "amoor.w";
+        case Op::AMOMIN_W:  return "amomin.w";
+        case Op::AMOMAX_W:  return "amomax.w";
+        case Op::AMOMINU_W: return "amominu.w";
+        case Op::AMOMAXU_W: return "amomaxu.w";
+
         case Op::FENCE:   return "fence";
         case Op::ECALL:   return "ecall";
         case Op::EBREAK:  return "ebreak";
@@ -84,6 +103,14 @@ std::string DecodedInst::disassemble() const
 {
     switch(format) {
         case Format::R:
+            if (is_atomic() && op == Op::LR_W) {
+                if (op == Op::LR_W) {
+                    return std::format("{} {}, ({})",
+                            op_name(op), reg_name(rd), reg_name(rs1));
+                }
+                return std::format("{} {}, {}, ({})",
+                        op_name(op), reg_name(rd), reg_name(rs2), reg_name(rs1));
+            }
             return std::format("{} {}, {}, {}",
                 op_name(op), reg_name(rd), reg_name(rs1), reg_name(rs2));
 
@@ -175,7 +202,9 @@ DecodedInst Decoder::decode_load(u32 inst, addr_t pc)
     d.rs1    = bits(inst, 19, 15);
     d.imm    = extract_i_imm(inst);
 
-    switch (bits(inst, 14, 12)) {  /* funct3 */
+    u32 funct3 = bits(inst, 14, 12);
+
+    switch (bits(inst, 14, 12)) {
         case 0b000: d.op = Op::LB;  break;
         case 0b001: d.op = Op::LH;  break;
         case 0b010: d.op = Op::LW;  break;
@@ -196,7 +225,9 @@ DecodedInst Decoder::decode_store(u32 inst, addr_t pc)
     d.rs2    = bits(inst, 24, 20);
     d.imm    = extract_s_imm(inst);
 
-    switch(bits(inst, 14 , 12)) {  /* funct3 */
+    u32 funct3 = bits(inst, 14, 12);
+
+    switch(funct3) {
         case 0b000: d.op = Op::SB; break;
         case 0b001: d.op = Op::SH; break;
         case 0b010: d.op = Op::SW; break;
@@ -215,7 +246,9 @@ DecodedInst Decoder::decode_branch(u32 inst, addr_t pc)
     d.rs2    = bits(inst, 24, 20);
     d.imm    = extract_b_imm(inst);
 
-    switch (bits(inst, 14, 12)) {  /* funct3 */
+    u32 funct3 = bits(inst, 14, 12);
+
+    switch (funct3) {
         case 0b000: d.op = Op::BEQ;  break;
         case 0b001: d.op = Op::BNE;  break;
         case 0b100: d.op = Op::BLT;  break;
@@ -318,6 +351,46 @@ DecodedInst Decoder::decode_op(u32 inst, addr_t pc)
     return d;
 }
 
+DecodedInst Decoder::decode_amo(u32 inst, addr_t pc)
+{
+    DecodedInst d;
+    d.format = Format::R;
+    d.raw    = inst;
+    d.pc     = pc;
+    d.rd     = bits(inst, 11, 7);
+    d.rs1    = bits(inst, 19, 15);
+    d.rs2    = bits(inst, 24, 20);
+
+    u32 funct3 = bits(inst, 14, 12);
+    u32 funct5 = bits(inst, 31, 27);
+
+    /* Only .W is supported in RV32A */
+    if (funct3 != 0b010) {
+        d.op = Op::INVALID;
+        return d;
+    }
+
+    switch(funct5) {
+        case 0b00010: d.op = Op::LR_W;      break;
+        case 0b00011: d.op = Op::SC_W;      break;
+        case 0b00001: d.op = Op::AMOSWAP_W; break;
+        case 0b00000: d.op = Op::AMOADD_W;  break;
+        case 0b00100: d.op = Op::AMOXOR_W;  break;
+        case 0b01100: d.op = Op::AMOAND_W;  break;
+        case 0b01000: d.op = Op::AMOOR_W;   break;
+        case 0b10000: d.op = Op::AMOMIN_W;  break;
+        case 0b10100: d.op = Op::AMOMAX_W;  break;
+        case 0b11000: d.op = Op::AMOMINU_W; break;
+        case 0b11100: d.op = Op::AMOMAXU_W; break;
+        default:      d.op = Op::INVALID;   break;
+    }
+
+    if (d.op == Op::LR_W && d.rs2 != 0)
+        d.op = Op::INVALID;
+
+    return d;
+}
+
 DecodedInst Decoder::decode_system(u32 inst, addr_t pc)
 {
     DecodedInst d;
@@ -358,6 +431,7 @@ DecodedInst Decoder::decode(u32 inst, addr_t pc)
         case Opcode::BRANCH: return decode_branch(inst, pc);
         case Opcode::OP_IMM: return decode_op_imm(inst, pc);
         case Opcode::OP:     return decode_op(inst, pc);
+        case Opcode::AMO:    return decode_amo(inst, pc);
         case Opcode::SYSTEM: return decode_system(inst, pc);
 
         case Opcode::LUI:
