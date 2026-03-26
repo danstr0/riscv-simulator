@@ -1,6 +1,6 @@
 /**
  * @file executor.cpp
- * @brief Implementation of the RV32I instruction executor.
+ * @brief Implementation of the RV32IMA + RVV instruction executor.
  * * Key architectural behaviors, such as x0 hard-wiring and
  * JALR address alignment, are enforced here.
  */
@@ -23,6 +23,7 @@ void Executor::reset()
     regs_.fill(0);
     pc_ = 0;
     reservation_.reset();
+    vstate_.reset();
     stats_.reset();
 }
 
@@ -286,6 +287,22 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
         case Op::EBREAK: result.ebreak = true; break;
         case Op::FENCE:  break;  // NOP in single-threaded context
 
+        /* RVV vector operations */
+        case Op::VSETVLI:  case Op::VSETIVLI:
+        case Op::VLE32:    case Op::VSE32:
+        case Op::VADD_VV:  case Op::VADD_VX:
+        case Op::VSUB_VV:  case Op::VSUB_VX:
+        case Op::VAND_VV:  case Op::VAND_VX:
+        case Op::VOR_VV:   case Op::VOR_VX:
+        case Op::VXOR_VV:  case Op::VXOR_VX:
+        case Op::VSLL_VX:  case Op::VSRL_VX:
+        case Op::VMSEQ_VV: case Op::VMSEQ_VX:
+        case Op::VMSLT_VV: case Op::VMSLTU_VV:
+        case Op::VMAND_MM: case Op::VMOR_MM: case Op::VMNOT_M:
+        case Op::VREDSUM_VS:
+        case Op::VMV_V_X:  case Op::VMV_X_S:
+            return execute_vector(inst, rs1, rs2);
+
         case Op::INVALID:
         default: [[unlikely]]
             result.ok = false;
@@ -296,6 +313,210 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
     if (result.ok) {
         if (inst.writes_rd() && !result.rd_value.has_value())
             result.rd_value = regs_[inst.rd];
+        stats_.instructions++;
+        stats_.cycles += result.cycles;
+    }
+
+    return result;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Vector execution 
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+ExecuteResult Executor::execute_vector(const DecodedInst& inst, u32 rs1, u32 rs2)
+{
+    ExecuteResult result;
+    result.next_pc = pc_ + 4;
+
+    auto& vs = vstate_;
+    u32   vl = vs.vl;
+
+    switch (inst.op) {
+        /* Configuration */
+        case Op::VSETVLI: {
+            u32 avl = (inst.rs1 == 0 && inst.rd == 0)
+                    ? vs.vl            // keep current vl
+                    : (inst.rs1 == 0)
+                    ? ~u32{0}          // set vl=VLMAX 
+                    : rs1;
+            
+            u32 new_vl = vs.vsetvli(avl, static_cast<u32>(inst.imm));
+            set_reg(inst.rd, new_vl);
+            result.rd_value = new_vl;
+            break;
+        }
+        case Op::VSETIVLI: {
+            u32 avl = inst.rs1;
+            u32 new_vl = vs.vsetvli(avl, static_cast<u32>(inst.imm));
+            set_reg(inst.rd, new_vl);
+            result.rd_value = new_vl;
+            break;
+        }
+        
+        /* Vector load (unit-stride, SEW=32) */
+        case Op::VLE32: {
+            addr_t base = rs1;
+            for (u32 i = 0; i < vl; ++i) {
+                auto r = memory_.read32(base + i * 4);
+                if (!r.ok) { result.ok = false; return result; }
+                vs.regs.set_elem32(inst.rd, i, r.value);
+            }
+            result.cycles = vl;  /* 1 cycle per element */
+            break;
+        }
+
+        /* Vector store (unit-stride, SEW=32) */
+        case Op::VSE32: {
+            addr_t base = rs1;
+            for (u32 i = 0; i < vl; ++i) {
+                u32 val = vs.regs.get_elem32(inst.rd, i);
+                auto r = memory_.write32(base + i * 4, val);
+                if (!r.ok) { result.ok = false; return result; }
+            }
+            result.cycles = vl;
+            break;
+        }
+
+        /* Arithmetic VV */
+        case Op::VADD_VV:
+            for (u32 i = 0; i < vl; ++i)
+                vs.regs.set_elem32(inst.rd, i,
+                                   vs.regs.get_elem32(inst.rs2, i) + vs.regs.get_elem32(inst.rs1, i));
+            break;
+        case Op::VSUB_VV:
+            for (u32 i = 0; i < vl; ++i)
+                vs.regs.set_elem32(inst.rd, i,
+                                   vs.regs.get_elem32(inst.rs2, i) - vs.regs.get_elem32(inst.rs1, i));
+            break;
+        case Op::VAND_VV:
+            for (u32 i = 0; i < vl; ++i)
+                vs.regs.set_elem32(inst.rd, i,
+                                   vs.regs.get_elem32(inst.rs2, i) & vs.regs.get_elem32(inst.rs1, i));
+            break;
+        case Op::VOR_VV:
+            for (u32 i = 0; i < vl; ++i)
+                vs.regs.set_elem32(inst.rd, i,
+                                   vs.regs.get_elem32(inst.rs2, i) | vs.regs.get_elem32(inst.rs1, i));
+            break;
+        case Op::VXOR_VV:
+            for (u32 i = 0; i < vl; ++i)
+                vs.regs.set_elem32(inst.rd, i,
+                                   vs.regs.get_elem32(inst.rs2, i) ^ vs.regs.get_elem32(inst.rs1, i));
+            break;
+
+        /* Arithmetic VX (scalar broadcast) */
+        case Op::VADD_VX:
+            for (u32 i = 0; i < vl; ++i)
+                vs.regs.set_elem32(inst.rd, i,
+                                   vs.regs.get_elem32(inst.rs2, i) + rs1);
+            break;
+        case Op::VSUB_VX:
+            for (u32 i = 0; i < vl; ++i)
+                vs.regs.set_elem32(inst.rd, i,
+                                   vs.regs.get_elem32(inst.rs2, i) - rs1);
+            break;
+        case Op::VAND_VX:
+            for (u32 i = 0; i < vl; ++i)
+                vs.regs.set_elem32(inst.rd, i,
+                                   vs.regs.get_elem32(inst.rs2, i) & rs1);
+            break;
+        case Op::VOR_VX:
+            for (u32 i = 0; i < vl; ++i)
+                vs.regs.set_elem32(inst.rd, i,
+                                   vs.regs.get_elem32(inst.rs2, i) | rs1);
+            break;
+        case Op::VXOR_VX:
+            for (u32 i = 0; i < vl; ++i)
+                vs.regs.set_elem32(inst.rd, i,
+                                   vs.regs.get_elem32(inst.rs2, i) ^ rs1);
+            break;
+        case Op::VSLL_VX:
+            for (u32 i = 0; i < vl; ++i)
+                vs.regs.set_elem32(inst.rd, i,
+                                   vs.regs.get_elem32(inst.rs2, i) << (rs1 & 0x1F));
+            break;
+        case Op::VSRL_VX:
+            for (u32 i = 0; i < vl; ++i)
+                vs.regs.set_elem32(inst.rd, i,
+                                   vs.regs.get_elem32(inst.rs2, i) >> (rs1 & 0x1F));
+            break;
+
+        /* Comparisons (write mask to vd) */
+        case Op::VMSEQ_VV:
+            for (u32 i = 0; i < vl; ++i)
+                vs.regs.set_mask_bit(i,
+                                     vs.regs.get_elem32(inst.rs2, i) == vs.regs.get_elem32(inst.rs1, i));
+            break;
+        case Op::VMSEQ_VX:
+            for (u32 i = 0; i < vl; ++i)
+                vs.regs.set_mask_bit(i,
+                                     vs.regs.get_elem32(inst.rs2, i) == rs1);
+            break;
+        case Op::VMSLT_VV:
+            for (u32 i = 0; i < vl; ++i)
+                vs.regs.set_mask_bit(i,
+                                     static_cast<i32>(vs.regs.get_elem32(inst.rs2, i)) <
+                                     static_cast<i32>(vs.regs.get_elem32(inst.rs1, i)));
+            break;
+        case Op::VMSLTU_VV:
+            for (u32 i = 0; i < vl; ++i)
+                vs.regs.set_mask_bit(i,
+                                     vs.regs.get_elem32(inst.rs2, i) < vs.regs.get_elem32(inst.rs1, i));
+            break;
+
+        /* Mask operations */
+        case Op::VMAND_MM:
+            for (u32 i = 0; i < vl; ++i) {
+                u32 b2 = vs.regs.get_elem32(inst.rs2, i / 32);
+                u32 b1 = vs.regs.get_elem32(inst.rs1, i / 32);
+                bool bit2 = (b2 >> (i % 32)) & 1;
+                bool bit1 = (b1 >> (i % 32)) & 1;
+                vs.regs.set_mask_bit(i, bit2 & bit1);
+            }
+            break;
+        case Op::VMOR_MM:
+            for (u32 i = 0; i < vl; ++i) {
+                u32 b2 = vs.regs.get_elem32(inst.rs2, i / 32);
+                u32 b1 = vs.regs.get_elem32(inst.rs1, i / 32);
+                bool bit2 = (b2 >> (i % 32)) & 1;
+                bool bit1 = (b1 >> (i % 32)) & 1;
+                vs.regs.set_mask_bit(i, bit2 | bit1);
+            }
+            break;
+        case Op::VMNOT_M:
+            for (u32 i = 0; i < vl; ++i)
+                vs.regs.set_mask_bit(i, !vs.regs.get_mask_bit(i));
+            break;
+
+        /* Reduction */
+        case Op::VREDSUM_VS: {
+            /* vd[0] = vs1[0] + sum(vs2[0..vl-1]) */
+            u32 acc = vs.regs.get_elem32(inst.rs1, 0);
+            for (u32 i = 0; i < vl; ++i)
+                acc += vs.regs.get_elem32(inst.rs2, i);
+            vs.regs.set_elem32(inst.rd, 0, acc);
+            break;
+        }
+
+        /* Move */
+        case Op::VMV_V_X:
+            /* Splat scalar rs1 to all elements of vd */
+            for (u32 i = 0; i < vl; ++i)
+                vs.regs.set_elem32(inst.rd, i, rs1);
+            break;
+        case Op::VMV_X_S:
+            /* Extract element 0 of vs2 into scalar rd */
+            set_reg(inst.rd, vs.regs.get_elem32(inst.rs2, 0));
+            result.rd_value = regs_[inst.rd];
+            break;
+
+        default:
+            result.ok = false;
+            break;
+    }
+
+    if (result.ok) {
         stats_.instructions++;
         stats_.cycles += result.cycles;
     }
