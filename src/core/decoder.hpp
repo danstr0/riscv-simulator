@@ -11,7 +11,7 @@
  * 3. **Immediate Reconstruction:** Bit-shuffling is performed according to the
  * instruction format to produce a sign-extended 32-bit immediate.
  *
- * @see RISC-V Unprivileged ISA Specification §2.1, §12.1.
+ * @see RISC-V Unprivileged ISA Specification §2.1, §12.1, §13.1, §30.1.
  */
 
 #pragma once
@@ -41,6 +41,9 @@ enum class Opcode : u8 {
     JALR      = 0b1100111,  ///< JALR
     JAL       = 0b1101111,  ///< JAL
     SYSTEM    = 0b1110011,  ///< ECALL, EBREAK
+    VL        = 0b0000111,  ///< Vector loads (VLE32, etc.)	
+    VS        = 0b0100111,  ///< Vector stores (VSE32, etc.)
+    OP_V      = 0b1010111,  ///< Vector ALU + VSETVLI
 };
 
 /**
@@ -76,17 +79,39 @@ enum class Op : u8 {
     DIV, DIVU, REM, REMU,
 
     /* RV32A atomic memory operations (R-type) */
-    LR_W,
-    SC_W,
-    AMOSWAP_W,
-    AMOADD_W,
-    AMOXOR_W,
-    AMOAND_W,
-    AMOOR_W,
-    AMOMIN_W,
-    AMOMAX_W,
-    AMOMINU_W,
-    AMOMAXU_W,
+    LR_W,       ///< Load-reserved word
+    SC_W,       ///< Store-conditional word
+    AMOSWAP_W,  ///< Atomic swap
+    AMOADD_W,   ///< Atomic add
+    AMOXOR_W,   ///< Atomic XOR
+    AMOAND_W,   ///< Atomic AND
+    AMOOR_W,    ///< Atomic OR 
+    AMOMIN_W,   ///< Atomic signed minimum
+    AMOMAX_W,   ///< Atomic signed maximum
+    AMOMINU_W,  ///< Atomic unsigned minimum
+    AMOMAXU_W,  ///< Atomic unsigned maximum
+
+    /* RVV vector extension subset (opcode = 1010111 for ALU, 0000111/0100111 for load/store) */
+    VSETVLI,             ///< Set vector length (immediate vtype)
+    VSETIVLI,            ///< Set vector length (immediate AVL + vtype)
+    VLE32,               ///< Vector load, 32-bit elements, unit-stride
+    VSE32,               ///< Vector store, 32-bit elements, unit-stride
+    VADD_VV, VADD_VX,    ///< Vector add
+    VSUB_VV, VSUB_VX,    ///< Vector subtract
+    VAND_VV, VAND_VX,    ///< Vector AND
+    VOR_VV,  VOR_VX,     ///< Vector OR
+    VXOR_VV, VXOR_VX,    ///< Vector XOR
+    VSLL_VX,             ///< Vector shift left by scalar
+    VSRL_VX,             ///< Vector shift right by scalar
+    VMSEQ_VV, VMSEQ_VX,  ///< Set mask if equal
+    VMSLT_VV,            ///< Set mask if less-than (signed)
+    VMSLTU_VV,           ///< Set mask if less-than (unsigned)
+    VMAND_MM,            ///< Mask AND
+    VMOR_MM,             ///< Mask OR
+    VMNOT_M,             ///< Mask NOT (pseudo: vmnand.mm vd, vs, vs)
+    VREDSUM_VS,          ///< Reduction: sum
+    VMV_V_X,             ///< Splat scalar to vector
+    VMV_X_S,             ///< Extract element 0 to scalar
 
     /* System / synchronization */
     FENCE,
@@ -170,6 +195,7 @@ struct DecodedInst {
     [[nodiscard]] constexpr bool is_branch() const noexcept { return op >= Op::BEQ && op <= Op::BGEU; }
     [[nodiscard]] constexpr bool is_jump()   const noexcept { return op == Op::JAL || op == Op::JALR; }
     [[nodiscard]] constexpr bool is_atomic() const noexcept { return op >= Op::LR_W && op <= Op::AMOMAXU_W; }
+    [[nodiscard]] constexpr bool is_vector() const noexcept { return op >= Op::VSETVLI && op <= Op::VMV_X_S; }
 
     /** @brief Generates standard RISC-V assembly string (e.g., "addi a0, sp, 16"). */
     [[nodiscard]] std::string disassemble() const;
@@ -202,6 +228,7 @@ private:
     static DecodedInst decode_op_imm(u32 inst, addr_t pc);
     static DecodedInst decode_op(u32 inst, addr_t pc);
     static DecodedInst decode_amo(u32 inst, addr_t pc);
+    static DecodedInst decode_vector(u32 inst, addr_t pc);
     static DecodedInst decode_system(u32 inst, addr_t pc);
     
     /**

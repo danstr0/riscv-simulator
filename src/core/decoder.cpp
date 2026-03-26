@@ -87,6 +87,33 @@ const char* op_name(Op op) {
         case Op::AMOMINU_W: return "amominu.w";
         case Op::AMOMAXU_W: return "amomaxu.w";
 
+        case Op::VSETVLI:    return "vsetvli";
+        case Op::VSETIVLI:   return "vsetivli";
+        case Op::VLE32:      return "vle32.v";
+        case Op::VSE32:      return "vse32.v";
+        case Op::VADD_VV:    return "vadd.vv";
+        case Op::VADD_VX:    return "vadd.vx";
+        case Op::VSUB_VV:    return "vsub.vv";
+        case Op::VSUB_VX:    return "vsub.vx";
+        case Op::VAND_VV:    return "vand.vv";
+        case Op::VAND_VX:    return "vand.vx";
+        case Op::VOR_VV:     return "vor.vv";
+        case Op::VOR_VX:     return "vor.vx";
+        case Op::VXOR_VV:    return "vxor.vv";
+        case Op::VXOR_VX:    return "vxor.vx";
+        case Op::VSLL_VX:    return "vsll.vx";
+        case Op::VSRL_VX:    return "vsrl.vx";
+        case Op::VMSEQ_VV:   return "vmseq.vv";
+        case Op::VMSEQ_VX:   return "vmseq.vx";
+        case Op::VMSLT_VV:   return "vmslt.vv";
+        case Op::VMSLTU_VV:  return "vmsltu.vv";
+        case Op::VMAND_MM:   return "vmand.mm";
+        case Op::VMOR_MM:    return "vmor.mm";
+        case Op::VMNOT_M:    return "vmnot.m";
+        case Op::VREDSUM_VS: return "vredsum.vs";
+        case Op::VMV_V_X:    return "vmv.v.x";
+        case Op::VMV_X_S:    return "vmv.x.s";
+
         case Op::FENCE:   return "fence";
         case Op::ECALL:   return "ecall";
         case Op::EBREAK:  return "ebreak";
@@ -103,7 +130,7 @@ std::string DecodedInst::disassemble() const
 {
     switch(format) {
         case Format::R:
-            if (is_atomic() && op == Op::LR_W) {
+            if (is_atomic()) {
                 if (op == Op::LR_W) {
                     return std::format("{} {}, ({})",
                             op_name(op), reg_name(rd), reg_name(rs1));
@@ -391,6 +418,104 @@ DecodedInst Decoder::decode_amo(u32 inst, addr_t pc)
     return d;
 }
 
+DecodedInst Decoder::decode_vector(u32 inst, addr_t pc)
+{
+    DecodedInst d;
+    d.format = Format::R;
+    d.raw    = inst;
+    d.pc     = pc;
+    d.rd     = bits(inst, 11, 7);   /* vd (or rd for VMV.X.S / VSETVLI) */
+    d.rs1    = bits(inst, 19, 15);  /* vs1 or rs1 */
+    d.rs2    = bits(inst, 24, 20);  /* vs2 or rs2 */
+
+    u32 opcode = bits(inst, 6, 0);
+    u32 funct3 = bits(inst, 14, 12);
+    u32 funct6 = bits(inst, 31, 26);
+
+    /* Vector load (opcode = 0000111) */
+    if (opcode == 0b0000111) {
+        /* 
+         * Unit-stride load: width in funct3, nf|mew|mop|vm|lumop in upper bits
+         * Only VLE32 (funct3 = 110, width = 32) is supported
+         */
+        if (funct3 == 0b110 && d.rs2 == 0b00000)
+            d.op = Op::VLE32;
+        else
+            d.op = Op::INVALID;
+        return d;
+    }
+
+    /* Vector store (opcode = 0100111) */
+    if (opcode == 0b0100111) {
+        if (funct3 == 0b110 && d.rs2 == 0b00000)
+            d.op = Op::VSE32;
+        else
+            d.op = Op::INVALID;
+        return d;
+    }
+
+    /* OP-V (opcode = 1010111) */
+
+    if (funct3 == 0b111 && bit(inst, 31) == 0) {
+        d.op  = Op::VSETVLI;
+        d.imm = bits(inst, 30, 20);  /* zimm[10:0] encodes type */
+        return d;
+    }
+    if (funct3 == 0b111 && bits(inst, 31, 30) == 0b11) {
+        d.op  = Op::VSETIVLI;
+        d.imm = bits(inst, 29, 20); /* zimm[9:0] encodes type */
+        return d;
+    }
+    /* Vector ALU */
+    switch(funct3) {
+        case 0b000:  /* OPIVV: vector-vector integer */
+            switch (funct6) {
+                case 0b000000: d.op = Op::VADD_VV;   break;
+                case 0b000010: d.op = Op::VSUB_VV;   break;
+                case 0b001001: d.op = Op::VAND_VV;   break;
+                case 0b001010: d.op = Op::VOR_VV;    break;
+                case 0b001011: d.op = Op::VXOR_VV;   break;
+                case 0b011000: d.op = Op::VMSEQ_VV;  break;
+                case 0b011011: d.op = Op::VMSLT_VV;  break;
+                case 0b011010: d.op = Op::VMSLTU_VV; break;
+                default:       d.op = Op::INVALID;   break;
+            }
+            break;
+
+        case 0b100:  /* OPIVX: vector-scalar integer */
+            switch (funct6) {
+                case 0b000000: d.op = Op::VADD_VX;  break;
+                case 0b000010: d.op = Op::VSUB_VX;  break;
+                case 0b001001: d.op = Op::VAND_VX;  break;
+                case 0b001010: d.op = Op::VOR_VX;   break;
+                case 0b001011: d.op = Op::VXOR_VX;  break;
+                case 0b100101: d.op = Op::VSLL_VX;  break;
+                case 0b101000: d.op = Op::VSRL_VX;  break;
+                case 0b011000: d.op = Op::VMSEQ_VX; break;
+                case 0b010111: d.op = (d.rs2 == 0) ? Op::VMV_V_X : Op::INVALID; break;
+                default:       d.op = Op::INVALID;  break;
+            }
+            break;
+        
+        case 0b010:  /* OPMVV: vector-vector (mask/reduction/move) */
+            switch (funct6) {
+                case 0b000000: d.op = Op::VREDSUM_VS; break;
+                case 0b011001: d.op = Op::VMAND_MM;   break;
+                case 0b011010: d.op = Op::VMOR_MM;    break;
+                case 0b011110: d.op = Op::VMNOT_M;    break;
+                case 0b010000: d.op = (d.rs1 == 0) ? Op::VMV_X_S : Op::INVALID; break;
+                default:       d.op = Op::INVALID;    break;
+            }
+            break;
+
+        default:
+            d.op = Op::INVALID;
+            break;
+    }
+
+    return d;
+}
+
 DecodedInst Decoder::decode_system(u32 inst, addr_t pc)
 {
     DecodedInst d;
@@ -465,6 +590,11 @@ DecodedInst Decoder::decode(u32 inst, addr_t pc)
             d.rs1    = bits(inst, 19, 15);
             d.imm    = extract_i_imm(inst);
             return d;
+
+        case Opcode::VL:
+        case Opcode::VS:
+        case Opcode::OP_V:
+            return decode_vector(inst, pc);
 
         default:
             d.op = Op::INVALID;
