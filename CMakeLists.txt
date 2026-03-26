@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(rvsim
-    VERSION     0.1.2
+    VERSION     0.1.3
     LANGUAGES   CXX
     DESCRIPTION "RV32I CPU architecture engine"
 )
@@ -99,6 +99,7 @@ add_executable(rvsim_tests
     test/test_pipeline.cpp
     test/test_rv32m.cpp
     test/test_rv32a.cpp
+    test/test_rvv.cpp
 )
  
 target_link_libraries(rvsim_tests PRIVATE rvsim_core)
