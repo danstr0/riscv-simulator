@@ -2,10 +2,10 @@
  * @file pipeline.hpp
  * @brief Cycle-accurate 5-stage in-order RISC-V pipeline simulator.
  *
- * This implements a classic RISC-V integer pipeline (RV32I) designed
- * for architectural exploration. It features a synchronous "next-state"
- * evaluation model where pipeline registers are updated atomically at
- * the end of every clock cycle. 
+ * This implements a classic RISC-V pipeline designed for architectural
+ * exploration. It features a synchronous "next-state" evaluation model
+ * where pipeline registers are updated atomically at the end of every 
+ * clock cycle. 
  *
  * @section hazard_handling Hazard Resolution
  * - **Data Hazards (RAW)**: Resolved via configurable forwarding paths
@@ -30,6 +30,7 @@
 #include "decoder.hpp"
 #include "memory.hpp"
 #include "types.hpp"
+#include "vector_state.hpp"
 
 #include <array>
 #include <cstdint>
@@ -243,6 +244,10 @@ public:
     [[nodiscard]] Memory& memory() noexcept { return *memory_; }
     /** @} */
 
+    /** @brief Access the vector unit state. */
+    [[nodiscard]] const VectorState& vstate() const noexcept { return vstate_; }
+    [[nodiscard]]       VectorState& vstate()       noexcept { return vstate_; } 
+
 private:
     std::shared_ptr<Memory> memory_;
     PipelineConfig          config_;
@@ -259,8 +264,11 @@ private:
     mutable PipelineStats stats_{};
     bool                  trace_ = false;
 
-    /// LR/SC reservation
+    /** @brief LR/SC reservation. */
     std::optional<addr_t> reservation_;
+
+    /** @brief Vector unit state. */
+    VectorState vstate_;
 
     /** @name Branch prediction state */
     /** @{ */

@@ -13,13 +13,14 @@
  * The caller is responsible for updating the PC using @ref ExecuteResult.next_pc.
  * - **Register x0:** Rigorously maintained as 0. Writes to index 0 are discarded.
  *
- * @note Reference: RISC-V Unprivileged ISA Specification v20260120, §2.1, §12.1.
+ * @note Reference: RISC-V Unprivileged ISA Specification v20260120, §2.1, §12.1, §13.1, §30.1.
  */
 
 #pragma once
 
 #include "decoder.hpp"
 #include "memory.hpp"
+#include "vector_state.hpp"
 
 #include <array>
 #include <limits>
@@ -117,6 +118,10 @@ public:
     [[nodiscard]] CpuStats&       stats()       noexcept { return stats_; }
     /** @} */
 
+    /** @brief Access the vector unit state. */
+    [[nodiscard]] const VectorState& vstate() const noexcept { return vstate_; }
+    [[nodiscard]]       VectorState& vstate()       noexcept { return vstate_; }
+
     /** @brief Resets the architectural state and statistics. */
     void reset();
 
@@ -134,6 +139,12 @@ private:
      * or any store to the reserved address.
      */
     std::optional<addr_t> reservation_;
+
+    /** @brief Vector unit state. */
+    VectorState vstate_;
+
+    /** @brief Vector execution helper */
+    ExecuteResult execute_vector(const DecodedInst& inst, u32 rs1_val, u32 rs2_val);
 
     /** @name Internal ALU operations */
     /** @{ */
