@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(rvsim
-    VERSION     0.2.2
+    VERSION     0.2.3
     LANGUAGES   CXX
     DESCRIPTION "RV32I CPU architecture engine"
 )
@@ -72,6 +72,7 @@ add_library(rvsim_core STATIC
     src/core/pipeline.cpp
     src/core/plic.cpp
     src/core/timer.cpp
+    src/core/nic.cpp
 )
 
 target_include_directories(rvsim_core PUBLIC src)
@@ -104,6 +105,7 @@ add_executable(rvsim_tests
     test/test_rvv.cpp
     test/test_plic.cpp
     test/test_timer.cpp
+    test/test_nic.cpp
 )
  
 target_link_libraries(rvsim_tests PRIVATE rvsim_core)
@@ -114,7 +116,7 @@ add_custom_target(check
     COMMAND rvsim_tests
     DEPENDS rvsim_tests
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-    COMMENT "Running RV32I simulator tests"
+    COMMENT "Running RISC-V simulator tests"
 )
 
 # ── Benchmarks ──────────────────────────────────────────────────────────
