@@ -11,7 +11,7 @@
  * 3. **Immediate Reconstruction:** Bit-shuffling is performed according to the
  * instruction format to produce a sign-extended 32-bit immediate.
  *
- * @see RISC-V Unprivileged ISA Specification §2.1, §12.1, §13.1, §30.1.
+ * @see RISC-V Unprivileged ISA Specification §2.1, §6.1.1, §12.1, §13.1, §30.1.
  */
 
 #pragma once
@@ -117,6 +117,17 @@ enum class Op : u8 {
     FENCE,
     ECALL,
     EBREAK,
+
+    /* CSR access */
+    CSRRW,   ///< Atomic read/write CSR
+    CSRRS,   ///< Atomic read and set bits
+    CSRRC,   ///< Atomic read and clear bits
+    CSRRWI,  ///< Immediate variant of CSRRW
+    CSRRSI,  ///< Immediate variant of CSRRS
+    CSRRCI,  ///< Immediate variant of CSRRC
+
+    /* Trap return */
+    MRET,    ///< Return from machine-mode trap
 
     /** Sentinel for unrecognized or malformed instructions. */
     INVALID,
