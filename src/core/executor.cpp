@@ -24,6 +24,7 @@ void Executor::reset()
     pc_ = 0;
     reservation_.reset();
     vstate_.reset();
+    csrs_.reset();
     stats_.reset();
 }
 
@@ -286,6 +287,75 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
         case Op::ECALL:  result.ecall = true; break;
         case Op::EBREAK: result.ebreak = true; break;
         case Op::FENCE:  break;  // NOP in single-threaded context
+
+        /* CSR instructions */
+        case Op::CSRRW: {
+            u32 csr_addr = static_cast<u32>(inst.imm) & 0xFFF;
+            u32 old_val = csrs_.read(csr_addr);
+            csrs_.write(csr_addr, rs1);
+
+            set_reg(inst.rd, old_val);
+            result.rd_value = old_val;
+            break;
+        }
+        case Op::CSRRS: {
+            u32 csr_addr = static_cast<u32>(inst.imm) & 0xFFF;
+            u32 old_val = csrs_.read(csr_addr);
+            if (inst.rs1 != 0)
+                csrs_.write(csr_addr, old_val | rs1);
+
+            set_reg(inst.rd, old_val);
+            result.rd_value = old_val;
+            break;
+        }
+        case Op::CSRRC: {
+            u32 csr_addr = static_cast<u32>(inst.imm) & 0xFFF;
+            u32 old_val = csrs_.read(csr_addr);
+            if (inst.rs1 != 0)
+                csrs_.write(csr_addr, old_val & ~rs1);
+
+            set_reg(inst.rd, old_val);
+            result.rd_value = old_val;
+            break;
+        }
+        case Op::CSRRWI: {
+            u32 csr_addr = static_cast<u32>(inst.imm) & 0xFFF;
+            u32 zimm = inst.rs1;
+            u32 old_val = csrs_.read(csr_addr);
+            csrs_.write(csr_addr, zimm);
+
+            set_reg(inst.rd, old_val);
+            result.rd_value = old_val;
+            break;
+        }
+        case Op::CSRRSI: {
+            u32 csr_addr = static_cast<u32>(inst.imm) & 0xFFF;
+            u32 zimm = inst.rs1;
+            u32 old_val = csrs_.read(csr_addr);
+            if (zimm != 0)
+                csrs_.write(csr_addr, old_val | zimm);
+
+            set_reg(inst.rd, old_val);
+            result.rd_value = old_val;
+            break;
+        }
+        case Op::CSRRCI: {
+            u32 csr_addr = static_cast<u32>(inst.imm) & 0xFFF;
+            u32 zimm = inst.rs1;
+            u32 old_val = csrs_.read(csr_addr);
+            if (zimm != 0)
+                csrs_.write(csr_addr, old_val & ~zimm);
+
+            set_reg(inst.rd, old_val);
+            result.rd_value = old_val;
+            break;
+        }
+
+        /* MRET: return from trap */
+        case Op::MRET: {
+            result.next_pc = csrs_.mret();
+            break;
+        }
 
         /* RVV vector operations */
         case Op::VSETVLI:  case Op::VSETIVLI:

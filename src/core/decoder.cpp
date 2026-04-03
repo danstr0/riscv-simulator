@@ -23,69 +23,69 @@ namespace riscv {
 
 const char* op_name(Op op) {
     switch (op) {
-        case Op::LB:  return "lb";
-        case Op::LH:  return "lh";
-        case Op::LW:  return "lw";
-        case Op::LBU: return "lbu";
-        case Op::LHU: return "lhu";
-        case Op::SB:  return "sb";
-        case Op::SH:  return "sh";
-        case Op::SW:  return "sw";
+        case Op::LB:         return "lb";
+        case Op::LH:         return "lh";
+        case Op::LW:         return "lw";
+        case Op::LBU:        return "lbu";
+        case Op::LHU:        return "lhu";
+        case Op::SB:         return "sb";
+        case Op::SH:         return "sh";
+        case Op::SW:         return "sw";
 
-        case Op::BEQ:  return "beq";
-        case Op::BNE:  return "bne";
-        case Op::BLT:  return "blt";
-        case Op::BGE:  return "bge";
-        case Op::BLTU: return "bltu";
-        case Op::BGEU: return "bgeu";
+        case Op::BEQ:        return "beq";
+        case Op::BNE:        return "bne";
+        case Op::BLT:        return "blt";
+        case Op::BGE:        return "bge";
+        case Op::BLTU:       return "bltu";
+        case Op::BGEU:       return "bgeu";
 
-        case Op::JAL:  return "jal";
-        case Op::JALR: return "jalr";
+        case Op::JAL:        return "jal";
+        case Op::JALR:       return "jalr";
 
-        case Op::LUI:   return "lui";
-        case Op::AUIPC: return "auipc";
+        case Op::LUI:        return "lui";
+        case Op::AUIPC:      return "auipc";
 
-        case Op::ADDI:  return "addi";
-        case Op::SLTI:  return "slti";
-        case Op::SLTIU: return "sltiu";
-        case Op::XORI:  return "xori";
-        case Op::ORI:   return "ori";
-        case Op::ANDI:  return "andi";
-        case Op::SLLI:  return "slli";
-        case Op::SRLI:  return "srli";
-        case Op::SRAI:  return "srai";
+        case Op::ADDI:       return "addi";
+        case Op::SLTI:       return "slti";
+        case Op::SLTIU:      return "sltiu";
+        case Op::XORI:       return "xori";
+        case Op::ORI:        return "ori";
+        case Op::ANDI:       return "andi";
+        case Op::SLLI:       return "slli";
+        case Op::SRLI:       return "srli";
+        case Op::SRAI:       return "srai";
 
-        case Op::ADD:  return "add";
-        case Op::SUB:  return "sub";
-        case Op::SLL:  return "sll";
-        case Op::SLT:  return "slt";
-        case Op::SLTU: return "sltu";
-        case Op::XOR:  return "xor";
-        case Op::SRL:  return "srl";
-        case Op::SRA:  return "sra";
-        case Op::OR:   return "or";
-        case Op::AND:  return "and";
+        case Op::ADD:        return "add";
+        case Op::SUB:        return "sub";
+        case Op::SLL:        return "sll";
+        case Op::SLT:        return "slt";
+        case Op::SLTU:       return "sltu";
+        case Op::XOR:        return "xor";
+        case Op::SRL:        return "srl";
+        case Op::SRA:        return "sra";
+        case Op::OR:         return "or";
+        case Op::AND:        return "and";
 
-        case Op::MUL:    return "mul";
-        case Op::MULH:   return "mulh";
-        case Op::MULHSU: return "mulhsu";
-        case Op::MULHU:  return "mulhu";
-        case Op::DIV:    return "div";
-        case Op::DIVU:   return "divu";
-        case Op::REM:    return "rem";
-        case Op::REMU:   return "remu";
+        case Op::MUL:        return "mul";
+        case Op::MULH:       return "mulh";
+        case Op::MULHSU:     return "mulhsu";
+        case Op::MULHU:      return "mulhu";
+        case Op::DIV:        return "div";
+        case Op::DIVU:       return "divu";
+        case Op::REM:        return "rem";
+        case Op::REMU:       return "remu";
 
-        case Op::LR_W:      return "lr.w";
-        case Op::SC_W:      return "sc.w";
-        case Op::AMOSWAP_W: return "amoswap.w";
-        case Op::AMOADD_W:  return "amoadd.w";
-        case Op::AMOXOR_W:  return "amoxor.w";
-        case Op::AMOAND_W:  return "amoand.w";
-        case Op::AMOOR_W:   return "amoor.w";
-        case Op::AMOMIN_W:  return "amomin.w";
-        case Op::AMOMAX_W:  return "amomax.w";
-        case Op::AMOMINU_W: return "amominu.w";
-        case Op::AMOMAXU_W: return "amomaxu.w";
+        case Op::LR_W:       return "lr.w";
+        case Op::SC_W:       return "sc.w";
+        case Op::AMOSWAP_W:  return "amoswap.w";
+        case Op::AMOADD_W:   return "amoadd.w";
+        case Op::AMOXOR_W:   return "amoxor.w";
+        case Op::AMOAND_W:   return "amoand.w";
+        case Op::AMOOR_W:    return "amoor.w";
+        case Op::AMOMIN_W:   return "amomin.w";
+        case Op::AMOMAX_W:   return "amomax.w";
+        case Op::AMOMINU_W:  return "amominu.w";
+        case Op::AMOMAXU_W:  return "amomaxu.w";
 
         case Op::VSETVLI:    return "vsetvli";
         case Op::VSETIVLI:   return "vsetivli";
@@ -114,10 +114,18 @@ const char* op_name(Op op) {
         case Op::VMV_V_X:    return "vmv.v.x";
         case Op::VMV_X_S:    return "vmv.x.s";
 
-        case Op::FENCE:   return "fence";
-        case Op::ECALL:   return "ecall";
-        case Op::EBREAK:  return "ebreak";
-        case Op::INVALID: return "invalid";
+        case Op::FENCE:      return "fence";
+        case Op::ECALL:      return "ecall";
+        case Op::EBREAK:     return "ebreak";
+        case Op::CSRRW:      return "csrrw";
+        case Op::CSRRS:      return "csrrs";
+        case Op::CSRRC:      return "csrrc";
+        case Op::CSRRWI:     return "csrrwi";
+        case Op::CSRRSI:     return "csrrsi";
+        case Op::CSRRCI:     return "csrrci";
+        case Op::MRET:       return "mret";
+
+        case Op::INVALID:    return "invalid";
     }
     return "???";
 }
@@ -529,11 +537,28 @@ DecodedInst Decoder::decode_system(u32 inst, addr_t pc)
     u32 funct3 = bits(inst, 14, 12);
 
     if (funct3 == 0b000) {
-        if (inst == 0x00000073)      d.op = Op::ECALL;
-        else if (inst == 0x00100073) d.op = Op::EBREAK;
-        else                         d.op = Op::INVALID;
+        u32 funct12 = bits(inst, 31, 20);
+        u32 mret_funct12 = 0b001100000010;
+
+        if (inst == 0x00000073)           d.op = Op::ECALL;
+        else if (inst == 0x00100073)      d.op = Op::EBREAK;
+        else if (funct12 == mret_funct12 
+                && d.rd == 0 
+                && d.rs1 == 0)            d.op = Op::MRET;
+        else                              d.op = Op::INVALID;
     } else {
-        d.op = Op::INVALID;  // CSR operations not in base RV32I
+        /* CSR instructions */
+        switch (funct3) {
+            case 0b001: d.op = Op::CSRRW;   break;
+            case 0b010: d.op = Op::CSRRS;   break;
+            case 0b011: d.op = Op::CSRRC;   break;
+            case 0b101: d.op = Op::CSRRWI;  break;
+            case 0b110: d.op = Op::CSRRSI;  break;
+            case 0b111: d.op = Op::CSRRCI;  break;
+            default:    d.op = Op::INVALID; break;
+        }
+        /* Address is stored in imm */
+        d.imm = static_cast<i32>(bits(inst, 31, 20));
     }
     return d;
 }

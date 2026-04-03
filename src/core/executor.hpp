@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include "csr.hpp"
 #include "decoder.hpp"
 #include "memory.hpp"
 #include "vector_state.hpp"
@@ -122,6 +123,10 @@ public:
     [[nodiscard]] const VectorState& vstate() const noexcept { return vstate_; }
     [[nodiscard]]       VectorState& vstate()       noexcept { return vstate_; }
 
+    /** @brief Access the CSR file. */
+    [[nodiscard]] const CSRFile& csrs() const noexcept { return csrs_; }
+    [[nodiscard]]       CSRFile& csrs()       noexcept { return csrs_; }
+
     /** @brief Resets the architectural state and statistics. */
     void reset();
 
@@ -142,6 +147,9 @@ private:
 
     /** @brief Vector unit state. */
     VectorState vstate_;
+
+    /** @brief Machine-mode CSR file. */
+    CSRFile csrs_;
 
     /** @brief Vector execution helper */
     ExecuteResult execute_vector(const DecodedInst& inst, u32 rs1_val, u32 rs2_val);
