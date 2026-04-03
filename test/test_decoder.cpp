@@ -698,11 +698,12 @@ TEST(decode_invalid_store_funct3) {
     return true;
 }
 
-TEST(decode_csr_as_invalid) {
-    // CSR instruction (SYSTEM opcode, funct3 != 0) — not implemented,
-    // should decode as INVALID.
-    auto inst = Decoder::decode(0x300110f3);
-    ASSERT_EQ(inst.op, Op::INVALID);
+TEST(decode_csr_instruction) {
+    auto inst = Decoder::decode(0x300110f3);  // csrrw x1, mstatus, x2
+    ASSERT_EQ(inst.op, Op::CSRRW);
+    ASSERT_EQ(inst.rd, 1);
+    ASSERT_EQ(inst.rs1, 2);
+    ASSERT_EQ(inst.imm, 0x300);  // mstatus CSR address
     return true;
 }
 
