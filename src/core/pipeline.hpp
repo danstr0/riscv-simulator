@@ -27,6 +27,7 @@
 
 #pragma once
 
+#include "csr.hpp"
 #include "decoder.hpp"
 #include "memory.hpp"
 #include "types.hpp"
@@ -248,6 +249,10 @@ public:
     [[nodiscard]] const VectorState& vstate() const noexcept { return vstate_; }
     [[nodiscard]]       VectorState& vstate()       noexcept { return vstate_; } 
 
+    /** @brief Access the CSR file. */
+    [[nodiscard]] const CSRFile& csrs() const noexcept { return csrs_; }
+    [[nodiscard]]       CSRFile& csrs()       noexcept { return csrs_; }
+
 private:
     std::shared_ptr<Memory> memory_;
     PipelineConfig          config_;
@@ -269,6 +274,9 @@ private:
 
     /** @brief Vector unit state. */
     VectorState vstate_;
+
+    /** @brief Machine-mode CSR file. */
+    CSRFile csrs_;
 
     /** @name Branch prediction state */
     /** @{ */

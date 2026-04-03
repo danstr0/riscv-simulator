@@ -43,6 +43,7 @@ void PipelinedCPU::reset()
     flush_pipeline_ = false;
     reservation_.reset();
     vstate_.reset();
+    csrs_.reset();
     stats_.reset();
     std::fill(bht_.begin(), bht_.end(), u8{0});
 }
@@ -98,6 +99,24 @@ bool PipelinedCPU::tick()
                 regs_[wb.inst.rd] = wb.rd_val;
 
             stats_.instructions_retired++;
+        }
+    }
+
+    /* 2b. Check for pending interrupts */
+    if (csrs_.interrupt_pending() && !flush_pipeline_) {
+        u32 cause = csrs_.pending_cause();
+        if (cause != 0) {
+            addr_t trap_pc = pc_;
+
+            for (int i = kNumStages - 1; i >= 0; --i) {
+                if (cur[i].valid) {
+                    trap_pc = cur[i].pc;
+                    break;
+                }
+            }
+            csrs_.enter_trap(trap_pc, cause);
+            flush_pipeline_ = true;
+            flush_target_ = csrs_.mtvec();
         }
     }
 
@@ -607,6 +626,83 @@ bool PipelinedCPU::tick()
                 /* System */
                 case Op::FENCE: case Op::ECALL: case Op::EBREAK:
                     break;
+
+                /* CSR instructions */
+                case Op::CSRRW: {
+                    u32 csr_addr = static_cast<u32>(inst.imm) & 0xFFF;
+                    u32 old_val = csrs_.read(csr_addr);
+                    csrs_.write(csr_addr, rs1);
+                    
+                    mem_out.alu_result = old_val;
+                    mem_out.rd_val     = old_val;
+                    mem_out.reg_write  = (inst.rd != 0);
+                    break;
+                }
+                case Op::CSRRS: {
+                    u32 csr_addr = static_cast<u32>(inst.imm) & 0xFFF;
+                    u32 old_val = csrs_.read(csr_addr);
+                    if (inst.rs1 != 0)
+                        csrs_.write(csr_addr, old_val | rs1);
+
+                    mem_out.alu_result = old_val;
+                    mem_out.rd_val     = old_val;
+                    mem_out.reg_write  = (inst.rd != 0);
+                    break;
+                }
+                case Op::CSRRC: {
+                    u32 csr_addr = static_cast<u32>(inst.imm) & 0xFFF;
+                    u32 old_val = csrs_.read(csr_addr);
+                    if (inst.rs1 != 0)
+                        csrs_.write(csr_addr, old_val & ~rs1);
+
+                    mem_out.alu_result = old_val;
+                    mem_out.rd_val     = old_val;
+                    mem_out.reg_write  = (inst.rd != 0);
+                    break;
+                }
+                case Op::CSRRWI: {
+                    u32 csr_addr = static_cast<u32>(inst.imm) & 0xFFF;
+                    u32 zimm = inst.rs1;
+                    u32 old_val = csrs_.read(csr_addr);
+                    csrs_.write(csr_addr, zimm);
+
+                    mem_out.alu_result = old_val;
+                    mem_out.rd_val     = old_val;
+                    mem_out.reg_write  = (inst.rd != 0);
+                    break;
+                }
+                case Op::CSRRSI: {
+                    u32 csr_addr = static_cast<u32>(inst.imm) & 0xFFF;
+                    u32 zimm = inst.rs1;
+                    u32 old_val = csrs_.read(csr_addr);
+                    if (zimm != 0)
+                        csrs_.write(csr_addr, old_val | zimm);
+
+                    mem_out.alu_result = old_val;
+                    mem_out.rd_val     = old_val;
+                    mem_out.reg_write  = (inst.rd != 0);
+                    break;
+                }
+                case Op::CSRRCI: {
+                    u32 csr_addr = static_cast<u32>(inst.imm) & 0xFFF;
+                    u32 zimm = inst.rs1;
+                    u32 old_val = csrs_.read(csr_addr);
+                    if (zimm != 0)
+                        csrs_.write(csr_addr, old_val & ~zimm);
+
+                    mem_out.alu_result = old_val;
+                    mem_out.rd_val     = old_val;
+                    mem_out.reg_write  = (inst.rd != 0);
+                    break;
+                }
+
+                /* MRET: return from trap */
+                case Op::MRET: {
+                    addr_t return_pc = csrs_.mret();
+                    flush_pipeline_  = true;
+                    flush_target_    = return_pc;
+                    break;
+                }
 
                 default: break;
             }
