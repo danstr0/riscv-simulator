@@ -207,6 +207,9 @@ public:
     
     void load(addr_t addr, std::span<const u8> data) override;
     [[nodiscard]] bool valid_address(addr_t addr, size_t size = 1) const override;
+
+    u32 read_line(addr_t addr, u8* dest, u32 size) const override;
+    u32 write_line(addr_t addr, const u8* src, u32 size) override;    
     /** @} */
 
     /** @name Cache control */
@@ -218,6 +221,29 @@ public:
     void writeback_all();         ///< Flush all dirty lines WITHOUT invalidating.
     void flush(addr_t addr);      ///< Writeback + invalidate.
     void flush_all();             ///< Writeback + invalidate everything.
+    /** @} */
+
+    /** @name Coherence support */
+    /** @{ */
+
+    /** @brief Check if this cache has a copy of the line containing @p addr. */
+    [[nodiscard]] bool snoop_has_line(addr_t addr, bool* dirty = nullptr) const;
+
+    /** 
+     * @brief Supply line data to another cache (for Modified/Exclusive->Shared).
+     *
+     * Copies line data to @p dest and marks the local copy as clean (Shared).
+     *
+     * @return False if the line is not present.
+     */
+    bool snoop_share_line(addr_t addr, u8* dest, u32 size);
+
+    /**
+     * @brief Invalidate a line.
+     *
+     * If dirty, writes back to next level first.
+     */
+    void snoop_invalidate(addr_t addr);
     /** @} */
 
     /** @name Accessors */

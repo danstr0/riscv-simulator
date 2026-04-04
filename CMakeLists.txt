@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(rvsim
-    VERSION     0.2.4
+    VERSION     0.3.1
     LANGUAGES   CXX
     DESCRIPTION "RV32I CPU architecture engine"
 )
@@ -73,6 +73,7 @@ add_library(rvsim_core STATIC
     src/core/plic.cpp
     src/core/timer.cpp
     src/core/nic.cpp
+    src/core/coherence.cpp
 )
 
 target_include_directories(rvsim_core PUBLIC src)
@@ -106,6 +107,7 @@ add_executable(rvsim_tests
     test/test_plic.cpp
     test/test_timer.cpp
     test/test_nic.cpp
+    test/test_coherence.cpp
 )
  
 target_link_libraries(rvsim_tests PRIVATE rvsim_core)
