@@ -218,7 +218,7 @@ void Cache::writeback_line(u32 set_idx, u32 way)
     if (!meta.valid || !meta.dirty) return;
 
     const u8* data = line_data(set_idx, way);
-    next_level_->load(meta.line_addr, std::span<const u8>(data, config_.line_size));
+    next_level_->write_line(meta.line_addr, data, config_.line_size);
     meta.dirty = false;
 }
 
@@ -245,13 +245,7 @@ void Cache::evict_line(u32 set_idx, u32 way)
 void Cache::fetch_line(addr_t line_addr, u32 set_idx, u32 way)
 {
     u8* dest = line_data(set_idx, way);
-
-    /* Read line_size bytes from next level 
-       TODO: if next_level_ exposes a bulk-read API, use it */
-    for (u32 i = 0; i < config_.line_size; ++i) {
-        auto r = next_level_->read8(line_addr + i);
-        dest[i] = static_cast<u8>(r.value);
-    }
+    next_level_->read_line(line_addr, dest, config_.line_size);
 
     auto& meta       = sets_[set_idx][way];
     meta.valid       = true;
@@ -449,6 +443,110 @@ void Cache::load(addr_t addr, std::span<const u8> data)
 bool Cache::valid_address(addr_t addr, size_t size) const
 {
     return next_level_->valid_address(addr, size);
+}
+
+// ── Bulk line read/write ───────────────────────────────────────────────
+
+u32 Cache::read_line(addr_t addr, u8* dest, u32 size) const
+{
+    auto found = find_line(addr);
+    if (found) {
+        found->meta->last_access = access_counter_++;
+        u32 idx = index_of(addr);
+        u32 way = static_cast<u32>(found->meta - sets_[idx].data());
+        touch_way(idx, way);
+        std::memcpy(dest, found->data, std::min(size, config_.line_size));
+
+        stats_.hits++;
+        stats_.reads++;
+        stats_.total_latency += config_.hit_latency;
+        return config_.hit_latency;
+    }
+
+    stats_.misses++;
+    stats_.reads++;
+    auto& self = const_cast<Cache&>(*this);
+    auto ref = self.allocate_line(addr);
+    std::memcpy(dest, ref.data, std::min(size, config_.line_size));
+    
+    u32 latency = config_.hit_latency + config_.miss_penalty;
+    stats_.total_latency += latency;
+    return latency;
+}
+
+u32 Cache::write_line(addr_t addr, const u8* src, u32 size)
+{
+    auto found = find_line(addr);
+    u8* dest;
+    u32 latency;
+
+    if (found) {
+        stats_.hits++;
+        latency = config_.hit_latency;
+        found->meta->last_access = access_counter_++;
+
+        u32 idx = index_of(addr);
+        u32 way = static_cast<u32>(found->meta - sets_[idx].data());
+        touch_way(idx, way);
+        dest = const_cast<u8*>(found->data);
+    } else {
+        stats_.misses++;
+        auto ref = allocate_line(addr);
+        latency = config_.hit_latency + config_.miss_penalty;
+        dest = ref.data;
+    }
+
+    std::memcpy(dest, src, std::min(size, config_.line_size));
+    stats_.writes++;
+
+    if (config_.write_pol == WritePolicy::WRITE_THROUGH) {
+        next_level_->write_line(addr, src, size);
+    } else {
+        auto ref = find_line(addr);
+        if (ref) ref->meta->dirty = true;
+    }
+
+    stats_.total_latency += latency;
+    return latency;
+}
+
+// ── Coherence snoop support ─────────────────────────────────────────────
+
+bool Cache::snoop_has_line(addr_t addr, bool* dirty) const
+{
+    auto found = find_line(addr);
+    if (!found) return false;
+
+    if (dirty) *dirty = found->meta->dirty;
+    return true;
+}
+
+bool Cache::snoop_share_line(addr_t addr, u8* dest, u32 size)
+{
+    auto found = find_line(addr);
+    if (!found) return false;
+
+    std::memcpy(dest, found->data, std::min(size, config_.line_size));
+
+    if (found->meta->dirty) {
+        next_level_->write_line(found->meta->line_addr, found->data, config_.line_size);
+        found->meta->dirty = false;
+    }
+    return true;
+}
+
+void Cache::snoop_invalidate(addr_t addr)
+{
+    auto found = find_line(addr);
+    if (!found) return;
+
+    if (found->meta->dirty) {
+        u32 idx = index_of(addr);
+        u32 way = static_cast<u32>(found->meta - sets_[idx].data());
+        writeback_line(idx, way);
+    }
+    found->meta->valid = false;
+    found->meta->dirty = false;
 }
 
 // ── Cache control ──────────────────────────────────────────────────────
