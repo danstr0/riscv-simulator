@@ -29,10 +29,6 @@
 
 namespace riscv {
 
-/* ═══════════════════════════════════════════════════════════════════════
- * Memory Operation Result
- * ═══════════════════════════════════════════════════════════════════════ */
-
 /**
  * @brief Encapsulates the outcome of a memory transaction.
  * * Callers must verify @ref ok before consuming @ref value. A failure (@c ok == false)
@@ -44,10 +40,6 @@ struct [[nodiscard]] MemoryResult {
     bool ok    = true;  ///< Transaction status; false if a fault occurred.
 };
 
-/* ═══════════════════════════════════════════════════════════════════════
- * Abstract Memory Interface
- * ═══════════════════════════════════════════════════════════════════════ */
-
 /**
  * @brief Pure virtual interface for all memory-mapped entities.
  *
@@ -58,19 +50,15 @@ class Memory {
 public:
     virtual ~Memory() = default;
 
-    /**
-     * @name Read Interface
-     * @{
-     */
+    /** @name Read Interface */
+    /** @{ */
     [[nodiscard]] virtual MemoryResult read32(addr_t addr) const = 0;
     [[nodiscard]] virtual MemoryResult read16(addr_t addr) const = 0;
     [[nodiscard]] virtual MemoryResult read8(addr_t addr)  const = 0;
     /** @} */
 
-    /**
-     * @name Write Interface
-     * @{
-     */
+    /** @name Write Interface */
+    /** @{ */
     virtual MemoryResult write32(addr_t addr, u32 value) = 0;
     virtual MemoryResult write16(addr_t addr, u16 value) = 0;
     virtual MemoryResult write8(addr_t addr, u8 value)   = 0;
@@ -78,19 +66,54 @@ public:
 
     /**
      * @brief Performs a bulk binary load into memory.
-     * @param addr  Starting address for the load.
-     * @param data  Span of bytes to copy into the memory region.
+     *
+     * @param addr Starting address for the load.
+     * @param data Span of bytes to copy into the memory region.
+     * 
      * @throw std::out_of_range If the data exceeds region boundaries.
      */
     virtual void load(addr_t addr, std::span<const u8> data) = 0;
 
+    /**
+     * @brief Bulk read a cache line (avoiding per-byte stat inflation).
+     * 
+     * Default implementation falls back to byte-by-byte reads.
+     *
+     * @param addr Starting address (must be aligned to @p size).
+     * @param dest Destination buffer (must be at least @p size bytes).
+     * @param size Number of bytes to read.
+     * 
+     * @return Latency in cycles for the entire transfer.
+     */
+    virtual u32 read_line(addr_t addr, u8* dest, u32 size) const
+    {
+        u32 cycles = 0;
+        for (u32 i = 0; i < size; ++i) {
+            auto r = read8(addr + i);
+            dest[i] = static_cast<u8>(r.value);
+            cycles = std::max(cycles, r.cycles);
+        }
+        return cycles;
+    }
+
+    /**
+     * @brief Bulk write a cache line.
+     *
+     * Default implementation falls back to byte-by-byte writes.
+     */
+    virtual u32 write_line(addr_t addr, const u8* src, u32 size)
+    {
+        u32 cycles = 0;
+        for (u32 i = 0; i < size; ++i) {
+            auto r = write8(addr + i, src[i]);
+            cycles = std::max(cycles, r.cycles);
+        }
+        return cycles;
+    }
+
     /** @brief Validates if a memory range is accessible. */
     [[nodiscard]] virtual bool valid_address(addr_t addr, size_t size = 1) const = 0;
 };
-
-/* ═══════════════════════════════════════════════════════════════════════
- * Flat (contiguous) RAM
- * ═══════════════════════════════════════════════════════════════════════ */
 
 /**
  * @brief Contiguous, byte-addressable RAM region.
@@ -118,6 +141,10 @@ public:
     void load(addr_t addr, std::span<const u8> data) override;
     [[nodiscard]] bool valid_address(addr_t addr, size_t size = 1) const override;
 
+    /** @brief Single memcpy, no per-byte overhead. */
+    u32 read_line(addr_t addr, u8* dest, u32 size) const override;
+    u32 write_line(addr_t addrl, const u8* src, u32 size) override;
+
     /** @name Debug/Instrospection Helpers */
     /** @{ */
     [[nodiscard]] addr_t    base() const noexcept { return base_addr_; }
@@ -137,10 +164,6 @@ private:
         return len <= ram_.size() && offset <= ram_.size() - len;
     }
 };
-
-/* ═══════════════════════════════════════════════════════════════════════
- * MMIO Address-Space Bus
- * ═══════════════════════════════════════════════════════════════════════ */
 
 /**
  * @brief Central interconnect for the CPU address space.

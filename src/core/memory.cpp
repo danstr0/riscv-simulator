@@ -82,6 +82,22 @@ bool FlatMemory::valid_address(addr_t addr, size_t size) const
     return in_range(addr, size);
 }
 
+u32 FlatMemory::read_line(addr_t addr, u8* dest, u32 size) const
+{
+    if (!in_range(addr, size)) return 1;
+    auto offset = static_cast<size_t>(addr - base_addr_);
+    std::memcpy(dest, ram_.data() + offset, size);
+    return 1;
+}
+
+u32 FlatMemory::write_line(addr_t addr, const u8* src, u32 size)
+{
+    if (!in_range(addr, size)) return 1;
+    auto offset = static_cast<size_t>(addr - base_addr_);
+    std::memcpy(ram_.data() + offset, src, size);
+    return 1;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * MMIOBus Implementation
  * ═══════════════════════════════════════════════════════════════════════ */
