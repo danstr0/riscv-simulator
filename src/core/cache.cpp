@@ -302,10 +302,13 @@ MemoryResult Cache::read_bytes(addr_t addr, u32 size) const
         data_ptr = found->data;
     } else {
         stats_.misses++;
-        /* const_cast: allocation mutates sets_/storage_ which are mutable. */
-        auto& self = const_cast<Cache&>(*this);
+        u32 coherence_latency = 0;
+	    if (on_read_miss_)
+            coherence_latency = on_read_miss_(line_addr_of(addr));
+	
+	    auto& self = const_cast<Cache&>(*this);
         auto ref = self.allocate_line(addr);
-        latency = config_.hit_latency + config_.miss_penalty;
+        latency = config_.hit_latency + config_.miss_penalty + coherence_latency;
         u32 alloc_way = static_cast<u32>(ref.meta - sets_[index_of(addr)].data());
         touch_way(index_of(addr), alloc_way);
         data_ptr = ref.data;
@@ -334,6 +337,10 @@ MemoryResult Cache::write_bytes(addr_t addr, const u8* bytes, u32 size)
     access_counter_++;
     stats_.writes++;
 
+    u32 coherence_latency = 0;
+    if (on_write_)
+        coherence_latency = on_write_(line_addr_of(addr));
+
     /* Write-no-allocate: on a miss, write directly to next level */
     if (config_.write_alloc == WriteAllocate::NO_ALLOCATE) {
         auto found = find_line(addr);
@@ -341,7 +348,7 @@ MemoryResult Cache::write_bytes(addr_t addr, const u8* bytes, u32 size)
             stats_.misses++;
             for (u32 i = 0; i < size; ++i)
                 next_level_->write8(addr + i, bytes[i]);
-            u32 latency = config_.hit_latency + config_.miss_penalty;
+            u32 latency = config_.hit_latency + config_.miss_penalty + coherence_latency;
             stats_.total_latency += latency;
             return {0, latency, true};
         }
@@ -358,7 +365,8 @@ MemoryResult Cache::write_bytes(addr_t addr, const u8* bytes, u32 size)
         } else {
             found->meta->dirty = true;
         }
-        stats_.total_latency += config_.hit_latency;
+        u32 latency = config_.hit_latency + coherence_latency;
+        stats_.total_latency += latency;
         return {0, config_.hit_latency, true};
     }
 
@@ -393,6 +401,7 @@ MemoryResult Cache::write_bytes(addr_t addr, const u8* bytes, u32 size)
         if (ref) ref->meta->dirty = true;
     }
 
+    latency += coherence_latency;
     stats_.total_latency += latency;
     return {0, latency, true};
 }
