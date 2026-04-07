@@ -253,12 +253,29 @@ public:
     [[nodiscard]] const CacheConfig& config() const noexcept { return config_; }
     /** @} */
 
-    /// Debug dump to stdout.
+    /** @name Coherence Integration */
+    /** @{ */
+
+    /** @brief Callback invoked on a read miss, before the line is fetched. */
+    using MissCallback = std::function<u32(addr_t)>;
+
+    /** @brief Callback invoked on a write (hit or miss). */
+    using WriteCallback = std::function<u32(addr_t)>;
+
+    void set_on_read_miss(MissCallback cb) { on_read_miss_ = std::move(cb); }
+    void set_on_write(WriteCallback cb)    { on_write_ = std::move(cb); }
+    /** @} */
+
+    /** @brief Debug dump to stdout. */
     void dump() const;
 
 private:
     CacheConfig             config_;
     std::shared_ptr<Memory> next_level_;
+
+    /** @brief Coherence callbacks, set by MultiCoreCPU. */
+    MissCallback  on_read_miss_;
+    WriteCallback on_write_;
 
     /*
      * Flat storage: all line payloads in one contiguous allocation.
@@ -270,10 +287,10 @@ private:
     mutable CacheStats stats_;
     mutable u64        access_counter_ = 0;
 
-    /* Per-set FIFO counters (only used when replacement == FIFO). */
+    /** @brief Per-set FIFO counters (only used when replacement == FIFO). */
     mutable std::vector<u32> fifo_counters_;
 
-    /* Per-set PLRU tree bits (only used with replacement == PLRU) */
+    /** @brief Per-set PLRU tree bits (only used with replacement == PLRU) */
     mutable std::vector<std::vector<u8>> plru_bits_;
 
     /** @name Address decomposition */

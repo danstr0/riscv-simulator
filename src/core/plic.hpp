@@ -50,6 +50,9 @@ class PLIC : public Memory {
 public:
     PLIC() = default;
 
+    /** @brief MMIO region size (for MMIOBus mapping). */
+    static constexpr addr_t REG_SIZE = 0x200008;
+
     /** @name Memory-Mapped I/O Interface
      *
      * All PLIC registers are defined as 32-bit words. 8-bit and 16-bit
@@ -147,7 +150,6 @@ private:
     static constexpr addr_t ENABLE_BASE    = 0x002000; ///< Enable bit for source i
     static constexpr addr_t THRESHOLD_ADDR = 0x200000; ///< Hart 0 priority threshold
     static constexpr addr_t CLAIM_ADDR     = 0x200004; ///< Hart 0 claim/complete register
-    static constexpr addr_t REG_SIZE       = 0x200008;
     /** @} */
 };
 
