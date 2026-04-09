@@ -58,20 +58,20 @@ MultiCoreCPU::MultiCoreCPU(MultiCoreConfig config)
         });
     }
 
-    /* MMIO bus */
-
+    /* Create cores with per-core MMIO buses */
+    
     auto plic_mem =  std::shared_ptr<Memory>(std::shared_ptr<void>{}, &plic_);
     auto timer_mem = std::shared_ptr<Memory>(std::shared_ptr<void>{}, &timer_);
 
-    /* Create cores */
-
     cores_.reserve(config_.num_cores);
+    buses_.reserve(config_.num_cores);
     for (u32 i = 0; i < config_.num_cores; ++i) {
         auto bus = std::make_shared<MMIOBus>();
         bus->set_default(l1d_caches_[i]);
         bus->map(0x1000'0000, PLIC::REG_SIZE, plic_mem, "plic");
         bus->map(0x1000'1000, Timer::REG_SIZE, timer_mem, "timer");
 
+        buses_.push_back(bus);
         cores_.push_back(std::make_unique<PipelinedCPU>(bus, config_.pipeline));
     }
 
@@ -179,7 +179,8 @@ void MultiCoreCPU::attach_nic(std::shared_ptr<NIC> nic, addr_t mmio_base)
         plic_.set_pending(source);
     });
 
-    // TODO: map NIC on per-core buses.
+    for (auto& bus : buses_)
+        bus->map(mmio_base, NicReg::REG_SIZE, nic_, "nic");
 }
 
 // ── Core configuration ─────────────────────────────────────────────────

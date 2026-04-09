@@ -184,9 +184,13 @@ private:
     std::shared_ptr<Cache>      l2_cache_;  ///< Shared L2.
     std::vector<std::shared_ptr<Cache>> l1d_caches_;  ///< Per-core L1 data.
 
+    /** @brief Per-core MMIO buses */
+    std::vector<std::shared_ptr<MMIOBus>> buses_;
+
     std::unique_ptr<CoherenceController> coherence_;
 
     std::vector<std::unique_ptr<PipelinedCPU>> cores_;
+    /** @} */
 
     /** @name Devices */
     /** @{ */
