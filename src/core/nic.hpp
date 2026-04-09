@@ -114,9 +114,9 @@ namespace NicCtrl {
 }
 
 namespace NicInt {
-    constexpr u32 RXQ0  = 1u << 0;  ///< RX packet received
-    constexpr u32 TXQ0  = 1u << 1;  ///< TX completed
-    constexpr u32 TIMER = 1u << 2;  ///< Coalescing timer expired
+    constexpr u32 RXQ0  = 1u << 0;  ///< RX packet received.
+    constexpr u32 TXQ0  = 1u << 1;  ///< TX completed.
+    constexpr u32 TIMER = 1u << 2;  ///< Coalescing timer expired.
 }
 
 /**
@@ -203,6 +203,44 @@ struct CoalesceConfig {
 };
 
 /**
+ * @brief RSS Configuration.
+ */
+struct RSSConfig {
+    bool enabled    = false;
+    u32  num_queues = 1;  ///< Number of RX queues (1 to disable).
+
+    /** @brief Indirection table (size must be power of 2). */
+    std::array<u8, 128> indirection_table{};
+
+    /** @brief Hash type flags. */
+    bool hash_ipv4 = true;
+    bool hash_tcp4 = true;
+
+    void init_round_robin(u32 queues)
+    {
+        num_queues = queues;
+        enabled = (queues > 1);
+
+        for (u32 i = 0; i < indirection_table.size(); ++i)
+            indirection_table[i] = static_cast<u8>(i % queues);
+    }
+};
+
+/**
+ * @brief Per-queue Descriptor Ring.
+ */
+struct DescriptorRing {
+    addr_t base_addr = 0;
+    u32    ring_size = 0;
+    u32    head      = 0;
+    u32    tail      = 0;
+
+    /* Per-queue coalescing state. */
+    u32     coalesce_pending = 0;
+    cycle_t coalesce_first   = 0;
+};
+
+/**
  * @brief NIC statistics.
  */
 struct NicStats {
@@ -256,7 +294,6 @@ public:
 
     /** @name Simulation interface */
     /** @{ */
-    
     /**
      * @brief Steps the NIC internal state machine by one cycle.
      *
@@ -268,12 +305,11 @@ public:
     void inject_packet(const Packet& pkt);
 
     /** @brief Pulls a transmitted packet from the TX FIFO. */
-    [[nodiscard]] std::optional<Packet> poll_tx();
+    [[nodiscard]] std::optional<Packet> poll_tx(u32 qid = 0);
     /** @} */
 
     /** @name Interrupt Interface */
     /** @{ */
-
     [[nodiscard]] bool interrupt_pending() const noexcept { return interrupt_pending_; }
     void clear_interrupt() noexcept { interrupt_pending_ = false; }
 
@@ -288,12 +324,19 @@ public:
 
     /** @name Configuration */
     /** @{ */
-
     [[nodiscard]] const NicTiming& timing() const noexcept { return timing_; }
     void set_timing(const NicTiming& t) noexcept { timing_ = t; }
 
     void set_coalescing(const CoalesceConfig& cfg) noexcept { coalesce_ = cfg; }
     [[nodiscard]] const CoalesceConfig& coalescing() const noexcept { return coalesce_; }
+    
+    void set_rss(const RSSConfig& cfg);
+    [[nodiscard]] const RSSConfig& rss() const noexcept { return rss_; }
+    
+    void configure_rx_queue(u32 qid, addr_t base, u32 ring_size, u32 tail);
+    void configure_tx_queue(u32 qid, addr_t base, u32 ring_size);
+
+    static constexpr u32 MAX_QUEUES = 8;
     /** @} */
 
     /** @name Statistics */
@@ -304,10 +347,11 @@ public:
     /** @name State inspection */
     /** @{ */
     [[nodiscard]] u32 reg(addr_t offset) const noexcept;
-    [[nodiscard]] bool rx_enabled() const noexcept { return regs_[NicReg::CTRL / 4] & NicCtrl::RXEN; }
-    [[nodiscard]] bool tx_enabled() const noexcept { return regs_[NicReg::CTRL / 4] & NicCtrl::TXEN; }
-    [[nodiscard]] u32 rx_ring_size() const noexcept { return regs_[NicReg::RDLEN / 4] / 16; }
-    [[nodiscard]] u32 tx_ring_size() const noexcept { return regs_[NicReg::TDLEN / 4] / 16; }
+    [[nodiscard]] bool rx_enabled()   const noexcept { return regs_[NicReg::CTRL / 4] & NicCtrl::RXEN; }
+    [[nodiscard]] bool tx_enabled()   const noexcept { return regs_[NicReg::CTRL / 4] & NicCtrl::TXEN; }
+    [[nodiscard]] u32  rx_ring_size() const noexcept { return regs_[NicReg::RDLEN / 4] / 16; }
+    [[nodiscard]] u32  tx_ring_size() const noexcept { return regs_[NicReg::TDLEN / 4] / 16; }
+    /** @} */
 
     void reset();
 
@@ -315,27 +359,29 @@ private:
     std::shared_ptr<Memory> sys_mem_;
     NicTiming      timing_;
     CoalesceConfig coalesce_;
+    RSSConfig      rss_;
     NicStats       stats_;
 
     mutable std::array<u32, NicReg::REG_SIZE / 4> regs_{};
 
     /** @name Interrupt state */
     /** @{ */
-    u32 interrupt_mask_     = 0;
+    u32  interrupt_mask_    = 0;
     bool interrupt_pending_ = false;
     InterruptCallback interrupt_cb_;
     /** @} */
 
-    /** @name Coalescing state */
+    /** @name Multi-Queue descriptor rings */
     /** @{ */
-    u32     coalesce_pending_pkts_ = 0;
-    cycle_t coalesce_first_cycle_  = 0;
+    std::array<DescriptorRing, MAX_QUEUES> rx_rings_{};
+    std::array<DescriptorRing, MAX_QUEUES> tx_rings_{};
     /** @} */
 
     /** @name Pending DMA operations */
     /** @{ */
     struct PendingDma {
         enum class Type { RX, TX } type;
+        u32     queue_id;
         u32     desc_idx;
         Packet  packet;
         cycle_t complete_cycle;
@@ -345,25 +391,27 @@ private:
 
     /** @name Queues */
     /** @{ */
-    std::deque<Packet> rx_queue_;
-    std::deque<Packet> tx_complete_;
+    std::deque<Packet>                         rx_queue_;
+    std::array<std::deque<Packet>, MAX_QUEUES> tx_complete_;
     /** @} */
 
     cycle_t current_cycle_ = 0;
 
     /** @name Internal helpers */
     /** @{ */
-
     void raise_interrupt(u32 cause);
-    void check_coalescing(u32 cause);
-    void process_rx_queue();           ///< Processes descriptors when RDT is updated.
-    void process_tx_ring();            ///< Processes descriptors when TDT is updated.
+    void check_coalescing(u32 qid, u32 cause);
+    void process_rx_queue();        ///< Processes descriptors when RDT is updated.
+    void process_tx_ring(u32 qid);  ///< Processes descriptors when TDT is updated.
     void complete_dma();
 
-    RxDescriptor read_rx_desc(u32 idx) const;
-    void write_rx_desc(u32 idx, const RxDescriptor& desc);
-    TxDescriptor read_tx_desc(u32 idx) const;
-    void write_tx_desc(u32 idx, const TxDescriptor& desc);
+    [[nodiscard]] u32 compute_rss_hash(const Packet& pkt) const;
+    [[nodiscard]] u32 select_rx_queue(const Packet& pkt)  const;
+
+    RxDescriptor read_rx_desc(u32 qid, u32 idx) const;
+    TxDescriptor read_tx_desc(u32 qid, u32 idx) const;
+    void 	 write_rx_desc(u32 qid, u32 idx, const RxDescriptor& desc);
+    void 	 write_tx_desc(u32 qid, u32 idx, const TxDescriptor& desc);
     /** @} */
 };
 
