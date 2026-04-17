@@ -105,52 +105,57 @@ static constexpr u32 VSE32(u32 vs3, u32 rs1)
     return (1u << 25) | (rs1 << 15) | (0b110u << 12) | (vs3 << 7) | 0b0100111u;
 }
 
-static constexpr u32 enc_vv(u32 funct6, u32 vd, u32 vs1, u32 vs2)
+static constexpr u32 enc_vv(u32 funct6, u32 vd, u32 vs2, u32 vs1)
 {
     return (funct6 << 26) | (1u << 25) | (vs2 << 20) | (vs1 << 15)
          | (0b000u << 12) | (vd << 7) | 0b1010111u;
 }
-static constexpr u32 enc_vx(u32 funct6, u32 vd, u32 rs1, u32 vs2)
+static constexpr u32 enc_vx(u32 funct6, u32 vd, u32 vs2, u32 rs1)
 {
     return (funct6 << 26) | (1u << 25) | (vs2 << 20) | (rs1 << 15)
          | (0b100u << 12) | (vd << 7) | 0b1010111u;
 }
-static constexpr u32 enc_mvv(u32 funct6, u32 vd, u32 vs1, u32 vs2)
+static constexpr u32 enc_mvv(u32 funct6, u32 vd, u32 vs2, u32 vs1)
 {
     return (funct6 << 26) | (1u << 25) | (vs2 << 20) | (vs1 << 15)
          | (0b010u << 12) | (vd << 7) | 0b1010111u;
 }
 
-static constexpr u32 VADD_VV(u32 vd, u32 vs2, u32 vs1)  { return enc_vv(0b000000, vd, vs1, vs2); }
-static constexpr u32 VSUB_VV(u32 vd, u32 vs2, u32 vs1)  { return enc_vv(0b000010, vd, vs1, vs2); }
-static constexpr u32 VAND_VV(u32 vd, u32 vs2, u32 vs1)  { return enc_vv(0b001001, vd, vs1, vs2); }
-static constexpr u32 VOR_VV(u32 vd, u32 vs2, u32 vs1)   { return enc_vv(0b001010, vd, vs1, vs2); }
-static constexpr u32 VXOR_VV(u32 vd, u32 vs2, u32 vs1)  { return enc_vv(0b001011, vd, vs1, vs2); }
-static constexpr u32 VMSEQ_VV(u32 vd, u32 vs2, u32 vs1) { return enc_vv(0b011000, vd, vs1, vs2); }
-static constexpr u32 VMSLT_VV(u32 vd, u32 vs2, u32 vs1) { return enc_vv(0b011011, vd, vs1, vs2); }
-static constexpr u32 VMSLTU_VV(u32 vd, u32 vs2, u32 vs1){ return enc_vv(0b011010, vd, vs1, vs2); }
+static constexpr u32 VADD_VV(u32 vd, u32 vs2, u32 vs1)   { return enc_vv(0b000'000, vd, vs2, vs1); }
+static constexpr u32 VSUB_VV(u32 vd, u32 vs2, u32 vs1)   { return enc_vv(0b000'010, vd, vs2, vs1); }
+static constexpr u32 VAND_VV(u32 vd, u32 vs2, u32 vs1)   { return enc_vv(0b001'001, vd, vs2, vs1); }
+static constexpr u32 VOR_VV(u32 vd, u32 vs2, u32 vs1)    { return enc_vv(0b001'010, vd, vs2, vs1); }
+static constexpr u32 VXOR_VV(u32 vd, u32 vs2, u32 vs1)   { return enc_vv(0b001'011, vd, vs2, vs1); }
+static constexpr u32 VMSEQ_VV(u32 vd, u32 vs2, u32 vs1)  { return enc_vv(0b011'000, vd, vs2, vs1); }
+static constexpr u32 VMSLT_VV(u32 vd, u32 vs2, u32 vs1)  { return enc_vv(0b011'011, vd, vs2, vs1); }
+static constexpr u32 VMSLTU_VV(u32 vd, u32 vs2, u32 vs1) { return enc_vv(0b011'010, vd, vs2, vs1); }
 
-static constexpr u32 VADD_VX(u32 vd, u32 vs2, u32 rs1)  { return enc_vx(0b000000, vd, rs1, vs2); }
-static constexpr u32 VSUB_VX(u32 vd, u32 vs2, u32 rs1)  { return enc_vx(0b000010, vd, rs1, vs2); }
-static constexpr u32 VAND_VX(u32 vd, u32 vs2, u32 rs1)  { return enc_vx(0b001001, vd, rs1, vs2); }
-static constexpr u32 VOR_VX(u32 vd, u32 vs2, u32 rs1)   { return enc_vx(0b001010, vd, rs1, vs2); }
-static constexpr u32 VXOR_VX(u32 vd, u32 vs2, u32 rs1)  { return enc_vx(0b001011, vd, rs1, vs2); }
-static constexpr u32 VSLL_VX(u32 vd, u32 vs2, u32 rs1)  { return enc_vx(0b100101, vd, rs1, vs2); }
-static constexpr u32 VSRL_VX(u32 vd, u32 vs2, u32 rs1)  { return enc_vx(0b101000, vd, rs1, vs2); }
-static constexpr u32 VMSEQ_VX(u32 vd, u32 vs2, u32 rs1) { return enc_vx(0b011000, vd, rs1, vs2); }
+static constexpr u32 VADD_VX(u32 vd, u32 vs2, u32 rs1)   { return enc_vx(0b000'000, vd, vs2, rs1); }
+static constexpr u32 VSUB_VX(u32 vd, u32 vs2, u32 rs1)   { return enc_vx(0b000'010, vd, vs2, rs1); }
+static constexpr u32 VAND_VX(u32 vd, u32 vs2, u32 rs1)   { return enc_vx(0b001'001, vd, vs2, rs1); }
+static constexpr u32 VOR_VX(u32 vd, u32 vs2, u32 rs1)    { return enc_vx(0b001'010, vd, vs2, rs1); }
+static constexpr u32 VXOR_VX(u32 vd, u32 vs2, u32 rs1)   { return enc_vx(0b001'011, vd, vs2, rs1); }
+static constexpr u32 VSLL_VX(u32 vd, u32 vs2, u32 rs1)   { return enc_vx(0b100'101, vd, vs2, rs1); }
+static constexpr u32 VSRL_VX(u32 vd, u32 vs2, u32 rs1)   { return enc_vx(0b101'000, vd, vs2, rs1); }
+static constexpr u32 VMSEQ_VX(u32 vd, u32 vs2, u32 rs1)  { return enc_vx(0b011'000, vd, vs2, rs1); }
 static constexpr u32 VMV_V_X(u32 vd, u32 rs1)
 {
     return (0b010111u << 26) | (1u << 25) | (0u << 20) | (rs1 << 15)
          | (0b100u << 12) | (vd << 7) | 0b1010111u;
 }
 
-static constexpr u32 VREDSUM(u32 vd, u32 vs2, u32 vs1)  { return enc_mvv(0b000000, vd, vs1, vs2); }
-static constexpr u32 VMAND(u32 vd, u32 vs2, u32 vs1)    { return enc_mvv(0b011001, vd, vs1, vs2); }
-static constexpr u32 VMOR(u32 vd, u32 vs2, u32 vs1)     { return enc_mvv(0b011010, vd, vs1, vs2); }
-static constexpr u32 VMNOT(u32 vd, u32 vs)              { return enc_mvv(0b011110, vd, vs, vs); }
-static constexpr u32 VMV_X_S(u32 rd, u32 vs2)           { return enc_mvv(0b010000, rd, 0, vs2); }
+static constexpr u32 VREDSUM(u32 vd, u32 vs2, u32 vs1)  { return enc_mvv(0b000000, vd, vs2, vs1); }
+static constexpr u32 VMAND(u32 vd, u32 vs2, u32 vs1)    { return enc_mvv(0b011001, vd, vs2, vs1); }
+static constexpr u32 VMNAND(u32 vd, u32 vs2, u32 vs1)	{ return enc_mvv(0b011101, vd, vs2, vs1); }
+static constexpr u32 VMANDN(u32 vd, u32 vs2, u32 vs1)	{ return enc_mvv(0b011000, vd, vs2, vs1); }
+static constexpr u32 VMOR(u32 vd, u32 vs2, u32 vs1)     { return enc_mvv(0b011010, vd, vs2, vs1); }
+static constexpr u32 VMNOR(u32 vd, u32 vs2, u32 vs1)	{ return enc_mvv(0b011110, vd, vs2, vs1); }
+static constexpr u32 VMORN(u32 vd, u32 vs2, u32 vs1)	{ return enc_mvv(0b011100, vd, vs2, vs1); }
+static constexpr u32 VMXOR(u32 vd, u32 vs2, u32 vs1)	{ return enc_mvv(0b011011, vd, vs2, vs1); }
+static constexpr u32 VMXNOR(u32 vd, u32 vs2, u32 vs1)	{ return enc_mvv(0b011111, vd, vs2, vs1); }
+static constexpr u32 VMV_X_S(u32 rd, u32 vs2)           { return enc_mvv(0b010000, rd, vs2, 0); }
 
-static constexpr u32 EBREAK = 0x00100073;
+static constexpr u32 EBREAK = 0x0010'0073;
 static constexpr u32 VTYPE_SEW32 = 0b00000010000;
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -158,28 +163,36 @@ static constexpr u32 VTYPE_SEW32 = 0b00000010000;
  * ═══════════════════════════════════════════════════════════════════════ */
 
 TEST(v_decode_vsetvli)   { ASSERT_EQ(Decoder::decode(VSETVLI(1, 2, VTYPE_SEW32)).op,  Op::VSETVLI);    return true; }
-TEST(v_decode_vsetivli)  { ASSERT_EQ(Decoder::decode(VSETIVLI(1, 4, VTYPE_SEW32)).op, Op::VSETIVLI);   return true; }
-TEST(v_decode_vle32)     { ASSERT_EQ(Decoder::decode(VLE32(2, 10)).op,                Op::VLE32);      return true; }
-TEST(v_decode_vse32)     { ASSERT_EQ(Decoder::decode(VSE32(2, 10)).op,                Op::VSE32);      return true; }
-TEST(v_decode_vadd_vv)   { ASSERT_EQ(Decoder::decode(VADD_VV(4, 2, 3)).op,            Op::VADD_VV);    return true; }
-TEST(v_decode_vsub_vv)   { ASSERT_EQ(Decoder::decode(VSUB_VV(4, 2, 3)).op,            Op::VSUB_VV);    return true; }
-TEST(v_decode_vand_vv)   { ASSERT_EQ(Decoder::decode(VAND_VV(4, 2, 3)).op,            Op::VAND_VV);    return true; }
-TEST(v_decode_vor_vv)    { ASSERT_EQ(Decoder::decode(VOR_VV(4, 2, 3)).op,             Op::VOR_VV);     return true; }
-TEST(v_decode_vxor_vv)   { ASSERT_EQ(Decoder::decode(VXOR_VV(4, 2, 3)).op,            Op::VXOR_VV);    return true; }
-TEST(v_decode_vadd_vx)   { ASSERT_EQ(Decoder::decode(VADD_VX(4, 5, 3)).op,            Op::VADD_VX);    return true; }
-TEST(v_decode_vsub_vx)   { ASSERT_EQ(Decoder::decode(VSUB_VX(4, 5, 3)).op,            Op::VSUB_VX);    return true; }
-TEST(v_decode_vand_vx)   { ASSERT_EQ(Decoder::decode(VAND_VX(4, 5, 3)).op,            Op::VAND_VX);    return true; }
-TEST(v_decode_vor_vx)    { ASSERT_EQ(Decoder::decode(VOR_VX(4, 5, 3)).op,             Op::VOR_VX);     return true; }
-TEST(v_decode_vxor_vx)   { ASSERT_EQ(Decoder::decode(VXOR_VX(4, 5, 3)).op,            Op::VXOR_VX);    return true; }
-TEST(v_decode_vsll_vx)   { ASSERT_EQ(Decoder::decode(VSLL_VX(4, 5, 3)).op,            Op::VSLL_VX);    return true; }
-TEST(v_decode_vsrl_vx)   { ASSERT_EQ(Decoder::decode(VSRL_VX(4, 5, 3)).op,            Op::VSRL_VX);    return true; }
-TEST(v_decode_vmseq_vv)  { ASSERT_EQ(Decoder::decode(VMSEQ_VV(0, 2, 3)).op,           Op::VMSEQ_VV);   return true; }
-TEST(v_decode_vmseq_vx)  { ASSERT_EQ(Decoder::decode(VMSEQ_VX(0, 5, 3)).op,           Op::VMSEQ_VX);   return true; }
-TEST(v_decode_vmslt_vv)  { ASSERT_EQ(Decoder::decode(VMSLT_VV(0, 2, 3)).op,           Op::VMSLT_VV);   return true; }
-TEST(v_decode_vmsltu_vv) { ASSERT_EQ(Decoder::decode(VMSLTU_VV(0, 2, 3)).op,          Op::VMSLTU_VV);  return true; }
-TEST(v_decode_vmand)     { ASSERT_EQ(Decoder::decode(VMAND(0, 1, 2)).op,              Op::VMAND_MM);   return true; }
-TEST(v_decode_vmor)      { ASSERT_EQ(Decoder::decode(VMOR(0, 1, 2)).op,               Op::VMOR_MM);    return true; }
-TEST(v_decode_vmnot)     { ASSERT_EQ(Decoder::decode(VMNOT(0, 1)).op,                 Op::VMNOT_M);    return true; }
+TEST(v_decode_vsetivli)  { ASSERT_EQ(Decoder::decode(VSETIVLI(1, 2, VTYPE_SEW32)).op, Op::VSETIVLI);   return true; }
+TEST(v_decode_vle32)     { ASSERT_EQ(Decoder::decode(VLE32(1, 2)).op,                 Op::VLE32);      return true; }
+TEST(v_decode_vse32)     { ASSERT_EQ(Decoder::decode(VSE32(3, 4)).op,                 Op::VSE32);      return true; }
+
+TEST(v_decode_vadd_vv)   { ASSERT_EQ(Decoder::decode(VADD_VV(1, 2, 3)).op,            Op::VADD_VV);    return true; }
+TEST(v_decode_vsub_vv)   { ASSERT_EQ(Decoder::decode(VSUB_VV(1, 2, 3)).op,            Op::VSUB_VV);    return true; }
+TEST(v_decode_vand_vv)   { ASSERT_EQ(Decoder::decode(VAND_VV(1, 2, 3)).op,            Op::VAND_VV);    return true; }
+TEST(v_decode_vor_vv)    { ASSERT_EQ(Decoder::decode(VOR_VV(1, 2, 3)).op,             Op::VOR_VV);     return true; }
+TEST(v_decode_vxor_vv)   { ASSERT_EQ(Decoder::decode(VXOR_VV(1, 2, 3)).op,            Op::VXOR_VV);    return true; }
+TEST(v_decode_vadd_vx)   { ASSERT_EQ(Decoder::decode(VADD_VX(1, 2, 3)).op,            Op::VADD_VX);    return true; }
+TEST(v_decode_vsub_vx)   { ASSERT_EQ(Decoder::decode(VSUB_VX(1, 2, 3)).op,            Op::VSUB_VX);    return true; }
+TEST(v_decode_vand_vx)   { ASSERT_EQ(Decoder::decode(VAND_VX(1, 2, 3)).op,            Op::VAND_VX);    return true; }
+TEST(v_decode_vor_vx)    { ASSERT_EQ(Decoder::decode(VOR_VX(1, 2, 3)).op,             Op::VOR_VX);     return true; }
+TEST(v_decode_vxor_vx)   { ASSERT_EQ(Decoder::decode(VXOR_VX(1, 2, 3)).op,            Op::VXOR_VX);    return true; }
+TEST(v_decode_vsll_vx)   { ASSERT_EQ(Decoder::decode(VSLL_VX(1, 2, 3)).op,            Op::VSLL_VX);    return true; }
+TEST(v_decode_vsrl_vx)   { ASSERT_EQ(Decoder::decode(VSRL_VX(1, 2, 3)).op,            Op::VSRL_VX);    return true; }
+TEST(v_decode_vmseq_vv)  { ASSERT_EQ(Decoder::decode(VMSEQ_VV(1, 2, 3)).op,           Op::VMSEQ_VV);   return true; }
+TEST(v_decode_vmseq_vx)  { ASSERT_EQ(Decoder::decode(VMSEQ_VX(1, 2, 3)).op,           Op::VMSEQ_VX);   return true; }
+TEST(v_decode_vmslt_vv)  { ASSERT_EQ(Decoder::decode(VMSLT_VV(1, 2, 3)).op,           Op::VMSLT_VV);   return true; }
+TEST(v_decode_vmsltu_vv) { ASSERT_EQ(Decoder::decode(VMSLTU_VV(1, 2, 3)).op,          Op::VMSLTU_VV);  return true; }
+
+TEST(v_decode_vmand)     { ASSERT_EQ(Decoder::decode(VMAND(1, 2, 3)).op,              Op::VMAND_MM);   return true; }
+TEST(v_decode_vmnand)    { ASSERT_EQ(Decoder::decode(VMNAND(1, 2, 3)).op,             Op::VMNAND_MM);  return true; }
+TEST(v_decode_vmandn)    { ASSERT_EQ(Decoder::decode(VMANDN(1, 2, 3)).op,             Op::VMANDN_MM);  return true; }
+TEST(v_decode_vmor)      { ASSERT_EQ(Decoder::decode(VMOR(1, 2, 3)).op,               Op::VMOR_MM);    return true; }
+TEST(v_decode_vmnor)	 { ASSERT_EQ(Decoder::decode(VMNOR(1, 2, 3)).op,              Op::VMNOR_MM);   return true; }
+TEST(v_decode_vmorn)     { ASSERT_EQ(Decoder::decode(VMORN(1, 2, 3)).op,              Op::VMORN_MM);   return true; }
+TEST(v_decode_vmxor)     { ASSERT_EQ(Decoder::decode(VMXOR(1, 2, 3)).op,              Op::VMXOR_MM);   return true; }
+TEST(v_decode_vmxnor)    { ASSERT_EQ(Decoder::decode(VMXNOR(1, 2, 3)).op,             Op::VMXNOR_MM);  return true; }
+
 TEST(v_decode_vredsum)   { ASSERT_EQ(Decoder::decode(VREDSUM(4, 3, 2)).op,            Op::VREDSUM_VS); return true; }
 TEST(v_decode_vmv_v_x)   { ASSERT_EQ(Decoder::decode(VMV_V_X(2, 5)).op,               Op::VMV_V_X);    return true; }
 TEST(v_decode_vmv_x_s)   { ASSERT_EQ(Decoder::decode(VMV_X_S(3, 2)).op,               Op::VMV_X_S);    return true; }
@@ -365,14 +378,14 @@ TEST(v_vadd_vsub_vx) {
 
 TEST(v_vand_vv) {
     auto cpu = make_cpu();
-    cpu.memory().write32(0x200, 0xFF00FF00);
-    cpu.memory().write32(0x204, 0x0F0F0F0F);
-    cpu.memory().write32(0x208, 0xAAAAAAAA);
-    cpu.memory().write32(0x20C, 0x55555555);
-    cpu.memory().write32(0x300, 0x0F0F0F0F);
-    cpu.memory().write32(0x304, 0xF0F0F0F0);
-    cpu.memory().write32(0x308, 0xFFFFFFFF);
-    cpu.memory().write32(0x30C, 0x00000000);
+    cpu.memory().write32(0x200, 0xFF00'FF00);
+    cpu.memory().write32(0x204, 0x0F0F'0F0F);
+    cpu.memory().write32(0x208, 0xAAAA'AAAA);
+    cpu.memory().write32(0x20C, 0x5555'5555);
+    cpu.memory().write32(0x300, 0x0F0F'0F0F);
+    cpu.memory().write32(0x304, 0xF0F0'F0F0);
+    cpu.memory().write32(0x308, 0xFFFF'FFFF);
+    cpu.memory().write32(0x30C, 0x0000'0000);
 
     cpu.set_reg(1, 4);
     cpu.set_reg(10, 0x200);
@@ -387,19 +400,19 @@ TEST(v_vand_vv) {
     cpu.load_instruction(20, EBREAK);
     cpu.run(30);
 
-    ASSERT_HEX_EQ(cpu.memory().read32(0x400).value, 0x0F000F00u);
-    ASSERT_HEX_EQ(cpu.memory().read32(0x404).value, 0x00000000u);
-    ASSERT_HEX_EQ(cpu.memory().read32(0x408).value, 0xAAAAAAAAu);
-    ASSERT_HEX_EQ(cpu.memory().read32(0x40C).value, 0x00000000u);
+    ASSERT_HEX_EQ(cpu.memory().read32(0x400).value, 0x0F00'0F00u);
+    ASSERT_HEX_EQ(cpu.memory().read32(0x404).value, 0x0000'0000u);
+    ASSERT_HEX_EQ(cpu.memory().read32(0x408).value, 0xAAAA'AAAAu);
+    ASSERT_HEX_EQ(cpu.memory().read32(0x40C).value, 0x0000'0000u);
     return true;
 }
 
 TEST(v_vor_vv) {
     auto cpu = make_cpu();
-    cpu.memory().write32(0x200, 0xF000F000);
-    cpu.memory().write32(0x204, 0x00000000);
-    cpu.memory().write32(0x300, 0x0F0F0F0F);
-    cpu.memory().write32(0x304, 0x00000000);
+    cpu.memory().write32(0x200, 0xF000'F000);
+    cpu.memory().write32(0x204, 0x0000'0000);
+    cpu.memory().write32(0x300, 0x0F0F'0F0F);
+    cpu.memory().write32(0x304, 0x0000'0000);
 
     cpu.set_reg(1, 2);
     cpu.set_reg(10, 0x200);
@@ -414,17 +427,17 @@ TEST(v_vor_vv) {
     cpu.load_instruction(20, EBREAK);
     cpu.run(30);
 
-    ASSERT_HEX_EQ(cpu.memory().read32(0x400).value, 0xFF0FFF0Fu);
-    ASSERT_HEX_EQ(cpu.memory().read32(0x404).value, 0x00000000u);
+    ASSERT_HEX_EQ(cpu.memory().read32(0x400).value, 0xFF0F'FF0Fu);
+    ASSERT_HEX_EQ(cpu.memory().read32(0x404).value, 0x0000'0000u);
     return true;
 }
 
 TEST(v_vxor_vv) {
     auto cpu = make_cpu();
-    cpu.memory().write32(0x200, 0xFF00FF00);
-    cpu.memory().write32(0x204, 0xAAAAAAAA);
-    cpu.memory().write32(0x300, 0x0F0F0F0F);
-    cpu.memory().write32(0x304, 0xAAAAAAAA);
+    cpu.memory().write32(0x200, 0xFF00'FF00);
+    cpu.memory().write32(0x204, 0xAAAA'AAAA);
+    cpu.memory().write32(0x300, 0x0F0F'0F0F);
+    cpu.memory().write32(0x304, 0xAAAA'AAAA);
 
     cpu.set_reg(1, 2);
     cpu.set_reg(10, 0x200);
@@ -446,13 +459,13 @@ TEST(v_vxor_vv) {
 
 TEST(v_vand_vx) {
     auto cpu = make_cpu();
-    cpu.memory().write32(0x200, 0xDEADBEEF);
-    cpu.memory().write32(0x204, 0x12345678);
+    cpu.memory().write32(0x200, 0xDEAD'BEEF);
+    cpu.memory().write32(0x204, 0x1234'5678);
 
     cpu.set_reg(1, 2);
     cpu.set_reg(10, 0x200);
     cpu.set_reg(11, 0x300);
-    cpu.set_reg(5, 0x0000FFFFu);  // mask low 16 bits
+    cpu.set_reg(5, 0x0000'FFFFu);  // mask low 16 bits
 
     cpu.load_instruction(0,  VSETVLI(0, 1, VTYPE_SEW32));
     cpu.load_instruction(4,  VLE32(2, 10));
@@ -461,20 +474,20 @@ TEST(v_vand_vx) {
     cpu.load_instruction(16, EBREAK);
     cpu.run(30);
 
-    ASSERT_HEX_EQ(cpu.memory().read32(0x300).value, 0x0000BEEFu);
-    ASSERT_HEX_EQ(cpu.memory().read32(0x304).value, 0x00005678u);
+    ASSERT_HEX_EQ(cpu.memory().read32(0x300).value, 0x0000'BEEFu);
+    ASSERT_HEX_EQ(cpu.memory().read32(0x304).value, 0x0000'5678u);
     return true;
 }
 
 TEST(v_vor_vx) {
     auto cpu = make_cpu();
-    cpu.memory().write32(0x200, 0x00000000);
-    cpu.memory().write32(0x204, 0xF0F0F0F0);
+    cpu.memory().write32(0x200, 0x0000'0000);
+    cpu.memory().write32(0x204, 0xF0F0'F0F0);
 
     cpu.set_reg(1, 2);
     cpu.set_reg(10, 0x200);
     cpu.set_reg(11, 0x300);
-    cpu.set_reg(5, 0x0F0F0F0Fu);
+    cpu.set_reg(5, 0x0F0F'0F0Fu);
 
     cpu.load_instruction(0,  VSETVLI(0, 1, VTYPE_SEW32));
     cpu.load_instruction(4,  VLE32(2, 10));
@@ -483,20 +496,20 @@ TEST(v_vor_vx) {
     cpu.load_instruction(16, EBREAK);
     cpu.run(30);
 
-    ASSERT_HEX_EQ(cpu.memory().read32(0x300).value, 0x0F0F0F0Fu);
-    ASSERT_HEX_EQ(cpu.memory().read32(0x304).value, 0xFFFFFFFFu);
+    ASSERT_HEX_EQ(cpu.memory().read32(0x300).value, 0x0F0F'0F0Fu);
+    ASSERT_HEX_EQ(cpu.memory().read32(0x304).value, 0xFFFF'FFFFu);
     return true;
 }
 
 TEST(v_vxor_vx) {
     auto cpu = make_cpu();
-    cpu.memory().write32(0x200, 0x00000000);
-    cpu.memory().write32(0x204, 0xF0F0F0F0);
+    cpu.memory().write32(0x200, 0x0000'0000);
+    cpu.memory().write32(0x204, 0xF0F0'F0F0);
 
     cpu.set_reg(1, 2);
     cpu.set_reg(10, 0x200);
     cpu.set_reg(11, 0x300);
-    cpu.set_reg(5, 0xF0F0F0F0u);
+    cpu.set_reg(5, 0xF0F0'F0F0u);
 
     cpu.load_instruction(0,  VSETVLI(0, 1, VTYPE_SEW32));
     cpu.load_instruction(4,  VLE32(2, 10));
@@ -505,8 +518,8 @@ TEST(v_vxor_vx) {
     cpu.load_instruction(16, EBREAK);
     cpu.run(30);
 
-    ASSERT_HEX_EQ(cpu.memory().read32(0x300).value, 0xF0F0F0F0u);
-    ASSERT_HEX_EQ(cpu.memory().read32(0x304).value, 0x00000000u);
+    ASSERT_HEX_EQ(cpu.memory().read32(0x300).value, 0xF0F0'F0F0u);
+    ASSERT_HEX_EQ(cpu.memory().read32(0x304).value, 0x0000'0000u);
     return true;
 }
 
@@ -535,7 +548,7 @@ TEST(v_vsll_vx) {
 TEST(v_vsrl_vx) {
     auto cpu = make_cpu();
     cpu.memory().write32(0x200, 0x100);
-    cpu.memory().write32(0x204, 0xFFFFFFFF);
+    cpu.memory().write32(0x204, 0xFFFF'FFFF);
 
     cpu.set_reg(1, 2);
     cpu.set_reg(10, 0x200);
@@ -550,7 +563,7 @@ TEST(v_vsrl_vx) {
     cpu.run(30);
 
     ASSERT_EQ(cpu.memory().read32(0x300).value, 1u);
-    ASSERT_HEX_EQ(cpu.memory().read32(0x304).value, 0x00FFFFFFu);
+    ASSERT_HEX_EQ(cpu.memory().read32(0x304).value, 0x00FF'FFFFu);
     return true;
 }
 
@@ -666,7 +679,70 @@ TEST(v_vmsltu_vv_unsigned) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
- *  8. Move and reduction
+ *  8. Vector mask-register logical instructions
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static u32 run_mask_op(u32 mask_instruction)
+{
+    auto cpu = make_cpu();
+    
+    cpu.set_reg(1, 4);
+    cpu.set_reg(5, 0xA);  // v1 = 0b1010
+    cpu.set_reg(6, 0xC);  // v2 = 0b1100
+
+    cpu.load_instruction(0x00, VSETVLI(0, 1, VTYPE_SEW32));
+    cpu.load_instruction(0x04, VMV_V_X(1, 5));     // v1 = splat(0xA)
+    cpu.load_instruction(0x08, VMV_V_X(2, 6));     // v2 = splat(0xC)
+    cpu.load_instruction(0x0C, mask_instruction);  // v0 = v1 OP v2
+    cpu.load_instruction(0x10, VMV_X_S(5, 0));     // x5 = v0[0]
+    cpu.load_instruction(0x14, EBREAK);
+
+    cpu.run(20);
+    return cpu.reg(5) & 0xF;
+}
+
+TEST(v_vmand_mm) {
+    ASSERT_HEX_EQ(run_mask_op(VMAND(0, 1, 2)), 0x8u);  // 0b1000
+    return true;
+}
+
+TEST(v_vmnand_mm) {
+    ASSERT_HEX_EQ(run_mask_op(VMNAND(0, 1, 2)), 0x7u);  // 0b0111
+    return true;
+}
+
+TEST(v_vmandn_mm) {
+    ASSERT_HEX_EQ(run_mask_op(VMANDN(0, 1, 2)), 0x2u);  // 0b0010
+    return true;
+}
+
+TEST(v_vmxor_mm) {
+    ASSERT_HEX_EQ(run_mask_op(VMXOR(0, 1, 2)), 0x6u);  // 0b0110
+    return true;
+}
+
+TEST(v_vmor_mm) {
+    ASSERT_HEX_EQ(run_mask_op(VMOR(0, 1, 2)), 0xEu);  // 0b1110
+    return true;
+}
+
+TEST(v_vmnor_mm) {
+    ASSERT_HEX_EQ(run_mask_op(VMNOR(0, 1, 2)), 0x1u); // 0b0001
+    return true;
+}
+
+TEST(v_vmorn_mm) {
+    ASSERT_HEX_EQ(run_mask_op(VMORN(0, 1, 2)), 0xBu); // 0b1011
+    return true;
+}
+
+TEST(v_vmxnor_mm) {
+    ASSERT_HEX_EQ(run_mask_op(VMXNOR(0, 1, 2)), 0x9u);  // 0b1001
+    return true;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ *  9. Move and reduction
  * ═══════════════════════════════════════════════════════════════════════ */
 
 TEST(v_vmv_v_x_splat) {
@@ -735,7 +811,7 @@ TEST(v_vredsum) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
- *  9. Program — vectorised sum (checksum-like pattern)
+ *  10. Program — vectorised sum (checksum-like pattern)
  * ═══════════════════════════════════════════════════════════════════════ */
 
 TEST(v_checksum_pattern) {
@@ -786,7 +862,7 @@ TEST(v_checksum_pattern) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
- *  10. Pipeline — basic RVV operations
+ *  11. Pipeline — basic RVV operations
  * ═══════════════════════════════════════════════════════════════════════ */
 
 static void pipe_run(PipelinedCPU& cpu, cycle_t max = 200)
@@ -875,7 +951,7 @@ TEST(v_pipe_vmv_v_x_and_vmv_x_s) {
     return true;
 }
 
-TEST(vp_vredsum) {
+TEST(v_pipe_vredsum) {
     auto mem = std::make_shared<FlatMemory>(0, 0x10000);
     for (u32 i = 0; i < 4; ++i)
         mem->write32(0x200 + i*4, i + 1);  // [1,2,3,4]
@@ -899,7 +975,7 @@ TEST(vp_vredsum) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
- *  11. Pipeline — vectorised checksum
+ *  12. Pipeline — vectorised checksum
  * ═══════════════════════════════════════════════════════════════════════ */
 
 TEST(v_pipe_checksum) {

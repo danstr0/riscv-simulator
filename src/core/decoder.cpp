@@ -108,8 +108,13 @@ const char* op_name(Op op) {
         case Op::VMSLT_VV:   return "vmslt.vv";
         case Op::VMSLTU_VV:  return "vmsltu.vv";
         case Op::VMAND_MM:   return "vmand.mm";
+        case Op::VMNAND_MM:  return "vmnand.mm";
+        case Op::VMANDN_MM:  return "vmandn.mm";
+        case Op::VMXOR_MM:   return "vmxor.mm"; 
         case Op::VMOR_MM:    return "vmor.mm";
-        case Op::VMNOT_M:    return "vmnot.m";
+        case Op::VMNOR_MM:   return "vmnor.mm";
+        case Op::VMORN_MM:   return "vmorn.mm";
+        case Op::VMXNOR_MM:  return "vmxnor.mm";
         case Op::VREDSUM_VS: return "vredsum.vs";
         case Op::VMV_V_X:    return "vmv.v.x";
         case Op::VMV_X_S:    return "vmv.x.s";
@@ -509,8 +514,13 @@ DecodedInst Decoder::decode_vector(u32 inst, addr_t pc)
             switch (funct6) {
                 case 0b000000: d.op = Op::VREDSUM_VS; break;
                 case 0b011001: d.op = Op::VMAND_MM;   break;
+                case 0b011101: d.op = Op::VMNAND_MM;  break;
+                case 0b011000: d.op = Op::VMANDN_MM;  break;
                 case 0b011010: d.op = Op::VMOR_MM;    break;
-                case 0b011110: d.op = Op::VMNOT_M;    break;
+                case 0b011110: d.op = Op::VMNOR_MM;   break;
+                case 0b011100: d.op = Op::VMORN_MM;   break;
+                case 0b011011: d.op = Op::VMXOR_MM;   break;
+                case 0b011111: d.op = Op::VMXNOR_MM;  break;
                 case 0b010000: d.op = (d.rs1 == 0) ? Op::VMV_X_S : Op::INVALID; break;
                 default:       d.op = Op::INVALID;    break;
             }
