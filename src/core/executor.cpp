@@ -368,7 +368,9 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
         case Op::VSLL_VX:  case Op::VSRL_VX:
         case Op::VMSEQ_VV: case Op::VMSEQ_VX:
         case Op::VMSLT_VV: case Op::VMSLTU_VV:
-        case Op::VMAND_MM: case Op::VMOR_MM: case Op::VMNOT_M:
+	    case Op::VMAND_MM: case Op::VMNAND_MM: case Op::VMANDN_MM:
+	    case Op::VMXOR_MM: case Op::VMOR_MM:   case Op::VMNOR_MM:
+        case Op::VMORN_MM: case Op::VMXNOR_MM:
         case Op::VREDSUM_VS:
         case Op::VMV_V_X:  case Op::VMV_X_S:
             return execute_vector(inst, rs1, rs2);
@@ -536,28 +538,36 @@ ExecuteResult Executor::execute_vector(const DecodedInst& inst, u32 rs1, u32 rs2
             break;
 
         /* Mask operations */
-        case Op::VMAND_MM:
-            for (u32 i = 0; i < vl; ++i) {
-                u32 b2 = vs.regs.get_elem32(inst.rs2, i / 32);
-                u32 b1 = vs.regs.get_elem32(inst.rs1, i / 32);
-                bool bit2 = (b2 >> (i % 32)) & 1;
-                bool bit1 = (b1 >> (i % 32)) & 1;
-                vs.regs.set_mask_bit(i, bit2 & bit1);
-            }
-            break;
-        case Op::VMOR_MM:
-            for (u32 i = 0; i < vl; ++i) {
-                u32 b2 = vs.regs.get_elem32(inst.rs2, i / 32);
-                u32 b1 = vs.regs.get_elem32(inst.rs1, i / 32);
-                bool bit2 = (b2 >> (i % 32)) & 1;
-                bool bit1 = (b1 >> (i % 32)) & 1;
-                vs.regs.set_mask_bit(i, bit2 | bit1);
-            }
-            break;
-        case Op::VMNOT_M:
+        case Op::VMAND_MM: case Op::VMNAND_MM: case Op::VMANDN_MM:
+        case Op::VMXOR_MM: case Op::VMOR_MM:   case Op::VMNOR_MM:
+        case Op::VMORN_MM: case Op::VMXNOR_MM: {
             for (u32 i = 0; i < vl; ++i)
-                vs.regs.set_mask_bit(i, !vs.regs.get_mask_bit(i));
+            {
+                u32 b2 = vs.regs.get_elem32(inst.rs2, i / 32);
+                u32 b1 = vs.regs.get_elem32(inst.rs1, i / 32);
+                u32 bit_pos = i % 32;
+                bool bit2 = (b2 >> bit_pos) & 1;
+                bool bit1 = (b1 >> bit_pos) & 1;
+                bool result;
+
+                switch(inst.op) {
+                    case Op::VMAND_MM:  result = bit2 & bit1;    break;
+                    case Op::VMNAND_MM: result = !(bit2 & bit1); break;
+                    case Op::VMANDN_MM: result = bit2 & (!bit1); break;
+                    case Op::VMXOR_MM:  result = bit2 ^ bit1;    break;
+                    case Op::VMOR_MM:   result = bit2 | bit1;    break;
+                    case Op::VMNOR_MM:  result = !(bit2 | bit1); break;
+                    case Op::VMORN_MM:  result = bit2 | (!bit1); break;
+                    case Op::VMXNOR_MM: result = !(bit2 ^ bit1); break;
+                }
+                u32 dst_elem = vs.regs.get_elem32(inst.rd, i / 32);
+
+                if (result) dst_elem |= (1u << bit_pos);
+                else        dst_elem &= ~(1u << bit_pos);
+                vs.regs.set_elem32(inst.rd, i / 32, dst_elem);
+            }
             break;
+        }
 
         /* Reduction */
         case Op::VREDSUM_VS: {
