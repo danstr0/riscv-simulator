@@ -107,8 +107,13 @@ enum class Op : u8 {
     VMSLT_VV,            ///< Set mask if less-than (signed)
     VMSLTU_VV,           ///< Set mask if less-than (unsigned)
     VMAND_MM,            ///< Mask AND
+    VMNAND_MM,           ///< Mask NAND
+    VMANDN_MM,           ///< Mask AND-NOT
+    VMXOR_MM,            ///< Mask XOR
     VMOR_MM,             ///< Mask OR
-    VMNOT_M,             ///< Mask NOT (pseudo: vmnand.mm vd, vs, vs)
+    VMNOR_MM,            ///< Mask NOR
+    VMORN_MM,            ///< Mask OR-NOT
+    VMXNOR_MM,           ///< Mask XNOR
     VREDSUM_VS,          ///< Reduction: sum
     VMV_V_X,             ///< Splat scalar to vector
     VMV_X_S,             ///< Extract element 0 to scalar
