@@ -777,22 +777,6 @@ Assembler::encode_instruction(const ParsedLine& line,
                 | (rs1 << 15) | (0b111u << 12) | (rd << 7) | OP_V;
         return ok1(enc);
     }
-    if (m == "vsetivli")
-    {
-        u32 rd; i32 uimm, vtypei;
-        if (nops != 3 || !reg(0, rd) || !imm(1, uimm) || !imm(2, vtypei))
-            return err("vsetivli rd, uimm, vtypei");
-        if (uimm < 0 || uimm > 31)
-            return err("vsetivli uimm out of range (0-31)");
-        if (vtypei < 0 || vtypei > 0x3FF)
-            return err("vsetivli vtypei out of range(0-0x3FF)");
-
-        u32 enc = (1u << 31) | (1u << 30)
-                | (static_cast<u32>(vtypei) << 20)
-                | (static_cast<u32>(uimm) << 15)
-                | (0b111u << 12) | (rd << 7) | OP_V;
-        return ok1(enc);
-    }
     // ── VLE32.V / VSE32.V ────────────────
     if (m == "vle32.v")
     {

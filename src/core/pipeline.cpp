@@ -476,14 +476,6 @@ bool PipelinedCPU::tick()
                     mem_out.reg_write  = (inst.rd != 0);
                     break;
                 }
-                case Op::VSETIVLI: {
-                    u32 avl = inst.rs1;
-                    u32 new_vl = vstate_.vsetvli(avl, static_cast<u32>(inst.imm));
-                    mem_out.alu_result = new_vl;
-                    mem_out.rd_val     = new_vl;
-                    mem_out.reg_write  = (inst.rd != 0);
-                    break;
-                }
 
                 case Op::VLE32:
                     mem_out.alu_result = rs1;

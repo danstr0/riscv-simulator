@@ -358,7 +358,7 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
         }
 
         /* RVV vector operations */
-        case Op::VSETVLI:  case Op::VSETIVLI:
+        case Op::VSETVLI:
         case Op::VLE32:    case Op::VSE32:
         case Op::VADD_VV:  case Op::VADD_VX:
         case Op::VSUB_VV:  case Op::VSUB_VX:
@@ -413,13 +413,6 @@ ExecuteResult Executor::execute_vector(const DecodedInst& inst, u32 rs1, u32 rs2
                     ? ~u32{0}          // set vl=VLMAX 
                     : rs1;
             
-            u32 new_vl = vs.vsetvli(avl, static_cast<u32>(inst.imm));
-            set_reg(inst.rd, new_vl);
-            result.rd_value = new_vl;
-            break;
-        }
-        case Op::VSETIVLI: {
-            u32 avl = inst.rs1;
             u32 new_vl = vs.vsetvli(avl, static_cast<u32>(inst.imm));
             set_reg(inst.rd, new_vl);
             result.rd_value = new_vl;

@@ -53,8 +53,8 @@
  * ┃ A Extension │ lr.w, sc.w, amoswap.w, amoadd.w, amoand.w, amoor.w,        ┃
  * ┃             │ amoxor.w, amomin.w, amomax.w, amominu.w, amomaxu.w         ┃
  * ┠─────────────┼────────────────────────────────────────────────────────────┨
- * ┃ V Extension │ vsetvli, vsetivli, vle32.v, vse32.v, vadd.vv, vsub.vv,     ┃
- * ┃             │ vand.vv, vor.vv, vxor.vv, vmseq.vv, vmslt.vv, vmsltu.vv,   ┃
+ * ┃ V Extension │ vsetvli, vle32.v, vse32.v, vadd.vv, vsub.vv, vand.vv,      ┃
+ * ┃             │ vor.vv, vxor.vv, vmseq.vv, vmslt.vv, vmsltu.vv,            ┃
  * ┃             │ vadd.vx, vsub.vx, vand.vx, vor.vx, vxor.vx, vsll.vx,       ┃
  * ┃             │ vsrl.vx, vmseq.vx, vmv.v.x, vmv.x.s, vredsum.vs,           ┃
  * ┃             │ vmand.mm, vmnand.mm, vmandn.mm, vmor.mm, vmnor.mm,         ┃
