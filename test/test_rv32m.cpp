@@ -1,20 +1,14 @@
 /**
  * @file test_rv32m.cpp
- * @brief Tests for the RV32M integer multiply/divide extension.
+ * @brief Tests for the RV32M extension.
  *
  * Sections:
- *   1 (line 106) : Decoder - all 8 M instructions decode correctly
- *   2 (line 128) : MUL - basic, overflow, negative
- *   3 (line 167) : MULH[[S]U] - upper-half products, mixed signs
- *   4 (line 234) : DIV[U] - basic, division by zero, signed overflow
- *   5 (line 308) : REM[U] - basic, division by zero, signed overflow
- *   6 (line 393) : Pipeline correctness
- *
- * Encoding reference (all R-type, opcode = 0110011, funct7 = 0000001):
- *   MUL     funct3=000  MULH    funct3=001
- *   MULHSU  funct3=010  MULHU   funct3=011 
- *   DIV     funct3=100  DIVU    funct3=101
- *   REM     funct3=110  REMU    funct3=111
+ *   1 (line 100) : Decoder
+ *   2 (line 184) : MUL - basic, overflow, negative
+ *   3 (line 223) : MULH[[S]U] - upper-half products, mixed signs
+ *   4 (line 290) : DIV[U] - basic, division by zero, signed overflow
+ *   5 (line 364) : REM[U] - basic, division by zero, signed overflow
+ *   6 (line 450) : Pipeline correctness
  */
 
 #include "core/cpu.hpp"
@@ -33,8 +27,8 @@ using namespace riscv;
 // ── Shared test infrastructure ─────────────────────────────────────────
 
 struct TestCase {
-    std::string             name;
-    std::function<bool()>   func;
+    std::string           name;
+    std::function<bool()> func;
 };
 extern std::vector<TestCase> g_tests;
 
@@ -102,12 +96,12 @@ static constexpr u32 DIVU(u32 rd, u32 rs1, u32 rs2)   { return encode_m(0b101, r
 static constexpr u32 REM_(u32 rd, u32 rs1, u32 rs2)   { return encode_m(0b110, rd, rs1, rs2); }
 static constexpr u32 REMU(u32 rd, u32 rs1, u32 rs2)   { return encode_m(0b111, rd, rs1, rs2); }
 
-/* ═══════════════════════════════════════════════════════════════════════
- *  1. Decoder
- * ═══════════════════════════════════════════════════════════════════════ */
+// ═══════════════════════════════════════════════════════════════════════
+//  1. Decoder - all 8 M instructions decode correctly
+// ═══════════════════════════════════════════════════════════════════════
 
 TEST(m_decode_mul) {
-    auto inst = Decoder::decode(MUL(3, 1, 2));
+    auto inst = Decoder::decode(0x0220'81b3u); // mul x3, x1, x2
     ASSERT_EQ(inst.op, Op::MUL);
     ASSERT_EQ(inst.rd, 3);
     ASSERT_EQ(inst.rs1, 1);
@@ -116,13 +110,75 @@ TEST(m_decode_mul) {
     return true;
 }
 
-TEST(m_decode_mulh)   { ASSERT_EQ(Decoder::decode(MULH(3,1,2)).op,   Op::MULH);   return true; }
-TEST(m_decode_mulhsu) { ASSERT_EQ(Decoder::decode(MULHSU(3,1,2)).op, Op::MULHSU); return true; }
-TEST(m_decode_mulhu)  { ASSERT_EQ(Decoder::decode(MULHU(3,1,2)).op,  Op::MULHU);  return true; }
-TEST(m_decode_div)    { ASSERT_EQ(Decoder::decode(DIV_(3,1,2)).op,   Op::DIV);    return true; }
-TEST(m_decode_divu)   { ASSERT_EQ(Decoder::decode(DIVU(3,1,2)).op,   Op::DIVU);   return true; }
-TEST(m_decode_rem)    { ASSERT_EQ(Decoder::decode(REM_(3,1,2)).op,   Op::REM);    return true; }
-TEST(m_decode_remu)   { ASSERT_EQ(Decoder::decode(REMU(3,1,2)).op,   Op::REMU);   return true; }
+TEST(m_decode_mulh) {
+    auto inst = Decoder::decode(0x0231'10b3u); // mulh x1, x2, x3
+    ASSERT_EQ(inst.op, Op::MULH);
+    ASSERT_EQ(inst.rd, 1);
+    ASSERT_EQ(inst.rs1, 2);
+    ASSERT_EQ(inst.rs2, 3);
+    ASSERT_EQ(inst.format, Format::R);
+    return true;
+}
+
+TEST(m_decode_mulhsu) {
+    auto inst = Decoder::decode(0x0262'a233u); // mulhsu x4, x5, x6
+    ASSERT_EQ(inst.op, Op::MULHSU);
+    ASSERT_EQ(inst.rd, 4);
+    ASSERT_EQ(inst.rs1, 5);
+    ASSERT_EQ(inst.rs2, 6);
+    ASSERT_EQ(inst.format, Format::R);
+    return true;
+}
+
+TEST(m_decode_mulhu) {
+    auto inst = Decoder::decode(0x0294'33b3u); // mulhu x7, x8, x9
+    ASSERT_EQ(inst.op, Op::MULHU);
+    ASSERT_EQ(inst.rd, 7);
+    ASSERT_EQ(inst.rs1, 8);
+    ASSERT_EQ(inst.rs2, 9);
+    ASSERT_EQ(inst.format, Format::R);
+    return true;
+}
+
+TEST(m_decode_div) {
+    auto inst = Decoder::decode(0x02c5'c533u); // div x10, x11, x12
+    ASSERT_EQ(inst.op, Op::DIV);
+    ASSERT_EQ(inst.rd, 10);
+    ASSERT_EQ(inst.rs1, 11);
+    ASSERT_EQ(inst.rs2, 12);
+    ASSERT_EQ(inst.format, Format::R);
+    return true;
+}
+
+TEST(m_decode_divu) {
+    auto inst = Decoder::decode(0x02f7'56b3u); // divu x13, x14, x15
+    ASSERT_EQ(inst.op, Op::DIVU);
+    ASSERT_EQ(inst.rd, 13);
+    ASSERT_EQ(inst.rs1, 14);
+    ASSERT_EQ(inst.rs2, 15);
+    ASSERT_EQ(inst.format, Format::R);
+    return true;
+}
+
+TEST(m_decode_rem) {
+    auto inst = Decoder::decode(0x0328'e833u); // rem x16, x17, x18
+    ASSERT_EQ(inst.op, Op::REM);
+    ASSERT_EQ(inst.rd, 16);
+    ASSERT_EQ(inst.rs1, 17);
+    ASSERT_EQ(inst.rs2, 18);
+    ASSERT_EQ(inst.format, Format::R);
+    return true;
+}
+
+TEST(m_decode_remu) {
+    auto inst = Decoder::decode(0x035a'79b3u); // remu x19, x20, x21
+    ASSERT_EQ(inst.op, Op::REMU);
+    ASSERT_EQ(inst.rd, 19);
+    ASSERT_EQ(inst.rs1, 20);
+    ASSERT_EQ(inst.rs2, 21);
+    ASSERT_EQ(inst.format, Format::R);
+    return true;
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
  *  2. MUL

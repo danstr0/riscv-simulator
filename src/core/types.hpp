@@ -1,20 +1,15 @@
 /**
  * @file types.hpp
- * @brief Foundational type system for the CPU simulator.
+ * @brief Foundational type system for the RISC-V simulator.
  *
- * Provides fixed-width integer aliases, address/cycle types, exception
- * hierarchy, and low-level bit-manipulation utilities used throughout the
- * simulator. All helpers are constexpr and noexcept so they can be
- * evaluated at compile time and used in hot decode/execute paths without
- * overhead.
+ * Fixed-width integer aliases, address/cycle types, exception hierarchy,
+ * and bit-manipulation utilities used throughout the simulator. All 
+ * bit-manipulation helpers are constexpr and noexcept for use in hot 
+ * decode/execute paths.
  *
- * @section ARCHITECTURAL_ASSUMPTIONS
- * This simulator is designed for the RISC-V base ISA, which is strictly
- * little-endian. To ensure performance and simplicity, the memory subsystem
- * utilizes @c std::memcpy for raw byte-to-integer mappings.
- * * ** Constraint ** This implementation requires a little-endian host (e.g., x86-64).
- * Running on a big-endian host will result in incorrect multi-byte integer
- * interpretation.
+ * @par Host requirement
+ * A little-endian host is required to match the RISC-V base ISA.
+ * This is enforced at compile time via static_assert.
  *
  * @see Waterman, A. S. (2016). "Design of the RISC-V Instruction Set Architecture."
  * UC Berkeley Technical Report.
@@ -26,20 +21,18 @@
 
 #include <array>
 #include <bit>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <format>
-#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
-#include <string_view>
 
 namespace riscv {
 
-/* ───────────────────────────────────────────────────────────────────────
- * Fixed-Width Integer Aliases
- * ─────────────────────────────────────────────────────────────────────── */
+/// @name Fixed-width integer aliases
+/// @{
 
 using u8  = std::uint8_t;
 using u16 = std::uint16_t;
@@ -50,35 +43,21 @@ using i16 = std::int16_t;
 using i32 = std::int32_t;
 using i64 = std::int64_t;
 
-/// 32-bit address for RV32.
-using addr_t = u32;
+using addr_t    = u32;  ///< 32-bit address for RV32.
+using cycle_t   = u64;  ///< 64-bit cycle counter.
+using reg_idx_t = u8;   ///< Register index (0-31).
 
-/// Cycle counter - 64-bit to avoid overflow.
-using cycle_t = u64;
+/// @}
 
-/// Register index (0-31).
-using reg_idx_t = u8;
-
-/* ───────────────────────────────────────────────────────────────────────
- * Endianness Guard
- * ───────────────────────────────────────────────────────────────────────
- * RISC-V base ISA is little-endian. This asserts the host's native endianness
- * matches to ensure that direct memory copies (std::memcpy) are valid.
- */
+/// Compile-time check that the host is little-endian.
 static_assert(std::endian::native == std::endian::little,
-              "This implementation assumes a little-endian host to match the RISC-V base ISA.");
+              "This implementation requires a little-endian host.");
 
-/* ═══════════════════════════════════════════════════════════════════════
- * ABI Register Names
- * ═══════════════════════════════════════════════════════════════════════ */
+/// @name ABI register and vector register names
+/// @{
 
 /**
- * @brief RISC-V Application Binary Interface (ABI) register names.
- * 
- * While the hardware refers to registers as x0-x31, the ABI assigns
- * semantic roles (e.g., 'sp' for stack pointer). This table maps
- * hardware indices [0-31] to their standard symbolic names.
- *
+ * @brief ABI register name table, indexed by hardware register number.
  * @see RISC-V ABIs Specification, Chapter 1.1 (Integer Register Convention).
  */
 inline constexpr std::array<const char*, 32> kRegNames = {
@@ -88,19 +67,22 @@ inline constexpr std::array<const char*, 32> kRegNames = {
     "s8",   "s9", "s10","s11","t3", "t4", "t5", "t6"
 };
 
-/**
- * @brief Returns the ABI name for a given register index.
- * @param r The register index (0-31).
- * @return A string view of the ABI name, or "???" if index is out of bounds.
- */
+/// Returns the ABI name for a register @p r, or "???" if out of range.
 [[nodiscard]] constexpr const char* reg_name(reg_idx_t r) noexcept
 {
     return r < 32 ? kRegNames[r] : "???";
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
- * Exception Hierarchy
- * ═══════════════════════════════════════════════════════════════════════ */
+/// Returns a vector register name (e.g., "v0", "v31"). 
+[[nodiscard]] inline std::string vreg_name(reg_idx_t r)
+{
+    return r < 32 ? std::format("v{}", r) : "???";
+}
+
+/// @}
+
+/// @name Exception hierarchy
+/// @{
 
 /// Base exception for all CPU-related faults.
 class CpuException : public std::runtime_error {
@@ -108,7 +90,7 @@ public:
     explicit CpuException(const std::string& msg) : std::runtime_error(msg) {}
 };
 
-/// Raised when the decoder encounters an unrecognized instruction encoding.
+/// Unrecognized instruction encoding.
 class IllegalInstructionException : public CpuException {
 public:
     IllegalInstructionException(u32 inst, addr_t pc)
@@ -124,7 +106,7 @@ private:
     addr_t pc_;
 };
 
-/// Raised when a memory read/write targets an unmapped address range.
+/// Memory read/write to an unmapped address.
 class MemoryAccessException : public CpuException {
 public:
     MemoryAccessException(addr_t addr, bool write)
@@ -142,10 +124,10 @@ private:
 };
 
 /**
- * Raised when a memory access violates natural alignment requirements.
+ * @brief Memory access violating natural alignment.
  *
- * This implementation traps on misaligned access (RISC-V spec §2.1.6 permits
- * either trapping or supporting misaligned access).
+ * This implementation traps rather than supports misaligned access 
+ * (the spec permits either behavior).
  */
 class MisalignedAccessException : public CpuException {
 public:
@@ -163,29 +145,31 @@ private:
     size_t alignment_;
 };
 
-/* ═══════════════════════════════════════════════════════════════════════
- * Bit-Manipulation Utilities
- * ═══════════════════════════════════════════════════════════════════════ */
+/// @}
+
+/// @name Bit-manipulation utilities
+/// @{
 
 /**
  * @brief Sign-extend a B-bit value to a full i32.
  *
- * The value is first masked to B bits, then the sign bit (bit B-1) is
- * replicated into the upper 32-B bits. This is used extensively in
- * immediate extraction during instruction decoding.
+ * Masks to B bits, then replicates the sign bit (bit B-1) into the
+ * upper 32-B bits. Used extensively in immediate extraction during
+ * instruction decoding.
  *
- * @tparam B  Number of significant bits (1 <= B <= 32).
- * @param value  The raw bitfield extracted from the instruction.
- * @see RISC-V Spec §2.1.3, Figure 1 for immediate formats.
+ * @tparam B  Number of significant bits (1 ≤ B ≤ 32).
+ * @param value  Raw bitfield extracted from the instruction word.
+ * @see RISC-V Unprivileged ISA Specification, Section 2.1.3.
  */
 template<unsigned B>
 [[nodiscard]] constexpr i32 sign_extend(u32 value) noexcept
 {
     static_assert(B > 0 && B <= 32, "Bit width must be in [1, 32]");
 
-    if constexpr (B == 32) {
+    if constexpr (B == 32)
         return static_cast<i32>(value);
-    } else {
+    else 
+    {
         constexpr u32 sign_bit = 1u << (B - 1);
         constexpr u32 mask     = (1u << B) - 1;
         value &= mask;
@@ -193,25 +177,22 @@ template<unsigned B>
     }
 }
 
-/**
- * @brief Extract bits [hi:lo] (inclusive) from @p value.
- * @param value  The source word.
- * @param hi  The upper bit index.
- * @param lo  The lower bit index.
- * @pre hi > lo
- * @pre hi - lo + 1 <= 32
- */
+/// Extract bits [hi:lo] (inclusive) from @p value.
 [[nodiscard]] constexpr u32 bits(u32 value, unsigned hi, unsigned lo) noexcept
 {
+    assert(hi >= lo && "bits(): hi must be >= lo");
+
     unsigned width = hi - lo + 1;
     u32 mask = (width >= 32) ? ~u32{0} : (1u << width) - 1;
     return (value >> lo) & mask;
 }
 
-/** @brief Extract a single bit at position @p pos. */
+/// Extract a single bit at position @p pos.
 [[nodiscard]] constexpr u32 bit(u32 value, unsigned pos) noexcept
 {
     return (value >> pos) & 1;
 }
+
+/// @}
 
 } // namespace riscv

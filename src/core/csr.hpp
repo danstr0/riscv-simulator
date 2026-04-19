@@ -1,36 +1,26 @@
 /**
  * @file csr.hpp
- * @brief Machine-mode Command and Status Register (CSR) State File.
+ * @brief Machine-mode Control and Status Register (CSR) file.
  *
- * This module implements a subset of the RISC-V Machine-mode CSRs. It provides
- * the necessary state for trap vectoring, interrupt masking, and exception
- * delegation required for system-level benchmarking.
+ * Implements a subset of RISC-V M-mode CSRs for trap vectoring,
+ * interrupt masking, and exception handling.
  *
- * @section trap_mechanics Trap Entry and Exit
- * When a trap is taken (via @c enter_trap):
- * 1. The current interrupt enable bit (MIE) is moved to the previous bit (MPIE).
- * 2. Interrupts are globally disabled (MIE = 0).
- * 3. The current Program Counter is saved to @c mepc.
- * 4. The cause of the trap is written to @c mcause.
+ * @par Trap mechanics
+ * On trap entry: MIE is saved to MPIE, MIE is cleared, PC is saved
+ * to mepc, and the cause is written to mcause. On mret: MPIE is
+ * restored to MIE and execution resumes at mepc.
  *
- * Upon executing @c mret, the MPIE bit is restored to MIE, effectively
- * re-enabling interrupts to their state prior to the trap.
- *
- * @see RISC-V Privileged Architecture Specification, Section 2.1 (Control and 
- * Status Registers)
+ * @see RISC-V Privileged Architecture Specification, Section 2.1 (Control
+ * and Status Registers).
  */
 
 #pragma once
 
 #include "types.hpp"
 
-#include <unordered_map>
-
 namespace riscv {
 
-/**
- * @brief Standard RISC-V machine-mode CSR addresses.
- */
+/// Standard RISC-V machine-mode CSR addresses.
 namespace CSRAddr {
     constexpr u32 MSTATUS = 0x300;  ///< Machine status register.
     constexpr u32 MIE     = 0x304;  ///< Machine interrupt-enable register.
@@ -40,51 +30,42 @@ namespace CSRAddr {
     constexpr u32 MIP     = 0x344;  ///< Machine interrupt pending.
 }
 
-/**
- * @brief Bitmasks for the mstatus register.
- */
+/// Bitmasks for the mstatus register.
 namespace MStatus {
-    constexpr u32 MIE  = 1u << 3;  ///< Machine Interrupt Enable (Global).
+    constexpr u32 MIE  = 1u << 3;  ///< Machine Interrupt Enable (global).
     constexpr u32 MPIE = 1u << 7;  ///< Machine Previous Interrupt Enable.
 }
 
-/**
- * @brief Interrupt indices for mie and mip registers.
- */
+/// Interrupt-pending bit positions for mie and mip registers.
 namespace MInterrupt {
-    constexpr u32 MSIE = 1u << 3;   ///< Machine Software Interrupt.
-    constexpr u32 MTIE = 1u << 7;   ///< Machine Timer Interrupt.
-    constexpr u32 MEIE = 1u << 11;  ///< Machine External Interrupt (via PLIC).
+    constexpr u32 MSIE = 1u << 3;   ///< Machine software interrupt.
+    constexpr u32 MTIE = 1u << 7;   ///< Machine timer interrupt.
+    constexpr u32 MEIE = 1u << 11;  ///< Machine external interrupt.
 }
 
-/**
- * @brief Exception and Interrupt Cause Codes.
- */
+/// Exception and interrupt cause codes for mcause.
 namespace MCause {
-    /** @brief Bit 31 of mcause indicates if the trap was an interrupt. */
-    constexpr u32 INTERRUPT_BIT = 1u << 31;
+    constexpr u32 INTERRUPT_BIT = 1u << 31;  ///< Bit 31 distinguishes interrupts from exceptions.
 
-    /* Standard interrupt causes */
-    constexpr u32 M_SOFTWARE    = INTERRUPT_BIT | 3;
-    constexpr u32 M_TIMER       = INTERRUPT_BIT | 7;
-    constexpr u32 M_EXTERNAL    = INTERRUPT_BIT | 11;
+    constexpr u32 M_SOFTWARE    = INTERRUPT_BIT | 3;   ///< Machine software interrupt.
+    constexpr u32 M_TIMER       = INTERRUPT_BIT | 7;   ///< Machine timer interrupt.
+    constexpr u32 M_EXTERNAL    = INTERRUPT_BIT | 11;  ///< Machine external interrupt.
 
-    /* Standard exception causes */
     constexpr u32 ECALL_M       = 11;  ///< Environment call from M-mode.
     constexpr u32 BREAKPOINT    = 3;   ///< ebreak instruction.
 }
 
 /**
- * @brief Container for Machine-mode CSR state.
+ * @brief Container for machine-mode CSR state.
  *
- * This encapsulates the state of the privileged register file and
- * provides atomic-style updates for trap transitions.
+ * Encapsulates the privileged register file and provides helpers
+ * for trap entry/exit transitions.
  */
 class CSRFile {
 public:
     CSRFile() { reset(); }
 
-    /** @brief Resets all CSRs to their architectural power-on state. */
+    /// Reset all CSRs to architectural power-on defaults.
     void reset() noexcept 
     {
         mstatus_ = 0;
@@ -95,16 +76,14 @@ public:
         mip_     = 0;
     }
 
-    /** @name Architectural Interface 
-     *
-     * Methods for software-driven CSR access.
-     */
-    /** @{ */
+    /// @name Architectural interface - software-driven CSR access
+    /// @{
 
-    /** @brief Reads a CSR value. Returns 0 for unsupported addresses. */
+    /// Reads a CSR value. Returns 0 for unimplemented addresses.
     [[nodiscard]] u32 read(u32 addr) const noexcept
     {
-        switch (addr) {
+        switch (addr)
+        {
             case CSRAddr::MSTATUS: return mstatus_;
             case CSRAddr::MIE:     return mie_;
             case CSRAddr::MTVEC:   return mtvec_;
@@ -115,12 +94,13 @@ public:
         }
     }
 
-    /** @brief Writes a value to a CSR. */
+    /// Write a value to a CSR. Unimplemented addresses are silently ignored.
     void write(u32 addr, u32 value) noexcept
     {
-        switch (addr) {
+        switch (addr)
+        {
             case CSRAddr::MSTATUS:
-                /* Only MIE and MPIE are writable */
+                // Only MIE and MPIE are writable
                 mstatus_ = value & (MStatus::MIE | MStatus::MPIE);
                 break;
             case CSRAddr::MIE:
@@ -130,17 +110,13 @@ public:
                 mtvec_ = value;
                 break;
             case CSRAddr::MEPC:
-                mepc_ = value & ~1u;  /* Low bit must be 0 */
+                mepc_ = value & ~1u;  // Bit 0 always zero (IALIGN=32)
                 break;
             case CSRAddr::MCAUSE:
                 mcause_ = value;
                 break;
             case CSRAddr::MIP:
-                /*
-                 * Only MSIP is software-writable; MTIP and MEIP are read-only.
-                 * For simplicity, writes are allowed to all bits the device
-                 * implementations set them directly.
-                 */
+                // Hardware sets MTIP/MEIP directly; all bits writable here for simplicity
                 mip_ = value & (MInterrupt::MSIE | MInterrupt::MTIE | MInterrupt::MEIE);
                 break;
             default:
@@ -148,10 +124,11 @@ public:
         }
     }
 
-    /** @brief Validates if the CSR address is implemented in this model. */
+    /// @return True if @p addr is implemented in this CSR file.
     [[nodiscard]] bool valid(u32 addr) const noexcept
     {
-        switch (addr) {
+        switch (addr)
+        {
             case CSRAddr::MSTATUS:
             case CSRAddr::MIE:
             case CSRAddr::MTVEC:
@@ -163,25 +140,22 @@ public:
                 return false;
         }
     }
-    /** @} */
-
-    /** @name Trap Management
-     *
-     * Helper methods to manage hardware-driven state changes.
-     */
-    /** @{ */
     
+    /// @}
+
+    /// @name Trap management
+    /// @{
+
     /**
-     * @brief Checks if an interrupt should be taken.
-     *
-     * @return True if @c mstatus.MIE is set AND a bit is set in both @c mip and @c mie.
+     * @brief Check if any enabled interrupt is pending.
+     * @return True if mstatus.MIE is set and a bit is set in both mip and mie.
      */
     [[nodiscard]] bool interrupt_pending() const noexcept
     {
         return (mstatus_ & MStatus::MIE) && (mip_ & mie_);
     }
 
-    /** @brief Returns the @c mcause code for the highest-priority pending interrupt. */
+    /// @return The mcause code for the highest-priority pending interrupt, or 0 if none.
     [[nodiscard]] u32 pending_cause() const noexcept
     {
         if (!(mstatus_ & MStatus::MIE)) return 0;
@@ -194,18 +168,16 @@ public:
     }
 
     /**
-     * @brief Updates CSR state to reflect a hardware trap entry.
-     *
-     * @param pc The address of the instruction that was interrupted or caused the exception.
-     *
-     * @param cause The mcause value (see namespace MCause).
+     * @brief Enter a trap: save MIE to MPIE, disable interrupts, record PC and cause.
+     * @param pc    Address of the faulting or interrupted instruction.
+     * @param cause The mcause value (see MCause namespace).
      */
     void enter_trap(addr_t pc, u32 cause) noexcept
     {
         if (mstatus_ & MStatus::MIE)
             mstatus_ |= MStatus::MPIE;
         else
-            mstatus_ &= ~MStatus::MIE;
+            mstatus_ &= ~MStatus::MPIE;
 
         mstatus_ &= ~MStatus::MIE;
         mepc_   = pc;
@@ -213,9 +185,8 @@ public:
     }
 
     /**
-     * @brief Restores state after an mret instruction.
-     *
-     * @return The address saved in @c mepc to which the CPU should return.
+     * @brief Execute mret: restore MIE from MPIE, set MPIE, return saved PC.
+     * @return The mepc address to resume execution at.
      */
     [[nodiscard]] addr_t mret() noexcept
     {
@@ -228,11 +199,14 @@ public:
         return mepc_;
     }
 
-    /** @} */
+    /// @}
 
-    /** @name Hardware Signal Integration */
-    /** @{ */
+    /// @name Hardware signal integration
+    /// @{
+
+    /// Assert an interrupt-pending bit in mip.
     void set_mip_bit(u32 bit)   noexcept { mip_ |= bit; }
+    /// Deassert an interrupt-pending bit in mip.
     void clear_mip_bit(u32 bit) noexcept { mip_ &= ~bit; }
 
     [[nodiscard]] u32 mstatus() const noexcept { return mstatus_; }
@@ -241,7 +215,8 @@ public:
     [[nodiscard]] u32 mtvec()   const noexcept { return mtvec_; }
     [[nodiscard]] u32 mepc()    const noexcept { return mepc_; }
     [[nodiscard]] u32 mcause()  const noexcept { return mcause_; }
-    /** @} */
+    
+    /// @}
 
 private:
     u32 mstatus_ = 0;
