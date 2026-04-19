@@ -1,11 +1,11 @@
 /**
  * @file test_rv32a.cpp
- * @brief Tests for the RV32A atomic memory operations extension.
+ * @brief Tests for the RV32A extension.
  *
  * Sections:
- *   1 (line 106) : Decoder - all 11 A instructions decode correctly 
- *   2 (line 156) : LR.W/SC.w - success path, failure paths, reservation clearing
- *   3 (line 253) : AMO operations - each read-modify-write variant
+ *   1 (line 106) : Decoder 
+ *   2 (line 156) : LR.W/SC.W
+ *   3 (line 253) : AMO operations
  *   4 (line 332) : AMO - signed/unsigned min/max comparisons
  *   5 (line 397) : CAS pattern - compare-and-swap loop (always succeeds single-core)
  *   6 (line 435) : Pipeline - atomics through the pipelined CPU
@@ -26,8 +26,8 @@ using namespace riscv;
 // ── Shared test infrastructure ─────────────────────────────────────────
 
 struct TestCase {
-    std::string             name;
-    std::function<bool()>   func;
+    std::string           name;
+    std::function<bool()> func;
 };
 extern std::vector<TestCase> g_tests;
 
@@ -75,7 +75,8 @@ extern std::vector<TestCase> g_tests;
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
-static CPU make_cpu() {
+static CPU make_cpu()
+{
     return CPU(std::make_shared<FlatMemory>(0, 0x10000));
 }
 
@@ -83,61 +84,145 @@ static CPU make_cpu() {
  *   funct5[31:27] | aq=0 | rl=0 | rs2[24:20] | rs1[19:15] |
  *   funct3=010 | rd[11:7] | opcode=0101111
  */
-static constexpr u32 encode_amo(u32 funct5, u32 rd, u32 rs1, u32 rs2) {
+static constexpr u32 encode_amo(u32 funct5, u32 rd, u32 rs1, u32 rs2)
+{
     return (funct5 << 27) | (rs2 << 20) | (rs1 << 15)
          | (0b010u << 12) | (rd << 7) | 0b0101111u;
 }
 
-static constexpr u32 LR_W(u32 rd, u32 rs1)             { return encode_amo(0b00010, rd, rs1, 0); }
-static constexpr u32 SC_W(u32 rd, u32 rs1, u32 rs2)    { return encode_amo(0b00011, rd, rs1, rs2); }
-static constexpr u32 AMOSWAP(u32 rd, u32 rs1, u32 rs2) { return encode_amo(0b00001, rd, rs1, rs2); }
-static constexpr u32 AMOADD(u32 rd, u32 rs1, u32 rs2)  { return encode_amo(0b00000, rd, rs1, rs2); }
-static constexpr u32 AMOXOR(u32 rd, u32 rs1, u32 rs2)  { return encode_amo(0b00100, rd, rs1, rs2); }
-static constexpr u32 AMOAND(u32 rd, u32 rs1, u32 rs2)  { return encode_amo(0b01100, rd, rs1, rs2); }
-static constexpr u32 AMOOR(u32 rd, u32 rs1, u32 rs2)   { return encode_amo(0b01000, rd, rs1, rs2); }
-static constexpr u32 AMOMIN(u32 rd, u32 rs1, u32 rs2)  { return encode_amo(0b10000, rd, rs1, rs2); }
-static constexpr u32 AMOMAX(u32 rd, u32 rs1, u32 rs2)  { return encode_amo(0b10100, rd, rs1, rs2); }
-static constexpr u32 AMOMINU(u32 rd, u32 rs1, u32 rs2) { return encode_amo(0b11000, rd, rs1, rs2); }
-static constexpr u32 AMOMAXU(u32 rd, u32 rs1, u32 rs2) { return encode_amo(0b11100, rd, rs1, rs2); }
+static constexpr u32 LR_W(u32 rd, u32 rs1)             { return encode_amo(0b00010u, rd, rs1, 0); }
+static constexpr u32 SC_W(u32 rd, u32 rs1, u32 rs2)    { return encode_amo(0b00011u, rd, rs1, rs2); }
+static constexpr u32 AMOSWAP(u32 rd, u32 rs1, u32 rs2) { return encode_amo(0b00001u, rd, rs1, rs2); }
+static constexpr u32 AMOADD(u32 rd, u32 rs1, u32 rs2)  { return encode_amo(0b00000u, rd, rs1, rs2); }
+static constexpr u32 AMOXOR(u32 rd, u32 rs1, u32 rs2)  { return encode_amo(0b00100u, rd, rs1, rs2); }
+static constexpr u32 AMOAND(u32 rd, u32 rs1, u32 rs2)  { return encode_amo(0b01100u, rd, rs1, rs2); }
+static constexpr u32 AMOOR(u32 rd, u32 rs1, u32 rs2)   { return encode_amo(0b01000u, rd, rs1, rs2); }
+static constexpr u32 AMOMIN(u32 rd, u32 rs1, u32 rs2)  { return encode_amo(0b10000u, rd, rs1, rs2); }
+static constexpr u32 AMOMAX(u32 rd, u32 rs1, u32 rs2)  { return encode_amo(0b10100u, rd, rs1, rs2); }
+static constexpr u32 AMOMINU(u32 rd, u32 rs1, u32 rs2) { return encode_amo(0b11000u, rd, rs1, rs2); }
+static constexpr u32 AMOMAXU(u32 rd, u32 rs1, u32 rs2) { return encode_amo(0b11100u, rd, rs1, rs2); }
 
-static constexpr u32 EBREAK = 0x00100073;
+static constexpr u32 EBREAK = 0x0010'0073u;
 
-/* ═══════════════════════════════════════════════════════════════════════
- *  1. Decoder
- * ═══════════════════════════════════════════════════════════════════════ */
+// ═══════════════════════════════════════════════════════════════════════
+//  1. Decoder - all instructions decode correctly
+// ═══════════════════════════════════════════════════════════════════════
 
 TEST(a_decode_lr_w) {
-    auto inst = Decoder::decode(LR_W(3, 1));
+    auto inst = Decoder::decode(0x1000'a1afu); // lr.w x3, (x1)
     ASSERT_EQ(inst.op, Op::LR_W);
     ASSERT_EQ(inst.rd, 3);
+    ASSERT_EQ(inst.rs2, 0); // LR.W must have rs2=0
     ASSERT_EQ(inst.rs1, 1);
-    ASSERT_EQ(inst.rs2, 0);  // LR.W must have rs2=0
     ASSERT_EQ(inst.format, Format::R);
     return true;
 }
 
 TEST(a_decode_sc_w) {
-    auto inst = Decoder::decode(SC_W(3, 1, 2));
+    auto inst = Decoder::decode(0x1811'21afu); // sc.w x3, x1, (x2)
     ASSERT_EQ(inst.op, Op::SC_W);
     ASSERT_EQ(inst.rd, 3);
-    ASSERT_EQ(inst.rs1, 1);
-    ASSERT_EQ(inst.rs2, 2);
+    ASSERT_EQ(inst.rs2, 1);
+    ASSERT_EQ(inst.rs1, 2);
+    ASSERT_EQ(inst.format, Format::R);
     return true;
 }
 
-TEST(a_decode_amoswap) { ASSERT_EQ(Decoder::decode(AMOSWAP(3,1,2)).op, Op::AMOSWAP_W); return true; }
-TEST(a_decode_amoadd)  { ASSERT_EQ(Decoder::decode(AMOADD(3,1,2)).op,  Op::AMOADD_W);  return true; }
-TEST(a_decode_amoxor)  { ASSERT_EQ(Decoder::decode(AMOXOR(3,1,2)).op,  Op::AMOXOR_W);  return true; }
-TEST(a_decode_amoand)  { ASSERT_EQ(Decoder::decode(AMOAND(3,1,2)).op,  Op::AMOAND_W);  return true; }
-TEST(a_decode_amoor)   { ASSERT_EQ(Decoder::decode(AMOOR(3,1,2)).op,   Op::AMOOR_W);   return true; }
-TEST(a_decode_amomin)  { ASSERT_EQ(Decoder::decode(AMOMIN(3,1,2)).op,  Op::AMOMIN_W);  return true; }
-TEST(a_decode_amomax)  { ASSERT_EQ(Decoder::decode(AMOMAX(3,1,2)).op,  Op::AMOMAX_W);  return true; }
-TEST(a_decode_amominu) { ASSERT_EQ(Decoder::decode(AMOMINU(3,1,2)).op, Op::AMOMINU_W); return true; }
-TEST(a_decode_amomaxu) { ASSERT_EQ(Decoder::decode(AMOMAXU(3,1,2)).op, Op::AMOMAXU_W); return true; }
+TEST(a_decode_amoswap) {
+    auto inst = Decoder::decode(0x0821'a0afu); // amoswap.w x1, x2, (x3)
+    ASSERT_EQ(inst.op, Op::AMOSWAP_W);
+    ASSERT_EQ(inst.rd, 1);
+    ASSERT_EQ(inst.rs2, 2);
+    ASSERT_EQ(inst.rs1, 3);
+    ASSERT_EQ(inst.format, Format::R);
+    return true;
+}
+
+TEST(a_decode_amoadd) {
+    auto inst = Decoder::decode(0x0053'222fu); // amoadd.w x4, x5, (x6)
+    ASSERT_EQ(inst.op, Op::AMOADD_W);
+    ASSERT_EQ(inst.rd, 4);
+    ASSERT_EQ(inst.rs2, 5);
+    ASSERT_EQ(inst.rs1, 6);
+    ASSERT_EQ(inst.format, Format::R);
+    return true;
+}
+
+TEST(a_decode_amoxor) {
+    auto inst = Decoder::decode(0x2084'a3afu); // amoxor.w x7, x8, (x9)
+    ASSERT_EQ(inst.op, Op::AMOXOR_W);
+    ASSERT_EQ(inst.rd, 7);
+    ASSERT_EQ(inst.rs2, 8);
+    ASSERT_EQ(inst.rs1, 9);
+    ASSERT_EQ(inst.format, Format::R);
+    return true;
+}
+
+TEST(a_decode_amoand) {
+    auto inst = Decoder::decode(0x60b6'252fu); // amoand.w x10, x11, (x12)
+    ASSERT_EQ(inst.op, Op::AMOAND_W);
+    ASSERT_EQ(inst.rd, 10);
+    ASSERT_EQ(inst.rs2, 11);
+    ASSERT_EQ(inst.rs1, 12);
+    ASSERT_EQ(inst.format, Format::R);
+    return true;
+}
+
+TEST(a_decode_amoor) {
+    auto inst = Decoder::decode(0x40e7'a6afu); // amoor.w x13, x14, (x15)
+    ASSERT_EQ(inst.op, Op::AMOOR_W);
+    ASSERT_EQ(inst.rd, 13);
+    ASSERT_EQ(inst.rs2, 14);
+    ASSERT_EQ(inst.rs1, 15);
+    ASSERT_EQ(inst.format, Format::R);
+    return true;
+}
+
+TEST(a_decode_amomin) {
+    auto inst = Decoder::decode(0x8119'282fu); // amomin.w x16, x17, (x18)
+    ASSERT_EQ(inst.op, Op::AMOMIN_W);
+    ASSERT_EQ(inst.rd, 16);
+    ASSERT_EQ(inst.rs2, 17);
+    ASSERT_EQ(inst.rs1, 18);
+    ASSERT_EQ(inst.format, Format::R);
+    return true;
+}
+
+TEST(a_decode_amomax) {
+    auto inst = Decoder::decode(0xa14a'a9afu); // amomax.w x19, x20, (x21)
+    ASSERT_EQ(inst.op, Op::AMOMAX_W);
+    ASSERT_EQ(inst.rd, 19);
+    ASSERT_EQ(inst.rs2, 20);
+    ASSERT_EQ(inst.rs1, 21);
+    ASSERT_EQ(inst.format, Format::R);
+    return true;
+}
+
+TEST(a_decode_amominu) {
+    auto inst = Decoder::decode(0xc17c'2b2fu); // amominu.w x22, x23, (x24)
+    ASSERT_EQ(inst.op, Op::AMOMINU_W);
+    ASSERT_EQ(inst.rd, 22);
+    ASSERT_EQ(inst.rs2, 23);
+    ASSERT_EQ(inst.rs1, 24);
+    ASSERT_EQ(inst.format, Format::R);
+    return true;
+}
+
+TEST(a_decode_amomaxu) {
+    auto inst = Decoder::decode(0xe1ad'acafu); // amomaxu.w x25, x26, (x27)
+    ASSERT_EQ(inst.op, Op::AMOMAXU_W);
+    ASSERT_EQ(inst.rd, 25);
+    ASSERT_EQ(inst.rs2, 26);
+    ASSERT_EQ(inst.rs1, 27);
+    ASSERT_EQ(inst.format, Format::R);
+    return true;
+}
+
+// ── Edge cases ─────────────────────────────────────────────────────────
 
 TEST(a_decode_lr_w_invalid_rs2) {
     // LR.W with rs2 != 0 is invalid per spec
-    u32 bad_lr = encode_amo(0b00010, 3, 1, 5);  // rs2=5
+    u32 bad_lr = encode_amo(0b00010u, 3, 1, 5);  // rs2=5
     auto inst = Decoder::decode(bad_lr);
     ASSERT_EQ(inst.op, Op::INVALID);
     return true;
@@ -145,9 +230,10 @@ TEST(a_decode_lr_w_invalid_rs2) {
 
 TEST(a_decode_invalid_funct3) {
     // AMO opcode but funct3 != 010 (not .W) should be invalid
-    u32 bad = (0b00000u << 27) | (2u << 20) | (1u << 15)
-            | (0b011u << 12) | (3u << 7) | 0b0101111u; /* funct3 = 011 */
-    auto inst = Decoder::decode(bad);
+    // Here, funct3 = 011
+    u32 bad_enc = (0b00000u << 27) | (2u << 20) | (1u << 15)
+                | (0b011u << 12) | (3u << 7) | 0b0101111u;
+    auto inst = Decoder::decode(bad_enc);
     ASSERT_EQ(inst.op, Op::INVALID);
     return true;
 }
