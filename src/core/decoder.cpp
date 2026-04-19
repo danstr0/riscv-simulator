@@ -1,14 +1,6 @@
 /**
  * @file decoder.cpp
- * @brief Implementation of the RV32I instruction decoder.
- *
- * The decode pipeline follows a multi-level dispatch:
- * 1. Opcode Extraction: Slices bits [6:0] to determine the base @ref Opcode.
- * 2. Helper Dispatch: Hands off the word to a format-aware static method.
- * 3. Field Mapping: Reconstructs the internal @ref Op tag using funct3/funct7.
- *
- * @note All immediate reconstruction logic follows the mappings defined in
- * RISC-V Unprivileged ISA Spec §2.1.
+ * @brief Instruction decoder implementation.
  */
 
 #include "decoder.hpp"
@@ -17,12 +9,12 @@
 
 namespace riscv {
 
-/* ═══════════════════════════════════════════════════════════════════════
- * Mnemonic Lookup
- * ═══════════════════════════════════════════════════════════════════════ */
+// ── Mnemonic lookup ────────────────────────────────────────────────────
 
-const char* op_name(Op op) {
-    switch (op) {
+const char* op_name(Op op)
+{
+    switch (op)
+    {
         case Op::LB:         return "lb";
         case Op::LH:         return "lh";
         case Op::LW:         return "lw";
@@ -88,7 +80,6 @@ const char* op_name(Op op) {
         case Op::AMOMAXU_W:  return "amomaxu.w";
 
         case Op::VSETVLI:    return "vsetvli";
-        case Op::VSETIVLI:   return "vsetivli";
         case Op::VLE32:      return "vle32.v";
         case Op::VSE32:      return "vse32.v";
         case Op::VADD_VV:    return "vadd.vv";
@@ -135,30 +126,71 @@ const char* op_name(Op op) {
     return "???";
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
- * Disassembly
- * ═══════════════════════════════════════════════════════════════════════ */
+// ── Disassembly ────────────────────────────────────────────────────────
 
 std::string DecodedInst::disassemble() const
 {
-    switch(format) {
+    switch(format)
+    {
         case Format::R:
-            if (is_atomic()) {
-                if (op == Op::LR_W) {
+            if (is_atomic())
+            {
+                if (op == Op::LR_W)
                     return std::format("{} {}, ({})",
                             op_name(op), reg_name(rd), reg_name(rs1));
-                }
+
                 return std::format("{} {}, {}, ({})",
                         op_name(op), reg_name(rd), reg_name(rs2), reg_name(rs1));
+            }
+            if (is_vector())
+            {
+                switch(op)
+                {
+                    case Op::VLE32: // vd, (rs1)
+                    case Op::VSE32: // vs3, (rs1)
+                        return std::format("{} {}, ({})",
+                                op_name(op), vreg_name(rd), reg_name(rs1));
+
+                    case Op::VSETVLI: // rd, rs1, vtypei
+                        return std::format("{} {}, {}, {}",
+                                op_name(op), reg_name(rd), reg_name(rs1), imm);
+
+                    // vd, vs2, vs1
+                    case Op::VADD_VV: case Op::VSUB_VV:
+                    case Op::VAND_VV: case Op::VOR_VV: case Op::VXOR_VV:
+                    case Op::VMSEQ_VV: case Op::VMSLT_VV: case Op::VMSLTU_VV:
+                    case Op::VMAND_MM: case Op::VMNAND_MM: case Op::VMANDN_MM:
+                    case Op::VMOR_MM: case Op::VMNOR_MM: case Op::VMORN_MM:
+                    case Op::VMXOR_MM: case Op::VMXNOR_MM:
+                    case Op::VREDSUM_VS:
+                        return std::format("{} {}, {}, {}",
+                                op_name(op), vreg_name(rd), vreg_name(rs2), vreg_name(rs1));
+
+                    // vd, vs2, rs1
+                    case Op::VADD_VX: case Op::VSUB_VX:
+                    case Op::VAND_VX: case Op::VOR_VX: case Op::VXOR_VX:
+                    case Op::VSLL_VX: case Op::VSRL_VX:
+                    case Op::VMSEQ_VX:
+                        return std::format("{} {}, {}, {}",
+                                op_name(op), vreg_name(rd), vreg_name(rs2), reg_name(rs1));
+
+                    case Op::VMV_V_X: // vd, rs1
+                        return std::format("{} {}, {}",
+                                op_name(op), vreg_name(rd), reg_name(rs1));
+
+                    case Op::VMV_X_S: // rd, vs2
+                        return std::format("{} {}, {}",
+                                op_name(op), reg_name(rd), vreg_name(rs2));
+                }
             }
             return std::format("{} {}, {}, {}",
                 op_name(op), reg_name(rd), reg_name(rs1), reg_name(rs2));
 
         case Format::I:
-            if (is_load() || op == Op::JALR) {
+            if (is_load() || op == Op::JALR)
                 return std::format("{} {}, {}({})",
                     op_name(op), reg_name(rd), imm, reg_name(rs1));
-            }
+
             return std::format("{} {}, {}, {}",
                 op_name(op), reg_name(rd), reg_name(rs1), imm);
 
@@ -183,9 +215,7 @@ std::string DecodedInst::disassemble() const
     return "???";
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
- * Immediate extraction (Spec §2.1.3)
- * ═══════════════════════════════════════════════════════════════════════ */
+// ── Immediate extraction ───────────────────────────────────────────────
 
 i32 Decoder::extract_i_imm(u32 inst)
 {
@@ -228,9 +258,7 @@ i32 Decoder::extract_j_imm(u32 inst)
     return sign_extend<21>(imm);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
- * Per-opcode decode helpers
- * ═══════════════════════════════════════════════════════════════════════ */
+// ── Per-opcode decode helpers ──────────────────────────────────────────
 
 DecodedInst Decoder::decode_load(u32 inst, addr_t pc)
 {
@@ -244,7 +272,8 @@ DecodedInst Decoder::decode_load(u32 inst, addr_t pc)
 
     u32 funct3 = bits(inst, 14, 12);
 
-    switch (bits(inst, 14, 12)) {
+    switch (funct3)
+    {
         case 0b000: d.op = Op::LB;  break;
         case 0b001: d.op = Op::LH;  break;
         case 0b010: d.op = Op::LW;  break;
@@ -267,7 +296,8 @@ DecodedInst Decoder::decode_store(u32 inst, addr_t pc)
 
     u32 funct3 = bits(inst, 14, 12);
 
-    switch(funct3) {
+    switch(funct3)
+    {
         case 0b000: d.op = Op::SB; break;
         case 0b001: d.op = Op::SH; break;
         case 0b010: d.op = Op::SW; break;
@@ -288,7 +318,8 @@ DecodedInst Decoder::decode_branch(u32 inst, addr_t pc)
 
     u32 funct3 = bits(inst, 14, 12);
 
-    switch (funct3) {
+    switch (funct3)
+    {
         case 0b000: d.op = Op::BEQ;  break;
         case 0b001: d.op = Op::BNE;  break;
         case 0b100: d.op = Op::BLT;  break;
@@ -313,7 +344,8 @@ DecodedInst Decoder::decode_op_imm(u32 inst, addr_t pc)
     u32 funct3 = bits(inst, 14, 12);
     u32 funct7 = bits(inst, 31, 25);
 
-    switch (funct3) {
+    switch (funct3)
+    {
         case 0b000: d.op = Op::ADDI;  break;
         case 0b010: d.op = Op::SLTI;  break;
         case 0b011: d.op = Op::SLTIU; break;
@@ -321,17 +353,17 @@ DecodedInst Decoder::decode_op_imm(u32 inst, addr_t pc)
         case 0b110: d.op = Op::ORI;   break;
         case 0b111: d.op = Op::ANDI;  break;
         
-        case 0b001:  /* SLLI */
-            if (funct7 == 0b0000000) {
+        case 0b001: // SLLI
+            if (funct7 == 0b0000000)
+            {
                 d.op  = Op::SLLI;
-                d.imm = bits(inst, 24, 20);  // shamt
-            } else {
+                d.imm = bits(inst, 24, 20); // shamt
+            } else
                 d.op = Op::INVALID;
-            }
             break;
 
-        case 0b101:  /* SRLI / SRAI */
-            d.imm = bits(inst, 24, 20);  // shamt
+        case 0b101: // SRLI / SRAI
+            d.imm = bits(inst, 24, 20); // shamt
             if (funct7 == 0b0000000)      d.op = Op::SRLI;
             else if (funct7 == 0b0100000) d.op = Op::SRAI;
             else                          d.op = Op::INVALID;
@@ -355,8 +387,10 @@ DecodedInst Decoder::decode_op(u32 inst, addr_t pc)
     u32 funct3 = bits(inst, 14, 12);
     u32 funct7 = bits(inst, 31, 25);
 
-    if (funct7 == 0b0000001) {
-        switch (funct3) {
+    if (funct7 == 0b0000001)
+    {
+        switch (funct3)
+        {
             case 0b000: d.op = Op::MUL;    break;
             case 0b001: d.op = Op::MULH;   break;
             case 0b010: d.op = Op::MULHSU; break;
@@ -369,7 +403,8 @@ DecodedInst Decoder::decode_op(u32 inst, addr_t pc)
         return d;
     }
 
-    switch (funct3) {
+    switch (funct3)
+    {
         case 0b000:
             d.op = (funct7 == 0b0000000) ? Op::ADD
                  : (funct7 == 0b0100000) ? Op::SUB
@@ -405,12 +440,14 @@ DecodedInst Decoder::decode_amo(u32 inst, addr_t pc)
     u32 funct5 = bits(inst, 31, 27);
 
     /* Only .W is supported in RV32A */
-    if (funct3 != 0b010) {
+    if (funct3 != 0b010)
+    {
         d.op = Op::INVALID;
         return d;
     }
 
-    switch(funct5) {
+    switch(funct5)
+    {
         case 0b00010: d.op = Op::LR_W;      break;
         case 0b00011: d.op = Op::SC_W;      break;
         case 0b00001: d.op = Op::AMOSWAP_W; break;
@@ -437,16 +474,17 @@ DecodedInst Decoder::decode_vector(u32 inst, addr_t pc)
     d.format = Format::R;
     d.raw    = inst;
     d.pc     = pc;
-    d.rd     = bits(inst, 11, 7);   /* vd (or rd for VMV.X.S / VSETVLI) */
-    d.rs1    = bits(inst, 19, 15);  /* vs1 or rs1 */
-    d.rs2    = bits(inst, 24, 20);  /* vs2 or rs2 */
+    d.rd     = bits(inst, 11, 7);   // vd (or rd for VMV.X.S / VSETVLI)
+    d.rs1    = bits(inst, 19, 15);  // vs1 or rs1
+    d.rs2    = bits(inst, 24, 20);  // vs2 or rs2
 
     u32 opcode = bits(inst, 6, 0);
     u32 funct3 = bits(inst, 14, 12);
     u32 funct6 = bits(inst, 31, 26);
 
-    /* Vector load (opcode = 0000111) */
-    if (opcode == 0b0000111) {
+    /* Vector load */
+    if (opcode == 0b0000111)
+    {
         /* 
          * Unit-stride load: width in funct3, nf|mew|mop|vm|lumop in upper bits
          * Only VLE32 (funct3 = 110, width = 32) is supported
@@ -458,8 +496,9 @@ DecodedInst Decoder::decode_vector(u32 inst, addr_t pc)
         return d;
     }
 
-    /* Vector store (opcode = 0100111) */
-    if (opcode == 0b0100111) {
+    /* Vector store */
+    if (opcode == 0b0100111)
+    {
         if (funct3 == 0b110 && d.rs2 == 0b00000)
             d.op = Op::VSE32;
         else
@@ -469,20 +508,17 @@ DecodedInst Decoder::decode_vector(u32 inst, addr_t pc)
 
     /* OP-V (opcode = 1010111) */
 
-    if (funct3 == 0b111 && bit(inst, 31) == 0) {
+    if (funct3 == 0b111 && bit(inst, 31) == 0)
+    {
         d.op  = Op::VSETVLI;
-        d.imm = bits(inst, 30, 20);  /* zimm[10:0] encodes type */
+        d.imm = bits(inst, 30, 20);  // zimm[10:0] encodes type
         return d;
     }
-    if (funct3 == 0b111 && bits(inst, 31, 30) == 0b11) {
-        d.op  = Op::VSETIVLI;
-        d.imm = bits(inst, 29, 20); /* zimm[9:0] encodes type */
-        return d;
-    }
-    /* Vector ALU */
-    switch(funct3) {
-        case 0b000:  /* OPIVV: vector-vector integer */
-            switch (funct6) {
+    switch(funct3)
+    {
+        case 0b000:  // OPIVV: vector-vector integer
+            switch (funct6)
+            {
                 case 0b000000: d.op = Op::VADD_VV;   break;
                 case 0b000010: d.op = Op::VSUB_VV;   break;
                 case 0b001001: d.op = Op::VAND_VV;   break;
@@ -495,8 +531,9 @@ DecodedInst Decoder::decode_vector(u32 inst, addr_t pc)
             }
             break;
 
-        case 0b100:  /* OPIVX: vector-scalar integer */
-            switch (funct6) {
+        case 0b100:  // OPIVX: vector-scalar integer
+            switch (funct6)
+            {
                 case 0b000000: d.op = Op::VADD_VX;  break;
                 case 0b000010: d.op = Op::VSUB_VX;  break;
                 case 0b001001: d.op = Op::VAND_VX;  break;
@@ -510,8 +547,9 @@ DecodedInst Decoder::decode_vector(u32 inst, addr_t pc)
             }
             break;
         
-        case 0b010:  /* OPMVV: vector-vector (mask/reduction/move) */
-            switch (funct6) {
+        case 0b010:  // OPMVV: vector-vector (mask/reduction/move)
+            switch (funct6)
+            {
                 case 0b000000: d.op = Op::VREDSUM_VS; break;
                 case 0b011001: d.op = Op::VMAND_MM;   break;
                 case 0b011101: d.op = Op::VMNAND_MM;  break;
@@ -546,9 +584,10 @@ DecodedInst Decoder::decode_system(u32 inst, addr_t pc)
 
     u32 funct3 = bits(inst, 14, 12);
 
-    if (funct3 == 0b000) {
+    if (funct3 == 0b000)
+    {
         u32 funct12 = bits(inst, 31, 20);
-        u32 mret_funct12 = 0b001100000010;
+        constexpr u32 mret_funct12 = 0b001100000010;
 
         if (inst == 0x00000073)           d.op = Op::ECALL;
         else if (inst == 0x00100073)      d.op = Op::EBREAK;
@@ -556,9 +595,12 @@ DecodedInst Decoder::decode_system(u32 inst, addr_t pc)
                 && d.rd == 0 
                 && d.rs1 == 0)            d.op = Op::MRET;
         else                              d.op = Op::INVALID;
-    } else {
+    } 
+    else
+    {
         /* CSR instructions */
-        switch (funct3) {
+        switch (funct3)
+        {
             case 0b001: d.op = Op::CSRRW;   break;
             case 0b010: d.op = Op::CSRRS;   break;
             case 0b011: d.op = Op::CSRRC;   break;
@@ -567,15 +609,12 @@ DecodedInst Decoder::decode_system(u32 inst, addr_t pc)
             case 0b111: d.op = Op::CSRRCI;  break;
             default:    d.op = Op::INVALID; break;
         }
-        /* Address is stored in imm */
         d.imm = static_cast<i32>(bits(inst, 31, 20));
     }
     return d;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
- * Main Decode Entry Point
- * ═══════════════════════════════════════════════════════════════════════ */
+// ── Main decode entry point ────────────────────────────────────────────
 
 DecodedInst Decoder::decode(u32 inst, addr_t pc)
 {
@@ -585,7 +624,8 @@ DecodedInst Decoder::decode(u32 inst, addr_t pc)
 
     auto opcode = static_cast<Opcode>(bits(inst, 6, 0));
 
-    switch (opcode) {
+    switch (opcode)
+    {
         case Opcode::LOAD:   return decode_load(inst, pc);
         case Opcode::STORE:  return decode_store(inst, pc);
         case Opcode::BRANCH: return decode_branch(inst, pc);
