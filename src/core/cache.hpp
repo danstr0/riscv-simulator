@@ -1,30 +1,29 @@
 /**
  * @file cache.hpp
- * @brief Parameterised cache hierarchy for cycle-accurate memory modelling.
+ * @brief Parameterised set-associative cache hierarchy for cycle-accurate memory modeling.
  *
  * This provides a flexible, set-associative cache simulation designed for
  * Pareto-front architectural sweeps. It allows for detailed benchmarking
  * across size, associativity, and replacement/write policies.
  *
- * @section arch_sec Architecture
- * - **Cache**: Represents a single level (L1, L2, L3) with flat-vector storage.
- * - **CacheHierarchy**: A chain of Cache levels ending in a backing memory.
- * Implements the @ref Memory interface for drop-in CPU integration.
+ * @par Architecture
+ * Cache represents a single level (L1, L2, L3) with flat-vector storage.
+ * CacheHierarchy chains multiple levels ending in a backing memory,
+ * implementing the Memory interface for drop-in CPU integration.
  *
- * @section address_sec Address Decomposition
- * For an address $A$, the components are derived via:
- * - **Block Offset**: $A \pmod{\text{LineSize}}$
- * - **Set Index**: $\lfloor A / \text{LineSize} \rfloor \pmod{\text{NumSets}}$
- * - **Tag**: $\lfloor A / (\text{LineSize} \times \text{NumSets}) \rfloor$
+ * @par Address decomposition
+ * For an address A: block offset = A mod LineSize,
+ * set index = (A / LineSize) mod NumSets,
+ * tag = A / (LineSize * NumSets).
  *
- * @section policy_sec Parameterization Axes
- * - **Geometry**: Total size, line size, associativity.
- * - **Replacement**: LRU, Pseudo-LRU (Tree-based), MRU, FIFO, Random.
- * - **Write Policy**: Write-Back vs. Write-Through.
- * - **Allocation**: Write-Allocate vs. No-Write-Allocate.
+ * @par Parameterization
+ * Geometry (size, line size, associativity), replacement policy
+ * (LRU, PLRU, MRU, FIFO, Random), write policy (write-back,
+ * write-through), and allocation policy (write-allocate,
+ * no-write-allocate).
  *
- * @see Patterson, D. A., & Hennessy, J. L. "Computer Organization and Design: The
- * Hardware/Software Interface (RISC-V Edition)", Sections 5.3-5.4.
+ * @see Patterson & Hennessy "Computer Organization and Design (RISC-V Edition)",
+ * 	Sections 5.3-5.4.
  */
 
 #pragma once
@@ -40,34 +39,35 @@
 
 namespace riscv {
 
-// ── Policy enums ───────────────────────────────────────────────────────
-
+/// Replacement policy for cache eviction.
 enum class ReplacementPolicy : u8 {
     LRU,     ///< Least recently used.
     MRU,     ///< Most recently used.
-    PLRU,    ///< Pseudo-LRU (Tree-based).
+    PLRU,    ///< Pseudo-LRU (tree-based).
     RANDOM,  ///< Uniform random.
     FIFO,    ///< First-in first-out.
 };
 
+/// Write policy controlling when data propagates to the next level.
 enum class WritePolicy: u8 {
     WRITE_BACK,     ///< Write to cache only; writeback on eviction.
-    WRITE_THROUGH,  ///< Write to cache AND next level on every write.
+    WRITE_THROUGH,  ///< Write to cache and next level on every write.
 };
 
+/// Allocation policy on write misses.
 enum class WriteAllocate : u8 {
-    ALLOCATE,     ///< On write miss, fetch line into cache then write.
-    NO_ALLOCATE,  ///< On write miss, write directly to next level.
+    ALLOCATE,     ///< Fetch line into cache, then write.
+    NO_ALLOCATE,  ///< Write directly to next level.
 };
 
+/// Cache role in a split-cache architecture.
 enum class CacheType : u8 {
     UNIFIED,      ///< Serves both instructions and data.
-    INSTRUCTION,  ///< I-cache (reads only in normal operation).
+    INSTRUCTION,  ///< I-cache (reads only).
     DATA,         ///< D-cache (reads and writes).
 };
 
-// ── Cache configuration ────────────────────────────────────────────────
-
+/// Configuration for a single cache level.
 struct CacheConfig {
     u32 size_bytes;          ///< Total cache size.
     u32 line_size     = 64;  ///< Cache line size in bytes.
@@ -80,8 +80,8 @@ struct CacheConfig {
     WriteAllocate     write_alloc = WriteAllocate::ALLOCATE;
     CacheType         type        = CacheType::UNIFIED;
 
-    /** @name Derived geometry */
-    /** @{ */
+    /// @name Derived geometry
+    /// @{
     [[nodiscard]] constexpr u32 num_sets() const noexcept
     {
         return size_bytes / (line_size * associativity);
@@ -91,13 +91,13 @@ struct CacheConfig {
     {
         return size_bytes / line_size;
     }
-    /** @} */
+    /// @}
 
     /**
-     * @brief Validate that the configuration is self-consistent.
+     * @brief Validate self-consistency.
      *
-     * All sizes must be powers of two; total size must be evenly
-     * divisible by (line size × associativity).
+     * All sizes must be powers of two; total size must equal
+     * line size * associativity * num_sets.
      */
     [[nodiscard]] constexpr bool valid() const noexcept
     {
@@ -109,8 +109,8 @@ struct CacheConfig {
             && (size_bytes % (line_size * associativity)) == 0;
     }
 
-    /** @name Static presets for common architectures */
-    /** @{ */
+    /// @name Static presets
+    /// @{
     static constexpr CacheConfig L1_typical()
     {
         return {
@@ -143,31 +143,31 @@ struct CacheConfig {
             .miss_penalty  = 100,
         };
     }
-
-    /** @} */
+    /// @}
 };
 
-// ── Cache line metadata ────────────────────────────────────────────────
-// Payload data lives in Cache::storage_, not here.
-
+/**
+ * @brief Metadata for a single cache line.
+ *
+ * Payload data lives in Cache::storage_, not here.
+ */
 struct CacheLine {
     bool        valid       = false;
     bool        dirty       = false;
     addr_t      tag         = 0;
-    addr_t 	    line_addr   = 0;  ///< Full address of the start of this line.
-    mutable u64 last_access = 0;  ///< Timestamp for LRU.
+    addr_t      line_addr   = 0;  ///< Full address of the line start.
+    mutable u64 last_access = 0;  ///< Timestamp for LRU/MRU.
     mutable u32 fifo_order  = 0;  ///< Insertion order for FIFO.
 };
 
-// ── Cache statistics ───────────────────────────────────────────────────
-
+/// Per-level cache performance counters.
 struct CacheStats {
     u64 reads           = 0;
     u64 writes          = 0;
     u64 hits            = 0;
     u64 misses          = 0;
     u64 evictions       = 0;
-    u64 dirty_evictions = 0;  ///< Evictions that required a writeback.
+    u64 dirty_evictions = 0;  ///< Evictions requiring a writeback.
     u64 total_latency   = 0;  ///< Sum of per-access latencies.
 
     [[nodiscard]] double hit_rate() const noexcept
@@ -190,92 +190,83 @@ struct CacheStats {
     void reset() noexcept { *this = CacheStats{}; }
 };
 
-// ── Single cache level ─────────────────────────────────────────────────
-
+/**
+ * @brief Single cache level with configurable geometry, replacement, and write policies.
+ *
+ * Uses flat-vector storage for line payloads. Implements the Memory
+ * interface so it can be chained with other levels or used standalone.
+ */
 class Cache : public Memory {
 public:
     Cache(CacheConfig, std::shared_ptr<Memory> next_level);
 
-    /** @name Memory interface */
-    /** @{ */
+    /// @name Memory interface
+    /// @{
     [[nodiscard]] MemoryResult read8(addr_t addr)  const override;
     [[nodiscard]] MemoryResult read16(addr_t addr) const override;
     [[nodiscard]] MemoryResult read32(addr_t addr) const override;
     MemoryResult write8(addr_t addr, u8 value)   override;
     MemoryResult write16(addr_t addr, u16 value) override;
     MemoryResult write32(addr_t addr, u32 value) override;
-    
     void load(addr_t addr, std::span<const u8> data) override;
     [[nodiscard]] bool valid_address(addr_t addr, size_t size = 1) const override;
-
     u32 read_line(addr_t addr, u8* dest, u32 size) const override;
     u32 write_line(addr_t addr, const u8* src, u32 size) override;    
-    /** @} */
+    /// @}
 
-    /** @name Cache control */
-    /** @{ */
+    /// @name Cache control
+    /// @{
     [[nodiscard]] bool lookup(addr_t addr) const;
     void invalidate(addr_t addr);
     void invalidate_all();
-    void writeback(addr_t addr);  ///< Flush dirty line WITHOUT invalidating.
-    void writeback_all();         ///< Flush all dirty lines WITHOUT invalidating.
+    void writeback(addr_t addr);  ///< Flush dirty line without invalidating.
+    void writeback_all();         ///< Flush all dirty lines without invalidating.
     void flush(addr_t addr);      ///< Writeback + invalidate.
-    void flush_all();             ///< Writeback + invalidate everything.
-    /** @} */
+    void flush_all();             ///< Writeback + invalidate all lines.
+    /// @}
 
-    /** @name Coherence support */
-    /** @{ */
+    /// @name Coherence snooping
+    /// @{
 
-    /** @brief Check if this cache has a copy of the line containing @p addr. */
+    /// Check if this cache holds the line containing @p addr.
     [[nodiscard]] bool snoop_has_line(addr_t addr, bool* dirty = nullptr) const;
 
     /** 
-     * @brief Supply line data to another cache (for Modified/Exclusive->Shared).
+     * @brief Supply line data to another cache (Modified/Exclusive → Shared).
      *
-     * Copies line data to @p dest and marks the local copy as clean (Shared).
-     *
+     * Copies line data to @p dest and marks the local copy clean.
      * @return False if the line is not present.
      */
     bool snoop_share_line(addr_t addr, u8* dest, u32 size);
 
-    /**
-     * @brief Invalidate a line.
-     *
-     * If dirty, writes back to next level first.
-     */
+    /// Invalidate a line, writing back to next level first if dirty.
     void snoop_invalidate(addr_t addr);
-    /** @} */
+    /// @}
 
-    /** @name Accessors */
-    /** @{ */
+    /// @name Accessors
+    /// @{
     [[nodiscard]] const CacheStats&  stats()  const noexcept { return stats_; }
     [[nodiscard]]       CacheStats&  stats()        noexcept { return stats_; }
     [[nodiscard]] const CacheConfig& config() const noexcept { return config_; }
-    /** @} */
+    /// @}
 
-    /** @name Coherence Integration */
-    /** @{ */
-
-    /** @brief Callback invoked on a read miss, before the line is fetched. */
-    using MissCallback = std::function<u32(addr_t)>;
-
-    /** @brief Callback invoked on a write (hit or miss). */
-    using WriteCallback = std::function<u32(addr_t)>;
+    /// @name Coherence callbacks
+    /// @{
+    using MissCallback  = std::function<u32(addr_t)>;  ///< Invoked on read miss before fetch.
+    using WriteCallback = std::function<u32(addr_t)>;  ///< Invoked on every write.
 
     void set_on_read_miss(MissCallback cb) { on_read_miss_ = std::move(cb); }
     void set_on_write(WriteCallback cb)    { on_write_ = std::move(cb); }
-    /** @} */
+    /// @}
 
-    /** @brief Debug dump to stdout. */
+    /// Debug cache summary to stdout.
     void dump() const;
 
 private:
     CacheConfig             config_;
     std::shared_ptr<Memory> next_level_;
-
-    /** @brief Coherence callbacks, set by MultiCoreCPU. */
-    MissCallback  on_read_miss_;
-    WriteCallback on_write_;
+    MissCallback            on_read_miss_;
+    WriteCallback           on_write_;
 
     /*
      * Flat storage: all line payloads in one contiguous allocation.
@@ -283,42 +274,28 @@ private:
      */
     mutable std::vector<u8>                     storage_;
     mutable std::vector<std::vector<CacheLine>> sets_;
-
     mutable CacheStats stats_;
     mutable u64        access_counter_ = 0;
+    mutable std::vector<u32>             fifo_counters_;  ///< Per-set FIFO counters.
+    mutable std::vector<std::vector<u8>> plru_bits_;      ///< Per-set PLRU tree bits.
 
-    /** @brief Per-set FIFO counters (only used when replacement == FIFO). */
-    mutable std::vector<u32> fifo_counters_;
-
-    /** @brief Per-set PLRU tree bits (only used with replacement == PLRU) */
-    mutable std::vector<std::vector<u8>> plru_bits_;
-
-    /** @name Address decomposition */
-    /** @{ */
+    /// @name Address decomposition
+    /// @{
     [[nodiscard]] u32    offset_of(addr_t addr)    const noexcept;
     [[nodiscard]] u32    index_of(addr_t addr)     const noexcept;
     [[nodiscard]] addr_t tag_of(addr_t addr)       const noexcept;
     [[nodiscard]] addr_t line_addr_of(addr_t addr) const noexcept;
-    /** @} */
+    /// @}
 
 
-    /** @name Internal helpers */
-    /** @{ */
-
-    /// Get a pointer into storage_ for the given set + way.
+    /// @name Internal helpers
+    /// @{
     [[nodiscard]] u8*       line_data(u32 set_idx, u32 way) noexcept;
     [[nodiscard]] const u8* line_data(u32 set_idx, u32 way) const noexcept;
-    
-    struct LineRef {
-        CacheLine* meta;
-        u8*        data;
-    };
 
-    struct ConstLineRef {
-        const CacheLine* meta;
-        const u8*        data;
-    };
-    
+    struct LineRef      { CacheLine* meta; u8* data; };
+    struct ConstLineRef { const CacheLine* meta; const u8* data; };
+
     [[nodiscard]] std::optional<LineRef>      find_line(addr_t addr);
     [[nodiscard]] std::optional<ConstLineRef> find_line(addr_t addr) const;
 
@@ -328,92 +305,76 @@ private:
     void     fetch_line(addr_t line_addr, u32 set_idx, u32 way);
     [[nodiscard]] u32 find_victim(u32 set_idx) const;
 
-    /**
-     * @brief Update replacement metadata after an access to the given way.
-     * Called on every hit and after every allocation.
-     */
+    /// Update replacement metadata after accessing @p way in @p set_idx.
     void touch_way(u32 set_idx, u32 way) const;
 
     [[nodiscard]] MemoryResult read_bytes(addr_t addr, u32 size) const;
     MemoryResult write_bytes(addr_t addr, const u8* bytes, u32 size);
 
-    /// Global line index for flat storage: set_idx * associativity + way.
+    /// Flat storage index: set_idx * associativity + way.
     [[nodiscard]] u32 line_index(u32 set_idx, u32 way) const noexcept
     {
         return set_idx * config_.associativity + way;
     }
-
-    /** @} */
+    /// @}
 };
 
-// ── Cache hierarchy ────────────────────────────────────────────────────
-
+/// Configuration for a multi-level cache hierarchy.
 struct CacheHierarchyConfig {
     std::vector<CacheConfig> levels;
 
     static CacheHierarchyConfig typical_2level()
     {
-        return {
-            .levels = {
-                CacheConfig::L1_typical(),
-                CacheConfig::L2_typical()
-            }
-        };
+        return { .levels = { CacheConfig::L1_typical(), CacheConfig::L2_typical() } };
     }
 
     static CacheHierarchyConfig typical_3level()
     {
-        return {
-            .levels = {
-                CacheConfig::L1_typical(),
-                CacheConfig::L2_typical(),
-                CacheConfig::L3_typical(),
-            }
-        };
+        return { .levels = { CacheConfig::L1_typical(), CacheConfig::L2_typical(),
+                             CacheConfig::L3_typical(), } };
     }
 };
 
 /**
- * @brief Chains multiple @ref Cache levels backed by a main memory.
+ * @brief Multi-level cache chain backed by a main memory.
  *
- * All accesses enter through L1. On an L1 miss, L1's next_level (L2)
- * is consulted, and so on. The hierarchy itself implements the Memory
- * interface so the CPU can use it as a drop-in replacement for
- * FlatMemory or MMIOBus.
+ * All accesses enter through L1. On a miss, L1's next level (L2)
+ * is consulted, and so on. Implements the Memory interface for
+ * drop-in use. 
  *
- * Latency model: the latency returned by a read/write is the sum of
- * hit_latency at every level that was hit, plus miss_penalty at every
- * level that missed.
+ * @par Latency model
+ * Returned latency is the sum of hit_latency at every level hit,
+ * plus miss_penalty at every level that missed.
  */
 class CacheHierarchy : public Memory {
 public:
     CacheHierarchy(CacheHierarchyConfig config, std::shared_ptr<Memory> main_memory);
 
-    /** @name Memory interface */
-    /** @{ */
+    /// @name Memory interface
+    /// @{
     [[nodiscard]] MemoryResult read8(addr_t addr)  const override;
     [[nodiscard]] MemoryResult read16(addr_t addr) const override;
     [[nodiscard]] MemoryResult read32(addr_t addr) const override;
     MemoryResult write8(addr_t addr, u8 value)   override;
     MemoryResult write16(addr_t addr, u16 value) override;
     MemoryResult write32(addr_t addr, u32 value) override;
-
     void load(addr_t addr, std::span<const u8> data) override;
     [[nodiscard]] bool valid_address(addr_t addr, size_t size = 1) const override;
-    /** @} */
+    /// @}
 
-    /** @name Cache control */
-    /** @{ */
-    void flush_all();       ///< Writeback and invalidate all levels.
-    void invalidate_all();  ///< Invalidate without writeback.
-    /** @} */
+    /// @name Cache control
+    /// @{
+    void flush_all();
+    void invalidate_all();
+    /// @}
 
-    /** @name Introspection */
-    /** @{ */
+    /// @name Introspection
+    /// @{
     [[nodiscard]] size_t       num_levels() const noexcept { return caches_.size(); }
     [[nodiscard]]       Cache& level(size_t n)       { return *caches_.at(n); }
     [[nodiscard]] const Cache& level(size_t n) const { return *caches_.at(n); }
 
+    /// Aggregated statistics across all cache levels.
     struct HierarchyStats {
         std::vector<CacheStats> level_stats;
         u64 total_accesses = 0;
@@ -429,7 +390,7 @@ public:
 
     [[nodiscard]] HierarchyStats get_stats() const;
     void reset_stats();
-    /** @} */
+    /// @}
 
 private:
     std::vector<std::shared_ptr<Cache>> caches_;

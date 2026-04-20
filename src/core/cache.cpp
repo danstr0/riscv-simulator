@@ -1,11 +1,6 @@
 /**
  * @file cache.cpp
- * @brief Implementation of the parameterised cache hierarchy.
- *
- * * Design choices:
- * - Flat storage allocation to minimize heap fragmentation.
- * - Recursive decomposition of misaligned (cross-line) memory accesses.
- * - Bit-tree based Pseudo-LRU for hardware-realistic eviction modeling. 
+ * @brief Cache and CacheHierarchy implementation.
  */
 
 #include "cache.hpp"
@@ -80,7 +75,8 @@ std::optional<Cache::LineRef> Cache::find_line(addr_t addr)
     u32 idx    = index_of(addr);
     addr_t tag = tag_of(addr);
 
-    for (u32 w = 0; w < config_.associativity; ++w) {
+    for (u32 w = 0; w < config_.associativity; ++w)
+    {
         auto& meta = sets_[idx][w];
         if (meta.valid && meta.tag == tag)
             return LineRef{&meta, line_data(idx, w)};
@@ -93,7 +89,8 @@ std::optional<Cache::ConstLineRef> Cache::find_line(addr_t addr) const
     u32 idx    = index_of(addr);
     addr_t tag = tag_of(addr);
 
-    for (u32 w = 0; w < config_.associativity; ++w) {
+    for (u32 w = 0; w < config_.associativity; ++w)
+    {
         const auto& meta = sets_[idx][w];
         if (meta.valid && meta.tag == tag)
             return ConstLineRef{&meta, line_data(idx, w)};
@@ -112,12 +109,16 @@ u32 Cache::find_victim(u32 set_idx) const
     for (u32 w = 0; w < N; ++w)
         if (!set[w].valid) return w;
 
-    switch(config_.replacement) {
-        case ReplacementPolicy::LRU: {
+    switch(config_.replacement)
+    {
+        case ReplacementPolicy::LRU:
+        {
             u32 victim = 0;
             u64 oldest = set[0].last_access;
-            for (u32 w = 1; w < N; ++w) {
-                if (set[w].last_access < oldest) {
+            for (u32 w = 1; w < N; ++w)
+            {
+                if (set[w].last_access < oldest)
+                {
                     oldest = set[w].last_access;
                     victim = w;
                 }
@@ -125,11 +126,14 @@ u32 Cache::find_victim(u32 set_idx) const
             return victim;
         }
 
-        case ReplacementPolicy::MRU: {
+        case ReplacementPolicy::MRU:
+	    {
             u32 victim = 0;
             u64 newest = set[0].last_access;
-            for (u32 w = 1; w < N; ++w) {
-                if (set[w].last_access > newest) {
+            for (u32 w = 1; w < N; ++w)
+	        {
+                if (set[w].last_access > newest)
+		        {
                     newest = set[w].last_access;
                     victim = w;
                 }
@@ -137,18 +141,21 @@ u32 Cache::find_victim(u32 set_idx) const
             return victim;
         }
 
-        case ReplacementPolicy::PLRU: {
+        case ReplacementPolicy::PLRU:
+	    {
             const auto& bits = plru_bits_[set_idx];
             u32 node = 0;
             u32 way  = 0;
             u32 span = N;  /* Number of ways in the current subtree */
             
-            while (span > 1) {
+            while (span > 1)
+	    {
                 u32 half = span / 2;
-                if (bits[node] == 0) {
+                if (bits[node] == 0)
                     node = 2 * node + 1;
-                    /* way stays the same (leftmost of current subtree) */
-                } else {
+		    /* way stays the same (leftmost of current subtree) */
+                else
+		        {
                     node = 2 * node + 2;
                     way += half;
                 }
@@ -157,11 +164,14 @@ u32 Cache::find_victim(u32 set_idx) const
             return way;
         }
 
-        case ReplacementPolicy::FIFO: {
+        case ReplacementPolicy::FIFO:
+        {
             u32 victim = 0;
             u32 earliest = set[0].fifo_order;
-            for (u32 w = 1; w < N; ++w) {
-                if (set[w].fifo_order < earliest) {
+            for (u32 w = 1; w < N; ++w)
+            {
+                if (set[w].fifo_order < earliest)
+                {
                     earliest = set[w].fifo_order;
                     victim = w;
                 }
@@ -169,13 +179,14 @@ u32 Cache::find_victim(u32 set_idx) const
             return victim;
         }
 
-        case ReplacementPolicy::RANDOM: {
+        case ReplacementPolicy::RANDOM:
+        {
             static std::mt19937 rng{42};
             return static_cast<u32>(rng() % N);
         } 
     }
 
-    return 0;  // Unreachable
+    return 0;  /* unreachable */
 }
 
 // ── Replacement metadata update ────────────────────────────────────────
@@ -186,21 +197,24 @@ void Cache::touch_way(u32 set_idx, u32 way) const
 
     /*
      * Walk the tree from root to leaf, flipping each bit to point
-     * AWAY from the accessed way.
+     * away from the accessed way.
      */
     auto& bits = plru_bits_[set_idx];
     u32 N    = config_.associativity;
     u32 node = 0;
-    u32 base = 0;  /* Leftmost way index of the current subtree */
+    u32 base = 0;  /* leftmost way index of the current subtree */
     u32 span = N;
 
     while (span > 1) {
         u32 half = span / 2;
-        if (way < base + half) {
+        if (way < base + half)
+        {
             /* Accessed way is in the left subtree; point toward right */
             bits[node] = 1;
             node = 2 * node + 1;
-        } else {
+        }
+        else
+        {
             /* Accessed way is in the right subtree; point toward left */
             bits[node] = 0;
             node = 2 * node + 2;
@@ -222,7 +236,7 @@ void Cache::writeback_line(u32 set_idx, u32 way)
     meta.dirty = false;
 }
 
-// ── Eviction (writeback + invalidate) ────────────────────────────────────────
+// ── Eviction (writeback + invalidate) ──────────────────────────────────
 
 void Cache::evict_line(u32 set_idx, u32 way)
 {
@@ -231,7 +245,8 @@ void Cache::evict_line(u32 set_idx, u32 way)
 
     stats_.evictions++;
 
-    if (meta.dirty) {
+    if (meta.dirty)
+    {
         stats_.dirty_evictions++;
         writeback_line(set_idx, way);
     }
@@ -275,7 +290,8 @@ MemoryResult Cache::read_bytes(addr_t addr, u32 size) const
 {
     /* Cross-line check: if the access spans two lines, split it */
     u32 off = offset_of(addr);
-    if (off + size > config_.line_size) {
+    if (off + size > config_.line_size)
+    {
         /* Recursive split - each half is within a single line */
         u32 first_part = config_.line_size - off;
         auto r1 = read_bytes(addr, first_part);
@@ -293,20 +309,23 @@ MemoryResult Cache::read_bytes(addr_t addr, u32 size) const
 
     const u8* data_ptr;
 
-    if (found) {
+    if (found)
+    {
         stats_.hits++;
         latency = config_.hit_latency;
         found->meta->last_access = access_counter_;
         u32 hit_way = static_cast<u32>(found->meta - sets_[index_of(addr)].data());
         touch_way(index_of(addr), hit_way);
         data_ptr = found->data;
-    } else {
+    }
+    else
+    {
         stats_.misses++;
         u32 coherence_latency = 0;
 	    if (on_read_miss_)
             coherence_latency = on_read_miss_(line_addr_of(addr));
 	
-	    auto& self = const_cast<Cache&>(*this);
+	auto& self = const_cast<Cache&>(*this);
         auto ref = self.allocate_line(addr);
         latency = config_.hit_latency + config_.miss_penalty + coherence_latency;
         u32 alloc_way = static_cast<u32>(ref.meta - sets_[index_of(addr)].data());
@@ -327,7 +346,8 @@ MemoryResult Cache::write_bytes(addr_t addr, const u8* bytes, u32 size)
 {
     /* Cross-line check */
     u32 off = offset_of(addr);
-    if (off + size > config_.line_size) {
+    if (off + size > config_.line_size)
+    {
         u32 first_part = config_.line_size - off;
         auto r1 = write_bytes(addr, bytes, first_part);
         auto r2 = write_bytes(addr + first_part, bytes + first_part, size - first_part);
@@ -341,10 +361,12 @@ MemoryResult Cache::write_bytes(addr_t addr, const u8* bytes, u32 size)
     if (on_write_)
         coherence_latency = on_write_(line_addr_of(addr));
 
-    /* Write-no-allocate: on a miss, write directly to next level */
-    if (config_.write_alloc == WriteAllocate::NO_ALLOCATE) {
+    /* Write-no-allocate path */
+    if (config_.write_alloc == WriteAllocate::NO_ALLOCATE)
+    {
         auto found = find_line(addr);
-        if (!found) {
+        if (!found)
+        {
             stats_.misses++;
             for (u32 i = 0; i < size; ++i)
                 next_level_->write8(addr + i, bytes[i]);
@@ -359,15 +381,17 @@ MemoryResult Cache::write_bytes(addr_t addr, const u8* bytes, u32 size)
         touch_way(index_of(addr), hit_way);
         std::memcpy(found->data + off, bytes, size);
 
-        if (config_.write_pol == WritePolicy::WRITE_THROUGH) {
+        if (config_.write_pol == WritePolicy::WRITE_THROUGH)
+        {
             for (u32 i = 0; i < size; ++i)
                 next_level_->write8(addr + i, bytes[i]);
-        } else {
+        } 
+        else
             found->meta->dirty = true;
-        }
+
         u32 latency = config_.hit_latency + coherence_latency;
         stats_.total_latency += latency;
-        return {0, config_.hit_latency, true};
+        return {0, latency, true};
     }
 
     /* Write-allocate path */
@@ -376,29 +400,32 @@ MemoryResult Cache::write_bytes(addr_t addr, const u8* bytes, u32 size)
     u8* dest;
     u32 way_idx;
 
-    if (found) {
+    if (found)
+    {
         stats_.hits++;
         latency = config_.hit_latency;
         found->meta->last_access = access_counter_;
         way_idx = static_cast<u32>(found->meta - sets_[index_of(addr)].data());
         dest = const_cast<u8*>(found->data);
-    } else {
+        found->meta->dirty = true;
+    }
+    else
+    {
         stats_.misses++;
         auto ref = allocate_line(addr);
         latency = config_.hit_latency + config_.miss_penalty;
         way_idx = static_cast<u32>(ref.meta - sets_[index_of(addr)].data());
         dest = ref.data;
+        ref.meta->dirty = true;
     }
 
     touch_way(index_of(addr), way_idx);
     std::memcpy(dest + off, bytes, size);
 
-    if (config_.write_pol == WritePolicy::WRITE_THROUGH) {
+    if (config_.write_pol == WritePolicy::WRITE_THROUGH)
+    {
         for (u32 i = 0; i < size; ++i)
             next_level_->write8(addr + i, bytes[i]);
-    } else {
-        auto ref = find_line(addr);
-        if (ref) ref->meta->dirty = true;
     }
 
     latency += coherence_latency;
@@ -459,7 +486,8 @@ bool Cache::valid_address(addr_t addr, size_t size) const
 u32 Cache::read_line(addr_t addr, u8* dest, u32 size) const
 {
     auto found = find_line(addr);
-    if (found) {
+    if (found)
+    {
         found->meta->last_access = access_counter_++;
         u32 idx = index_of(addr);
         u32 way = static_cast<u32>(found->meta - sets_[idx].data());
@@ -476,6 +504,9 @@ u32 Cache::read_line(addr_t addr, u8* dest, u32 size) const
     stats_.reads++;
     auto& self = const_cast<Cache&>(*this);
     auto ref = self.allocate_line(addr);
+    u32 idx = index_of(addr);
+    u32 way = static_cast<u32>(ref.meta - sets_[idx].data());
+    touch_way(idx, way);
     std::memcpy(dest, ref.data, std::min(size, config_.line_size));
     
     u32 latency = config_.hit_latency + config_.miss_penalty;
@@ -489,7 +520,8 @@ u32 Cache::write_line(addr_t addr, const u8* src, u32 size)
     u8* dest;
     u32 latency;
 
-    if (found) {
+    if (found)
+    {
         stats_.hits++;
         latency = config_.hit_latency;
         found->meta->last_access = access_counter_++;
@@ -498,19 +530,25 @@ u32 Cache::write_line(addr_t addr, const u8* src, u32 size)
         u32 way = static_cast<u32>(found->meta - sets_[idx].data());
         touch_way(idx, way);
         dest = const_cast<u8*>(found->data);
-    } else {
+    }
+    else
+    {
         stats_.misses++;
         auto ref = allocate_line(addr);
         latency = config_.hit_latency + config_.miss_penalty;
+        u32 idx = index_of(addr);
+        u32 way = static_cast<u32>(ref.meta - sets_[idx].data());
+        touch_way(idx, way);
         dest = ref.data;
     }
 
     std::memcpy(dest, src, std::min(size, config_.line_size));
     stats_.writes++;
 
-    if (config_.write_pol == WritePolicy::WRITE_THROUGH) {
+    if (config_.write_pol == WritePolicy::WRITE_THROUGH)
         next_level_->write_line(addr, src, size);
-    } else {
+    else
+    {
         auto ref = find_line(addr);
         if (ref) ref->meta->dirty = true;
     }
@@ -537,7 +575,8 @@ bool Cache::snoop_share_line(addr_t addr, u8* dest, u32 size)
 
     std::memcpy(dest, found->data, std::min(size, config_.line_size));
 
-    if (found->meta->dirty) {
+    if (found->meta->dirty)
+    {
         next_level_->write_line(found->meta->line_addr, found->data, config_.line_size);
         found->meta->dirty = false;
     }
@@ -549,7 +588,8 @@ void Cache::snoop_invalidate(addr_t addr)
     auto found = find_line(addr);
     if (!found) return;
 
-    if (found->meta->dirty) {
+    if (found->meta->dirty)
+    {
         u32 idx = index_of(addr);
         u32 way = static_cast<u32>(found->meta - sets_[idx].data());
         writeback_line(idx, way);
@@ -568,7 +608,8 @@ bool Cache::lookup(addr_t addr) const
 void Cache::invalidate(addr_t addr)
 {
     auto found = find_line(addr);
-    if (found) {
+    if (found)
+    {
         found->meta->valid = false;
         found->meta->dirty = false;
     }
@@ -576,8 +617,10 @@ void Cache::invalidate(addr_t addr)
 
 void Cache::invalidate_all()
 {
-    for (auto& set : sets_) {
-        for (auto& meta : set) {
+    for (auto& set : sets_)
+    {
+        for (auto& meta : set)
+        {
             meta.valid = false;
             meta.dirty = false;
         }
@@ -588,16 +631,20 @@ void Cache::writeback(addr_t addr)
 {
     u32 idx = index_of(addr);
     addr_t tag = tag_of(addr);
-    for (u32 w = 0; w < config_.associativity; ++w) {
-        if (sets_[idx][w].valid && sets_[idx][w].tag == tag) {
+    for (u32 w = 0; w < config_.associativity; ++w)
+    {
+        if (sets_[idx][w].valid && sets_[idx][w].tag == tag)
+        {
             writeback_line(idx, w);
             return;
         }
     }
 }
 
-void Cache::writeback_all() {
-    for (u32 s = 0; s < sets_.size(); ++s) {
+void Cache::writeback_all()
+{
+    for (u32 s = 0; s < sets_.size(); ++s)
+    {
         for (u32 w = 0; w < config_.associativity; ++w)
             writeback_line(s, w);
     }
@@ -619,8 +666,10 @@ void Cache::dump() const
 {
     u32 valid_lines = 0;
     u32 dirty_lines = 0;
-    for (const auto& set : sets_) {
-        for (const auto& meta : set) {
+    for (const auto& set : sets_)
+    {
+        for (const auto& meta : set)
+        {
             if (meta.valid) ++valid_lines;
             if (meta.valid && meta.dirty) ++dirty_lines;
         }
@@ -638,9 +687,7 @@ void Cache::dump() const
         valid_lines, config_.num_lines(), dirty_lines);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
- *  CacheHierarchy
- * ═══════════════════════════════════════════════════════════════════════ */
+// ── CacheHierarchy ─────────────────────────────────────────────────────
 
 CacheHierarchy::CacheHierarchy(CacheHierarchyConfig config,
                                std::shared_ptr<Memory> main_memory)
@@ -649,20 +696,20 @@ CacheHierarchy::CacheHierarchy(CacheHierarchyConfig config,
     assert(!config.levels.empty());
 
     /*
-     * Build the chain from outermost -> innermost so each level's
+     * Build the chain from outermost → innermost so each level's
      * next_level is already constructed
      */
     std::shared_ptr<Memory> next = main_memory_;
 
-    for (auto it = config.levels.rbegin(); it != config.levels.rend(); ++it) {
+    for (auto it = config.levels.rbegin(); it != config.levels.rend(); ++it)
+    {
         auto cache = std::make_shared<Cache>(*it, next);
         caches_.insert(caches_.begin(), cache);
         next = cache;
     }
 }
 
-// ── Memory interface ───────────────────────────────────────────────────
-// All accesses enter through L1 (caches_[0])
+// ── CacheHierarchy memory interface ────────────────────────────────────
 
 MemoryResult CacheHierarchy::read8(addr_t addr)  const { return caches_[0]->read8(addr); }
 MemoryResult CacheHierarchy::read16(addr_t addr) const { return caches_[0]->read16(addr); }
@@ -672,9 +719,11 @@ MemoryResult CacheHierarchy::write8(addr_t addr, u8 value)   { return caches_[0]
 MemoryResult CacheHierarchy::write16(addr_t addr, u16 value) { return caches_[0]->write16(addr, value); }
 MemoryResult CacheHierarchy::write32(addr_t addr, u32 value) { return caches_[0]->write32(addr, value); }
 
-void CacheHierarchy::load(addr_t addr, std::span<const u8> data) {
+void CacheHierarchy::load(addr_t addr, std::span<const u8> data)
+{
     main_memory_->load(addr, data);
-    for (auto& cache : caches_) {
+    for (auto& cache : caches_)
+    {
         addr_t start = cache->config().line_size > 0
                      ? (addr & ~static_cast<addr_t>(cache->config().line_size - 1))
                      : addr;
@@ -714,7 +763,8 @@ CacheHierarchy::HierarchyStats CacheHierarchy::get_stats() const
     for (const auto& cache : caches_)
         hs.level_stats.push_back(cache->stats());
 
-    if (!caches_.empty()) {
+    if (!caches_.empty())
+    {
         const auto& l1 = caches_[0]->stats();
         hs.total_accesses = l1.reads + l1.writes;
         hs.total_latency = l1.total_latency;
