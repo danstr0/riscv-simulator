@@ -28,7 +28,8 @@ DirectoryEntry& CoherenceController::get_entry(addr_t addr)
 {
     addr_t la = line_align(addr);
     auto it = directory_.find(la);
-    if (it == directory_.end()) {
+    if (it == directory_.end())
+    {
         auto [inserted, _] = directory_.emplace(la, DirectoryEntry(num_cores_));
         return inserted->second;
     }
@@ -45,11 +46,12 @@ MESIState CoherenceController::line_state(u32 core_id, addr_t addr) const
     return it->second.core_states[core_id];
 }
 
-// ── Helpers: find cores with specific states ────────────────────────────
+// ── Helpers: find cores with specific states ───────────────────────────
 
 i32 CoherenceController::find_modified_owner(const DirectoryEntry& entry) const
 {
-    for (u32 i = 0; i < num_cores_; ++i) {
+    for (u32 i = 0; i < num_cores_; ++i)
+    {
         if (entry.core_states[i] == MESIState::Modified)
             return static_cast<i32>(i);
     }
@@ -58,7 +60,8 @@ i32 CoherenceController::find_modified_owner(const DirectoryEntry& entry) const
 
 i32 CoherenceController::find_any_sharer(const DirectoryEntry& entry, u32 exclude_core) const
 {
-    for (u32 i = 0; i < num_cores_; ++i) {
+    for (u32 i = 0; i < num_cores_; ++i)
+    {
         if (i == exclude_core) continue;
         if (entry.core_states[i] == MESIState::Shared ||
             entry.core_states[i] == MESIState::Exclusive)
@@ -73,18 +76,22 @@ u32 CoherenceController::invalidate_others(u32 requesting_core, addr_t line_addr
 {
     u32 latency = 0;
 
-    for (u32 i = 0; i < num_cores_; ++i) {
+    for (u32 i = 0; i < num_cores_; ++i)
+    {
         if (i == requesting_core) continue;
 
         MESIState s = entry.core_states[i];
         if (s == MESIState::Invalid) continue;
 
-        if (s == MESIState::Modified) {
+        if (s == MESIState::Modified)
+        {
             /* Other core has dirty data; force writeback */
             l1_caches_[i]->snoop_invalidate(line_addr);
             stats_.writebacks_forced++;
             latency += kTransferLatency;
-        } else {
+        }
+        else
+        {
             l1_caches_[i]->snoop_invalidate(line_addr);
             latency += kInvalidationLatency;
         }
@@ -109,12 +116,12 @@ u32 CoherenceController::handle_read_miss(u32 core_id, addr_t addr)
 
     /* Check if another core has the line Modified */
     i32 mod_owner = find_modified_owner(entry);
-    if (mod_owner >= 0 && static_cast<u32>(mod_owner) != core_id) {
+    if (mod_owner >= 0 && static_cast<u32>(mod_owner) != core_id)
+    {
         std::vector<u8> line_data(line_size_);
         l1_caches_[mod_owner]->snoop_share_line(la, line_data.data(), line_size_);
         entry.core_states[mod_owner] = MESIState::Shared;
 
-        l1_caches_[core_id]->write_line(la, line_data.data(), line_size_);
         l1_caches_[core_id]->load(la, std::span<const u8>(line_data.data(), line_size_));
 
         entry.core_states[core_id] = MESIState::Shared;
@@ -127,7 +134,8 @@ u32 CoherenceController::handle_read_miss(u32 core_id, addr_t addr)
 
     /* Check if another core has the line Shared or Exclusive */
     i32 sharer = find_any_sharer(entry, core_id);
-    if (sharer >= 0) {
+    if (sharer >= 0)
+    {
         if (entry.core_states[sharer] == MESIState::Exclusive)
             entry.core_states[sharer] = MESIState::Shared;
 
@@ -136,7 +144,7 @@ u32 CoherenceController::handle_read_miss(u32 core_id, addr_t addr)
         return latency;
     }
 
-    /* No other core has it -> fetch from L2/memory */
+    /* No other core has it → fetch from L2/memory */
     entry.core_states[core_id] = MESIState::Exclusive;
     stats_.l2_fetches++;
     return latency;
@@ -149,22 +157,24 @@ u32 CoherenceController::handle_write_miss(u32 core_id, addr_t addr)
     assert(core_id < num_cores_);
     addr_t la = line_align(addr);
     auto& entry = get_entry(la);
-    stats_.write_misses++;
-
-    u32 latency = kSnoopLatency;
 
     MESIState current = entry.core_states[core_id];
 
     if (current == MESIState::Modified)
         return 0;
 
-    if (current == MESIState::Exclusive) {
+    if (current == MESIState::Exclusive)
+    {
         entry.core_states[core_id] = MESIState::Modified;
         stats_.upgrades++;
         return 0;  /* no additional latency */
     }
 
-    if (current == MESIState::Shared) {
+    stats_.write_misses++;
+    u32 latency = kSnoopLatency;
+    
+    if (current == MESIState::Shared)
+    {
         latency += invalidate_others(core_id, la, entry);
         entry.core_states[core_id] = MESIState::Modified;
         stats_.upgrades++;
@@ -175,7 +185,6 @@ u32 CoherenceController::handle_write_miss(u32 core_id, addr_t addr)
     latency += invalidate_others(core_id, la, entry);
     entry.core_states[core_id] = MESIState::Modified;
     stats_.l2_fetches++;
-
     return latency;
 }
 
@@ -191,11 +200,8 @@ void CoherenceController::notify_eviction(u32 core_id, addr_t addr)
     if (core_id < entry.core_states.size())
         entry.core_states[core_id] = MESIState::Invalid;
 
-    bool any_valid = false;
-    for (auto s : entry.core_states)
-        if (s != MESIState::Invalid) { any_valid = true; break; }
-
-    if (!any_valid)
+    if (std::none_of(entry.core_states.begin(), entry.core_states.end(),
+                     [](MESIState s) { return s != MESIState::Invalid; }))
         directory_.erase(it);
 }
 

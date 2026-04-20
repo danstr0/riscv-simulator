@@ -1,11 +1,6 @@
 /**
  * @file memory.cpp
- * @brief Implementation of flat RAM and MMIO bus routing.
- *
- * * Notes:
- * - Uses std::memcpy for memory access to bypass strict-aliasing issues.
- * - MMIOBus utilizes a linear search for region dispatch; suitable for
- * small numbers of devices (UART, Timer, RAM, etc.).
+ * @brief FlatMemory and MMIOBus implementation.
  */
 
 #include "memory.hpp"
@@ -15,9 +10,7 @@
 
 namespace riscv {
 
-/* ═══════════════════════════════════════════════════════════════════════
- * FlatMemory Implementation
- * ═══════════════════════════════════════════════════════════════════════ */
+// ── FlatMemory implementation ──────────────────────────────────────────
 
 FlatMemory::FlatMemory(addr_t base_addr, size_t size)
     : base_addr_(base_addr)
@@ -98,9 +91,7 @@ u32 FlatMemory::write_line(addr_t addr, const u8* src, u32 size)
     return 1;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
- * MMIOBus Implementation
- * ═══════════════════════════════════════════════════════════════════════ */
+// ── MMIOBus implementation ─────────────────────────────────────────────
 
 void MMIOBus::set_default(std::shared_ptr<Memory> mem)
 {
@@ -135,8 +126,6 @@ Memory* MMIOBus::find_region(addr_t addr, addr_t* offset) const
     return default_mem_.get();
 }
 
-/* ────────── Forwarding Logic ────────── */
-
 MemoryResult MMIOBus::read32(addr_t addr) const
 {
     addr_t offset;
@@ -157,8 +146,6 @@ MemoryResult MMIOBus::read8(addr_t addr) const
     Memory* mem = find_region(addr, &offset);
     return mem ? mem->read8(offset) : MemoryResult{0, 1, false};
 }
-
-/* ========== Write Forwarding ========== */
 
 MemoryResult MMIOBus::write32(addr_t addr, u32 value)
 {
@@ -190,9 +177,16 @@ void MMIOBus::load(addr_t addr, std::span<const u8> data)
     mem->load(offset, data);
 }
 
-bool MMIOBus::valid_address(addr_t addr, size_t size) const {
-    for (const auto& r : regions_) {
-        if (addr >= r.base && (addr + size) <= (r.base + r.size))
+bool MMIOBus::valid_address(addr_t addr, size_t size) const
+{
+    if (size == 0) return true;
+    addr_t end = addr + static_cast<addr_t>(size);
+    if (end < addr) return false;  /* overflow */
+
+    /* Single-region check; does not validate ranges spanning multiple regions. */
+    for (const auto& r : regions_)
+    {
+        if (addr >= r.base && end <= r.base + r.size)
             return true;
     }
     return default_mem_ && default_mem_->valid_address(addr, size);

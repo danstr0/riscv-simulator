@@ -1,21 +1,17 @@
 /**
  * @file memory.hpp
- * @brief Memory subsystem and bus routing for the RV32I CPU simulator.
+ * @brief Memory subsystem and bus routing for the RISC-V simulator.
  *
- * This header defines a unified memory interface allowing the CPU to interact
- * with various memory-backed resources (RAM, ROM, MMIO) transparently.
+ * Defines a unified memory interface allowing the CPU to interact with 
+ * RAM, ROM, and MMIO devices transparently through a common bus.
  *
- * @section ADDRESS_TRANSLATION Address Translation
- * The system utilizes a tiered addressing model:
- * 1. **Absolute Addresses:** Used by the @ref MMIOBus to route requests.
- * 2. **Relative Offsets:** Used by concrete devices (like @ref FlatMemory).
- * When a request is routed through the bus, the base address is subtracted,
- * presenting the device with a zero-based offset.
+ * @par Address translation
+ * The MMIOBus routes requests using absolute addresses, then subtracts
+ * the region's base to present each device with a zero-based offset.
  *
- * @section LATENCY_MODELING Latency Modeling
- * While currently functional as a functional simulator (1 cycle/access),
- * @ref MemoryResult includes a @c cycles field to support future cycle-accurate
- * timing or cache-miss penalty injection.
+ * @par Latency modeling
+ * MemoryResult includes a @c cycles field for future cycle-accurate
+ * timing or cache-miss penalty injection. Currently fixed at 1.
  */
 
 #pragma once
@@ -30,65 +26,63 @@
 namespace riscv {
 
 /**
- * @brief Encapsulates the outcome of a memory transaction.
- * * Callers must verify @ref ok before consuming @ref value. A failure (@c ok == false)
- * typically indicates a @ref MemoryAccessException or @ref MisalignedAccessException.
+ * @brief Outcome of a memory transaction.
+ * 
+ * Callers must verify @c ok before consuming @c value.
  */
 struct [[nodiscard]] MemoryResult {
     u32 value  = 0;     ///< Data retrieved on reads; undefined for writes.
-    u32 cycles = 1;     ///< Latency incurred by this specific transaction.
-    bool ok    = true;  ///< Transaction status; false if a fault occurred.
+    u32 cycles = 1;     ///< Latency of this transaction.
+    bool ok    = true;  ///< False if a fault occurred.
 };
 
 /**
- * @brief Pure virtual interface for all memory-mapped entities.
+ * @brief Abstract interface for all memory-mapped entities.
  *
- * All implementations must be byte-addressable and follow the host's native
- * endianness (assumed little-endian).
+ * All implementations must be byte-addressable. Multi-byte accesses 
+ * use host-native little-endian) byte order.
  */
 class Memory {
 public:
     virtual ~Memory() = default;
 
-    /** @name Read Interface */
-    /** @{ */
+    /// @name Typed reads
+    /// @{
     [[nodiscard]] virtual MemoryResult read32(addr_t addr) const = 0;
     [[nodiscard]] virtual MemoryResult read16(addr_t addr) const = 0;
     [[nodiscard]] virtual MemoryResult read8(addr_t addr)  const = 0;
-    /** @} */
+    /// @}
 
-    /** @name Write Interface */
-    /** @{ */
+    /// @name Typed writes
+    /// @{
     virtual MemoryResult write32(addr_t addr, u32 value) = 0;
     virtual MemoryResult write16(addr_t addr, u16 value) = 0;
     virtual MemoryResult write8(addr_t addr, u8 value)   = 0;
-    /** @} */
+    /// @}
 
     /**
-     * @brief Performs a bulk binary load into memory.
-     *
-     * @param addr Starting address for the load.
-     * @param data Span of bytes to copy into the memory region.
-     * 
+     * @brief Bulk binary load into this memory region.
+     * @param addr  Starting address.
+     * @param data  Bytes to copy.
      * @throw std::out_of_range If the data exceeds region boundaries.
      */
     virtual void load(addr_t addr, std::span<const u8> data) = 0;
 
     /**
-     * @brief Bulk read a cache line (avoiding per-byte stat inflation).
+     * @brief Bulk read into a buffer.
      * 
-     * Default implementation falls back to byte-by-byte reads.
+     * Default implementation falls back to per-byte reads.
      *
-     * @param addr Starting address (must be aligned to @p size).
-     * @param dest Destination buffer (must be at least @p size bytes).
-     * @param size Number of bytes to read.
-     * 
-     * @return Latency in cycles for the entire transfer.
+     * @param addr  Starting address.
+     * @param dest  Destination buffer (at least @p size bytes).
+     * @param size  Number of bytes to read.
+     * @return Latency in cycles.
      */
     virtual u32 read_line(addr_t addr, u8* dest, u32 size) const
     {
         u32 cycles = 0;
-        for (u32 i = 0; i < size; ++i) {
+        for (u32 i = 0; i < size; ++i)
+	{
             auto r = read8(addr + i);
             dest[i] = static_cast<u8>(r.value);
             cycles = std::max(cycles, r.cycles);
@@ -97,36 +91,37 @@ public:
     }
 
     /**
-     * @brief Bulk write a cache line.
+     * @brief Bulk write from a buffer.
      *
-     * Default implementation falls back to byte-by-byte writes.
+     * Default implementation falls back to per-byte writes.
      */
     virtual u32 write_line(addr_t addr, const u8* src, u32 size)
     {
         u32 cycles = 0;
-        for (u32 i = 0; i < size; ++i) {
+        for (u32 i = 0; i < size; ++i)
+	{
             auto r = write8(addr + i, src[i]);
             cycles = std::max(cycles, r.cycles);
         }
         return cycles;
     }
 
-    /** @brief Validates if a memory range is accessible. */
+    /// @return True if range [addr, addr+size) is accessible.
     [[nodiscard]] virtual bool valid_address(addr_t addr, size_t size = 1) const = 0;
 };
 
 /**
  * @brief Contiguous, byte-addressable RAM region.
  *
- * Backed by a @c std::vector, this class represents a physical block of memory.
- * @note When used as a device behind @ref MMIOBus, @c base_addr is typically @c 0.
+ * When used behind an MMIOBus, addresses are relative (base is subtracted
+ * by the bus before forwarding).
  */
 class FlatMemory : public Memory {
 public:
     /**
-     * @brief Constructs a RAM region.
-     * @param base_addr  The logical start address (often 0 for relative devices).
-     * @param size  Size of the region in bytes.
+     * @brief Construct a RAM region.
+     * @param base_addr  Logical start address.
+     * @param size       Size in bytes.
      */
     FlatMemory(addr_t base_addr, size_t size);
 
@@ -141,17 +136,16 @@ public:
     void load(addr_t addr, std::span<const u8> data) override;
     [[nodiscard]] bool valid_address(addr_t addr, size_t size = 1) const override;
 
-    /** @brief Single memcpy, no per-byte overhead. */
     u32 read_line(addr_t addr, u8* dest, u32 size) const override;
-    u32 write_line(addr_t addrl, const u8* src, u32 size) override;
+    u32 write_line(addr_t addr, const u8* src, u32 size) override;
 
-    /** @name Debug/Instrospection Helpers */
-    /** @{ */
+    /// @name Instrospection
+    /// @{
     [[nodiscard]] addr_t    base() const noexcept { return base_addr_; }
     [[nodiscard]] size_t    size() const noexcept { return ram_.size(); }
     [[nodiscard]] const u8* data() const noexcept { return ram_.data(); }
     [[nodiscard]] u8*       data()       noexcept { return ram_.data(); }
-    /** @} */
+    /// @}
 
 private:
     addr_t          base_addr_;
@@ -166,41 +160,38 @@ private:
 };
 
 /**
- * @brief Central interconnect for the CPU address space.
+ * @brief Address-space router connecting the CPU to memory-mapped devices.
  *
- * The @c MMIOBus acts as a router. It contains a collection of @ref Region
- * objects. For every access, it:
- * 1. Identifies the target @ref Region based on the absolute @c addr.
- * 2. Subtracts the region's @c base to create a relative offset.
- * 3. Forwards the request to the underlying @ref Memory device.
+ * For each access the bus identifies the target region by absolute address,
+ * subtracts the region base, and forwards the request with the resulting
+ * relative offset.
  */
 class MMIOBus : public Memory {
 public:
-    /** Defines a mapping between an address range and a device. */
+    /// A mapping between an address range and a device.
     struct Region {
         addr_t                  base;    ///< Absolute start address.
-        addr_t                  size;    ///< Size of the region in bytes.
+        addr_t                  size;    ///< Size in bytes.
         std::shared_ptr<Memory> device;  ///< The memory-mapped device.
-        std::string             name;    ///< Symbolic name (e.g., "UART", "RAM").
+        std::string             name;    ///< Label for debugging (e.g., "RAM", "PLIC").
     };
 
-    /** @brief Sets a fallback memory for unmapped addresses (e.g., an "Open Bus"). */
+    /// Set a fallback device for accesses that don't hit any mapped region.
     void set_default(std::shared_ptr<Memory> mem);
 
     /**
-     * @brief Maps a device into the bus.
-     * @param base  Absolute base address.
-     * @param size  Size in bytes.
-     * @param device  Pointer to the Memory implementation.
-     * @param name  Optional label for logging/debugging.
+     * @brief Map a device into the address space.
+     * @param base    Absolute base address.
+     * @param size    Size in bytes.
+     * @param device  The Memory implementation.
+     * @param name    Optional label for debugging.
      */
     void map(addr_t base, addr_t size, std::shared_ptr<Memory> device,
              std::string name = "");
 
-    /** @brief Removes a mapping at the specified base address. */
+    /// Remove the mapping at @p base.
     void unmap(addr_t base);
 
-    /* Memory interface implementations */
     [[nodiscard]] MemoryResult read32(addr_t addr) const override;
     [[nodiscard]] MemoryResult read16(addr_t addr) const override;
     [[nodiscard]] MemoryResult read8(addr_t addr)  const override;
@@ -210,19 +201,14 @@ public:
     void load(addr_t addr, std::span<const u8> data) override;
     [[nodiscard]] bool valid_address(addr_t addr, size_t size = 1) const override;
 
-    /** @brief Returns all current mappings. */
+    /// @return All current region mappings.
     [[nodiscard]] const std::vector<Region>& regions() const noexcept { return regions_; }
 
 private:
     std::vector<Region>     regions_;
     std::shared_ptr<Memory> default_mem_;
 
-    /**
-     * @brief Internal routing logic.
-     * @param addr  Absolute address to look up.
-     * @param[out] offset  Pointer to receive the translated relative offset.
-     * @return Raw pointer to the target device, or the default device.
-     */
+    /// Route an absolute address to its target device, writing the relative offset to @p offset.
     [[nodiscard]] Memory* find_region(addr_t addr, addr_t* offset = nullptr) const;
 };
 
