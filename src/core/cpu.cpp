@@ -26,7 +26,8 @@ void CPU::load_program(addr_t addr, std::span<const u8> program)
 
 void CPU::load_instruction(addr_t addr, u32 instruction)
 {
-    const std::array<u8, 4> bytes = {
+    const std::array<u8, 4> bytes =
+    {
         static_cast<u8>(instruction),
         static_cast<u8>(instruction >> 8),
         static_cast<u8>(instruction >> 16),
@@ -37,58 +38,60 @@ void CPU::load_instruction(addr_t addr, u32 instruction)
 
 bool CPU::step()
 {
-    if (halted_) [[unlikely]] {
+    if (halted_) [[unlikely]]
         return false;
-    }
     
-    /* ── 1. Fetch ─────────────────────────────────────────────────────── */
+    // ── 1. Fetch ────────────────────────────────────────
     addr_t current_pc = executor_.pc();
     auto fetch_result = memory_->read32(current_pc);
 
-    if (!fetch_result.ok) {
+    if (!fetch_result.ok)
+    {
         std::cerr << std::format("[CPU] Fetch error at PC 0x{:08x}\n", current_pc);
         halted_ = true;
         return false;
     }
     
-    /* Accumulate fetch latency */
+    // Accumulate fetch latency
     executor_.stats().cycles += fetch_result.cycles;
 
-    /* ── 2. Decode ────────────────────────────────────────────────────── */
+    // ── 2. Decode ───────────────────────────────────────
     last_inst_ = Decoder::decode(fetch_result.value, current_pc);
     
-    if (trace_) {
+    if (trace_)
         std::cout << std::format("[Trace] 0x{:08x}: {:08x}  {}\n",
                                  current_pc, last_inst_.raw,
                                  last_inst_.disassemble());
-    }
     
-    if (last_inst_.op == Op::INVALID) {
+    if (last_inst_.op == Op::INVALID)
+    {
         std::cerr << std::format("[CPU] Illegal instruction 0x{:08x} at PC 0x{:08x}\n",
                                  fetch_result.value, current_pc); 
         halted_ = true;
         return false;
     }
     
-    /* ── 3. Execute ───────────────────────────────────────────────────── */
+    // ── 3. Execute ──────────────────────────────────────
     last_result_ = executor_.execute(last_inst_);
 
-    if (!last_result_.ok) {
+    if (!last_result_.ok)
+    {
         std::cerr << std::format("[CPU] Execution error at PC {:08x}\n", current_pc);
         halted_ = true;
         return false;
     }
     
-    /* Commit architectural state: Update PC */
+    // Update PC
     executor_.set_pc(last_result_.next_pc);
     
-    /* ── 4. Post-Execution State Update ───────────────────────────────── */
-    if (last_result_.ebreak) {
+    // ── 4. Post-Execution State Update ──────────────────
+    if (last_result_.ebreak)
+    {
         halted_ = true;
         return false;
     }
     
-    /* Note: ECALL is handled by the caller checking last_result().ecall */
+    // Note: ECALL is handled by the caller checking last_result().ecall
 
     return true;
 }
@@ -113,12 +116,11 @@ CpuState CPU::save_state() const
 
 void CPU::restore_state(const CpuState& state)
 {
-    for (reg_idx_t i = 1; i < 32; ++i) {
+    for (reg_idx_t i = 1; i < 32; ++i)
         executor_.set_reg(i, state.regs[i]);
-    }
     executor_.set_pc(state.pc);
 
-    /* Statistics are cumulative across resets to track total simulation work. */
+    // Statistics are cumulative across resets to track total simulation work.
     halted_ = false;
 }
 
