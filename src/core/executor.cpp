@@ -1,8 +1,6 @@
 /**
  * @file executor.cpp
- * @brief Implementation of the RV32IMA + RVV instruction executor.
- * * Key architectural behaviors, such as x0 hard-wiring and
- * JALR address alignment, are enforced here.
+ * @brief Implementation of the RISC-V instruction executor.
  */
 
 #include "executor.hpp"
@@ -31,31 +29,33 @@ void Executor::reset()
 void Executor::dump_regs() const
 {
     std::cout << std::format("--- Architectural State (PC: 0x{:08x}) ---\n", pc_);
-    for (int i = 0; i < 32; i += 4) {
-        for (int j = 0; j < 4; ++j) {
+    for (int i = 0; i < 32; i += 4)
+    {
+        for (int j = 0; j < 4; ++j)
             std::cout << std::format("{:>4s}: 0x{:08x}  ",
                                      reg_name(static_cast<reg_idx_t>(i + j)),
                                      regs_[i + j]);
-        }
         std::cout << "\n";
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
- * Memory Operations
- * ═══════════════════════════════════════════════════════════════════════ */
+// ── Memory operations ──────────────────────────────────────────────────
 
 ExecuteResult Executor::execute_load(const DecodedInst& inst)
 {
     ExecuteResult result;
 
-    /* Address calculation: rs1 + sign-extended immediate. */
-    /* Spec §2.1.6: "The effective address is obtained by adding register r1
-     * to the sign-extended 12-bit offset." */
+    /* 
+     * Address calculation: rs1 + sign-extended immediate.
+     *
+     * Spec §2.1.6: "The effective address is obtained by adding register r1
+     * to the sign-extended 12-bit offset."
+     */
     addr_t addr = regs_[inst.rs1] + static_cast<u32>(inst.imm);
     MemoryResult mem;
 
-    switch(inst.op) {
+    switch(inst.op)
+    {
         case Op::LB:
             mem = memory_.read8(addr);
             if (mem.ok) set_reg(inst.rd, static_cast<u32>(sign_extend<8>(mem.value)));
@@ -83,9 +83,8 @@ ExecuteResult Executor::execute_load(const DecodedInst& inst)
 
     result.ok     = mem.ok;
     result.cycles = mem.cycles;
-    if (mem.ok) {
+    if (mem.ok)
         result.rd_value = regs_[inst.rd];
-    }
     return result;
 }
 
@@ -96,7 +95,8 @@ ExecuteResult Executor::execute_store(const DecodedInst& inst)
     u32 value   = regs_[inst.rs2];
     MemoryResult mem;
 
-    switch (inst.op) {
+    switch (inst.op)
+    {
         case Op::SB: mem = memory_.write8(addr, static_cast<u8>(value)); break;
         case Op::SH: mem = memory_.write16(addr, static_cast<u16>(value)); break;
         case Op::SW: mem = memory_.write32(addr, value); break;
@@ -108,37 +108,65 @@ ExecuteResult Executor::execute_store(const DecodedInst& inst)
     result.ok     = mem.ok;
     result.cycles = mem.cycles;
 
-    /* Any store to the reserved address invalidates the reservation */
-    if (reservation_.has_value()) {
+    // Any store to the reserved address invalidates the reservation
+    if (reservation_.has_value())
+    {
     	addr_t res = reservation_.value();
-	addr_t store_end = addr;
-	switch(inst.op) {
-	    case Op::SB: store_end = addr; break;
-        case Op::SH: store_end = addr + 1; break;
-        case Op::SW: store_end = addr + 3; break;
-        default: break;
-	}
-    if (addr <= res + 3 && store_end >= res)
-        reservation_.reset();
+        addr_t store_size;
+        switch(inst.op)
+        {
+            case Op::SB: store_size = 1; break;
+            case Op::SH: store_size = 2; break;
+            case Op::SW: store_size = 4; break;
+            default:     store_size = 0; break;
+	    }
+        // Check if [addr, addr+store_size) overlaps [res, res+4)
+        if (addr < res + 4 && addr + store_size > res)
+            reservation_.reset();
     }
 
     return result;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
- * Main Execute Dispatch
- * ═══════════════════════════════════════════════════════════════════════ */
+// ── Main execute dispatch ──────────────────────────────────────────────
 
 ExecuteResult Executor::execute(const DecodedInst& inst)
 {
     ExecuteResult result;
-    result.next_pc = pc_ + 4;  // Default to sequential
+    result.next_pc = pc_ + 4; // default: sequential
 
     u32 rs1 = regs_[inst.rs1];
     u32 rs2 = regs_[inst.rs2];
+    u32 uimm = static_cast<u32>(inst.imm);
 
-    switch (inst.op) {
-        /* Loads & Stores */
+    auto exec_jump = [&](addr_t target)
+    {
+        result.rd_value = pc_ + 4;
+        set_reg(inst.rd, *result.rd_value);
+        result.next_pc  = target;
+        stats_.jumps++;
+    };
+
+    auto exec_alu = [&](auto fn, u32 lhs, u32 rhs)
+    {
+        set_reg(inst.rd, fn(lhs, rhs));
+    };
+
+    auto exec_csr = [&](auto compute_new_val, bool do_write)
+    {
+        const u32 csr_addr = uimm & 0xFFF;
+        const u32 old_val  = csrs_.read(csr_addr);
+        
+        if (do_write)
+            csrs_.write(csr_addr, compute_new_val(old_val));
+
+        set_reg(inst.rd, old_val);
+        result.rd_value = old_val;
+    };
+
+    switch (inst.op)
+    {
+        // ── Loads & stores ──────────────────────────────
         case Op::LB: case Op::LH: case Op::LW:
         case Op::LBU: case Op::LHU:
             result = execute_load(inst);
@@ -152,7 +180,7 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
             if (result.ok) stats_.stores++;
             break;
 
-        /* Branches */
+        // ── Branches ────────────────────────────────────
         case Op::BEQ:  result.branch_taken = cond_eq(rs1, rs2);  goto branch_common;
         case Op::BNE:  result.branch_taken = cond_ne(rs1, rs2);  goto branch_common;
         case Op::BLT:  result.branch_taken = cond_lt(rs1, rs2);  goto branch_common;
@@ -163,75 +191,94 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
             result.next_pc = result.branch_taken 
                            ? (pc_ + inst.imm)
                            : (pc_ + 4);
+            if (result.next_pc & 3)
+            {
+                result.ok = false;
+                return result;
+            }
             stats_.branches++;
             if (result.branch_taken) stats_.branches_taken++;
             break;
 
-        /* Jumps */
+        // ── Jumps ───────────────────────────────────────
         case Op::JAL:
-            result.rd_value = pc_ + 4;
-            set_reg(inst.rd, *result.rd_value);
-            result.next_pc  = static_cast<addr_t>(pc_ + inst.imm);
-            stats_.jumps++;
+        {
+            addr_t target = static_cast<addr_t>(pc_ + inst.imm);
+            if (target & 3)
+            {
+                result.ok = false;
+                return result;
+            }
+            exec_jump(target);
             break;
+        }
 
         case Op::JALR:
-            result.rd_value = pc_ + 4;
-            set_reg(inst.rd, *result.rd_value);
-            /* Spec §2.1.5.1: The target address is (rs1 + imm), and the least-significant
-             * bit is forced to zero. */
-            result.next_pc = (rs1 + static_cast<u32>(inst.imm)) & ~1u;
-            stats_.jumps++;
+        {
+            /*
+             * Spec §2.1.5.1: The target address is (rs1 + imm), and the least-significant
+             * bit is forced to zero.
+             */
+            addr_t target = (rs1 + uimm) & ~1u;
+            if (target & 3)
+            {
+                result.ok = false;
+                return result;
+            }
+            exec_jump(target);
             break;
+        }
 
-        /* Upper Immediates */
+        // ── Upper immediates ────────────────────────────
         case Op::LUI:
-            result.rd_value = static_cast<u32>(inst.imm);
+            result.rd_value = uimm;
             set_reg(inst.rd, *result.rd_value);
             break;
 
         case Op::AUIPC:
-            result.rd_value = pc_ + static_cast<u32>(inst.imm);
+            result.rd_value = pc_ + uimm;
             set_reg(inst.rd, *result.rd_value);
             break;
 
-        /* Arithmetic (Immediate) */
-        case Op::ADDI:  set_reg(inst.rd, alu_add(rs1, static_cast<u32>(inst.imm)));  break;
-        case Op::SLTI:  set_reg(inst.rd, alu_slt(rs1, static_cast<u32>(inst.imm)));  break;
-        case Op::SLTIU: set_reg(inst.rd, alu_sltu(rs1, static_cast<u32>(inst.imm))); break;
-        case Op::XORI:  set_reg(inst.rd, alu_xor(rs1, static_cast<u32>(inst.imm)));  break;
-        case Op::ORI:   set_reg(inst.rd, alu_or(rs1, static_cast<u32>(inst.imm)));   break;
-        case Op::ANDI:  set_reg(inst.rd, alu_and(rs1, static_cast<u32>(inst.imm)));  break;
-        case Op::SLLI:  set_reg(inst.rd, alu_sll(rs1, static_cast<u32>(inst.imm)));  break;
-        case Op::SRLI:  set_reg(inst.rd, alu_srl(rs1, static_cast<u32>(inst.imm)));  break;
-        case Op::SRAI:  set_reg(inst.rd, alu_sra(rs1, static_cast<u32>(inst.imm)));  break;
+        // ── Arithmetic (immediate) ──────────────────────
+        case Op::ADDI:   exec_alu(alu_add,    rs1, uimm); break;
+        case Op::SLTI:   exec_alu(alu_slt,    rs1, uimm); break;
+        case Op::SLTIU:  exec_alu(alu_sltu,   rs1, uimm); break;
+        case Op::XORI:   exec_alu(alu_xor,    rs1, uimm); break;
+        case Op::ORI:    exec_alu(alu_or,     rs1, uimm); break;
+        case Op::ANDI:   exec_alu(alu_and,    rs1, uimm); break;
+        case Op::SLLI:   exec_alu(alu_sll,    rs1, uimm); break;
+        case Op::SRLI:   exec_alu(alu_srl,    rs1, uimm); break;
+        case Op::SRAI:   exec_alu(alu_sra,    rs1, uimm); break;
 
-        /* Arithmetic (Register) */
-        case Op::ADD:  set_reg(inst.rd, alu_add(rs1, rs2));  break;
-        case Op::SUB:  set_reg(inst.rd, alu_sub(rs1, rs2));  break;
-        case Op::SLL:  set_reg(inst.rd, alu_sll(rs1, rs2));  break;
-        case Op::SLT:  set_reg(inst.rd, alu_slt(rs1, rs2));  break;
-        case Op::SLTU: set_reg(inst.rd, alu_sltu(rs1, rs2)); break;
-        case Op::XOR:  set_reg(inst.rd, alu_xor(rs1, rs2));  break;
-        case Op::SRL:  set_reg(inst.rd, alu_srl(rs1, rs2));  break;
-        case Op::SRA:  set_reg(inst.rd, alu_sra(rs1, rs2));  break;
-        case Op::OR:   set_reg(inst.rd, alu_or(rs1, rs2));   break;
-        case Op::AND:  set_reg(inst.rd, alu_and(rs1, rs2));  break;
+        // ── Arithmetic (register) ───────────────────────
+        case Op::ADD:    exec_alu(alu_add,    rs1, rs2); break;
+        case Op::SUB:    exec_alu(alu_sub,    rs1, rs2); break;
+        case Op::SLL:    exec_alu(alu_sll,    rs1, rs2); break;
+        case Op::SLT:    exec_alu(alu_slt,    rs1, rs2); break;
+        case Op::SLTU:   exec_alu(alu_sltu,   rs1, rs2); break;
+        case Op::XOR:    exec_alu(alu_xor,    rs1, rs2); break;
+        case Op::SRL:    exec_alu(alu_srl,    rs1, rs2); break;
+        case Op::SRA:    exec_alu(alu_sra,    rs1, rs2); break;
+        case Op::OR:     exec_alu(alu_or,     rs1, rs2); break;
+        case Op::AND:    exec_alu(alu_and,    rs1, rs2); break;
 
-        /* RV32M Multiply / Divide */
-        case Op::MUL:    set_reg(inst.rd, alu_mul(rs1, rs2));    break;
-        case Op::MULH:   set_reg(inst.rd, alu_mulh(rs1, rs2));   break;
-        case Op::MULHSU: set_reg(inst.rd, alu_mulhsu(rs1, rs2)); break;
-        case Op::MULHU:  set_reg(inst.rd, alu_mulhu(rs1, rs2));  break;
-        case Op::DIV:    set_reg(inst.rd, alu_div(rs1, rs2));    break;
-        case Op::DIVU:   set_reg(inst.rd, alu_divu(rs1, rs2));   break;
-        case Op::REM:    set_reg(inst.rd, alu_rem(rs1, rs2));    break;
-        case Op::REMU:   set_reg(inst.rd, alu_remu(rs1, rs2));   break;
+        // ── RV32M instructions ──────────────────────────
+        case Op::MUL:    exec_alu(alu_mul,    rs1, rs2); break;
+        case Op::MULH:   exec_alu(alu_mulh,   rs1, rs2); break;
+        case Op::MULHSU: exec_alu(alu_mulhsu, rs1, rs2); break;
+        case Op::MULHU:  exec_alu(alu_mulhu,  rs1, rs2); break;
+        case Op::DIV:    exec_alu(alu_div,    rs1, rs2); break;
+        case Op::DIVU:   exec_alu(alu_divu,   rs1, rs2); break;
+        case Op::REM:    exec_alu(alu_rem,    rs1, rs2); break;
+        case Op::REMU:   exec_alu(alu_remu,   rs1, rs2); break;
         
-        /* RV32A Atomic Operations */
-        case Op::LR_W: {
+        // ── RV32A instructions ──────────────────────────
+        case Op::LR_W:
+        {
             auto mem = memory_.read32(rs1);
-            if (mem.ok) {
+            if (mem.ok)
+            {
                 set_reg(inst.rd, mem.value);
                 reservation_ = rs1;
                 result.rd_value = mem.value;
@@ -240,15 +287,19 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
             result.cycles = mem.cycles;
             break;
         }
-        case Op::SC_W: {
-            if (reservation_.has_value() && reservation_.value() == rs1) {
+        case Op::SC_W:
+        {
+            if (reservation_.has_value() && reservation_.value() == rs1)
+            {
                 auto mem = memory_.write32(rs1, rs2);
-                set_reg(inst.rd, 0);  /* success */
+                set_reg(inst.rd, 0);  // success
                 result.rd_value = 0;
                 result.ok = mem.ok;
                 result.cycles = mem.cycles;
-            } else {
-                set_reg(inst.rd, 1);  /* failure */
+            }
+            else
+            {
+                set_reg(inst.rd, 1);  // failure
                 result.rd_value = 1;
             }
             reservation_.reset();
@@ -257,21 +308,25 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
         case Op::AMOSWAP_W: case Op::AMOADD_W: case Op::AMOXOR_W:
         case Op::AMOAND_W:  case Op::AMOOR_W:
         case Op::AMOMIN_W:  case Op::AMOMAX_W:
-        case Op::AMOMINU_W: case Op::AMOMAXU_W: {
+        case Op::AMOMINU_W: case Op::AMOMAXU_W:
+        {
             auto mem = memory_.read32(rs1);
             if (!mem.ok) { result.ok = false; break; }
             u32 old_val = mem.value;
             u32 new_val;
-            switch(inst.op) {
+            switch(inst.op)
+            {
                 case Op::AMOSWAP_W: new_val = rs2; break;
                 case Op::AMOADD_W:  new_val = old_val + rs2; break;
                 case Op::AMOXOR_W:  new_val = old_val ^ rs2; break;
                 case Op::AMOAND_W:  new_val = old_val & rs2; break;
                 case Op::AMOOR_W:   new_val = old_val | rs2; break;
-                case Op::AMOMIN_W:  new_val = (static_cast<i32>(old_val) < static_cast<i32>(rs2)) ? old_val
-                                                                                                  : rs2; break;
-                case Op::AMOMAX_W:  new_val = (static_cast<i32>(old_val) > static_cast<i32>(rs2)) ? old_val
-                                                                                                  : rs2; break;
+                case Op::AMOMIN_W:  new_val = (static_cast<i32>(old_val) <
+                                               static_cast<i32>(rs2)) ? old_val
+                                                                      : rs2; break;
+                case Op::AMOMAX_W:  new_val = (static_cast<i32>(old_val) >
+                                               static_cast<i32>(rs2)) ? old_val
+                                                                      : rs2; break;
                 case Op::AMOMINU_W: new_val = (old_val < rs2) ? old_val : rs2; break;
                 case Op::AMOMAXU_W: new_val = (old_val > rs2) ? old_val : rs2; break;
                 default: new_val = old_val; break;
@@ -283,81 +338,39 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
             break;
         }
 
-        /* System */
+        // ── System ──────────────────────────────────────
         case Op::ECALL:  result.ecall = true; break;
         case Op::EBREAK: result.ebreak = true; break;
         case Op::FENCE:  break;  // NOP in single-threaded context
 
-        /* CSR instructions */
-        case Op::CSRRW: {
-            u32 csr_addr = static_cast<u32>(inst.imm) & 0xFFF;
-            u32 old_val = csrs_.read(csr_addr);
-            csrs_.write(csr_addr, rs1);
-
-            set_reg(inst.rd, old_val);
-            result.rd_value = old_val;
+        // CSR instructions ───────────────────────────────
+        case Op::CSRRW:
+            exec_csr([&](u32) { return rs1; }, true);
             break;
-        }
-        case Op::CSRRS: {
-            u32 csr_addr = static_cast<u32>(inst.imm) & 0xFFF;
-            u32 old_val = csrs_.read(csr_addr);
-            if (inst.rs1 != 0)
-                csrs_.write(csr_addr, old_val | rs1);
-
-            set_reg(inst.rd, old_val);
-            result.rd_value = old_val;
+        case Op::CSRRS:
+            exec_csr([&](u32 old) { return old | rs1; }, inst.rs1 != 0);
             break;
-        }
-        case Op::CSRRC: {
-            u32 csr_addr = static_cast<u32>(inst.imm) & 0xFFF;
-            u32 old_val = csrs_.read(csr_addr);
-            if (inst.rs1 != 0)
-                csrs_.write(csr_addr, old_val & ~rs1);
-
-            set_reg(inst.rd, old_val);
-            result.rd_value = old_val;
+        case Op::CSRRC:
+            exec_csr([&](u32 old) { return old & ~rs1; }, inst.rs1 != 0);
             break;
-        }
-        case Op::CSRRWI: {
-            u32 csr_addr = static_cast<u32>(inst.imm) & 0xFFF;
-            u32 zimm = inst.rs1;
-            u32 old_val = csrs_.read(csr_addr);
-            csrs_.write(csr_addr, zimm);
-
-            set_reg(inst.rd, old_val);
-            result.rd_value = old_val;
+        case Op::CSRRWI:
+            exec_csr([&](u32) { return inst.rs1; } , true);
             break;
-        }
-        case Op::CSRRSI: {
-            u32 csr_addr = static_cast<u32>(inst.imm) & 0xFFF;
-            u32 zimm = inst.rs1;
-            u32 old_val = csrs_.read(csr_addr);
-            if (zimm != 0)
-                csrs_.write(csr_addr, old_val | zimm);
-
-            set_reg(inst.rd, old_val);
-            result.rd_value = old_val;
+        case Op::CSRRSI:
+            exec_csr([&](u32 old) { return old | inst.rs1; }, inst.rs1 != 0);
             break;
-        }
-        case Op::CSRRCI: {
-            u32 csr_addr = static_cast<u32>(inst.imm) & 0xFFF;
-            u32 zimm = inst.rs1;
-            u32 old_val = csrs_.read(csr_addr);
-            if (zimm != 0)
-                csrs_.write(csr_addr, old_val & ~zimm);
-
-            set_reg(inst.rd, old_val);
-            result.rd_value = old_val;
+        case Op::CSRRCI:
+            exec_csr([&](u32 old) { return old & ~inst.rs1; }, inst.rs1 != 0);
             break;
-        }
 
-        /* MRET: return from trap */
-        case Op::MRET: {
+        // ── MRET: return from trap ──────────────────────
+        case Op::MRET:
+        {
             result.next_pc = csrs_.mret();
             break;
         }
 
-        /* RVV vector operations */
+        // ── RVV operations ──────────────────────────────
         case Op::VSETVLI:
         case Op::VLE32:    case Op::VSE32:
         case Op::VADD_VV:  case Op::VADD_VX:
@@ -381,8 +394,9 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
             break;
     }
 
-    /* Post-execution metadata update */
-    if (result.ok) {
+    // ── Post-execution metadata update ──────────────────
+    if (result.ok)
+    {
         if (inst.writes_rd() && !result.rd_value.has_value())
             result.rd_value = regs_[inst.rd];
         stats_.instructions++;
@@ -392,50 +406,97 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
     return result;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
- * Vector execution 
- * ═══════════════════════════════════════════════════════════════════════ */
+// ── Vector execution ──────────────────────────────────── 
 
 ExecuteResult Executor::execute_vector(const DecodedInst& inst, u32 rs1, u32 rs2)
 {
     ExecuteResult result;
     result.next_pc = pc_ + 4;
 
-    auto& vs = vstate_;
-    u32   vl = vs.vl;
+    auto& vs    = vstate_;
+    u32   vl    = vs.vl;
+    auto& vregs = vs.regs;
 
-    switch (inst.op) {
-        /* Configuration */
-        case Op::VSETVLI: {
+    const u32 vd   = inst.rd;
+    const u32 vs1  = inst.rs1;
+    const u32 vs2  = inst.rs2;
+    const u32 uimm = static_cast<u32>(inst.imm);
+
+    auto exec_vv = [&](auto op)
+    {
+        for (u32 i = 0; i < vl; ++i)
+        {
+            const u32 lhs = vregs.get_elem32(vs2, i);
+            const u32 rhs = vregs.get_elem32(vs1, i);
+
+            vregs.set_elem32(vd, i, op(lhs, rhs));
+        }
+    };
+
+    auto exec_vx = [&](auto op)
+    {
+        for (u32 i = 0; i < vl; ++i)
+        {
+            const u32 lhs = vregs.get_elem32(vs2, i);
+
+            vregs.set_elem32(vd, i, op(lhs, rs1));
+        }
+    };
+
+    auto exec_mask = [&](auto pred)
+    {
+        for (u32 i = 0; i < vl; ++i)
+            vregs.set_mask_bit(vd, i, pred(i));
+    };
+
+    switch (inst.op)
+    {
+        // ── Configuration ───────────────────────────────
+        case Op::VSETVLI:
+        {
             u32 avl = (inst.rs1 == 0 && inst.rd == 0)
                     ? vs.vl            // keep current vl
                     : (inst.rs1 == 0)
                     ? ~u32{0}          // set vl=VLMAX 
                     : rs1;
             
-            u32 new_vl = vs.vsetvli(avl, static_cast<u32>(inst.imm));
+            u32 new_vl = vs.vsetvli(avl, uimm);
             set_reg(inst.rd, new_vl);
             result.rd_value = new_vl;
             break;
         }
         
-        /* Vector load (unit-stride, SEW=32) */
-        case Op::VLE32: {
+        // ── Vector load (unit-stride, SEW=32) ───────────
+        case Op::VLE32:
+        {
             addr_t base = rs1;
-            for (u32 i = 0; i < vl; ++i) {
+            if (base & 3)
+            {
+                result.ok = false;
+                return result;
+            }
+            for (u32 i = 0; i < vl; ++i)
+            {
                 auto r = memory_.read32(base + i * 4);
                 if (!r.ok) { result.ok = false; return result; }
-                vs.regs.set_elem32(inst.rd, i, r.value);
+                vregs.set_elem32(vd, i, r.value);
             }
-            result.cycles = vl;  /* 1 cycle per element */
+            result.cycles = vl;  // 1 cycle per element
             break;
         }
 
-        /* Vector store (unit-stride, SEW=32) */
-        case Op::VSE32: {
+        // ── Vector store (unit-stride, SEW=32) ──────────
+        case Op::VSE32:
+        {
             addr_t base = rs1;
-            for (u32 i = 0; i < vl; ++i) {
-                u32 val = vs.regs.get_elem32(inst.rd, i);
+            if (base & 3)
+            {
+                result.ok = false;
+                return result;
+            }
+            for (u32 i = 0; i < vl; ++i)
+            {
+                u32 val = vregs.get_elem32(inst.rd, i);
                 auto r = memory_.write32(base + i * 4, val);
                 if (!r.ok) { result.ok = false; return result; }
             }
@@ -443,144 +504,106 @@ ExecuteResult Executor::execute_vector(const DecodedInst& inst, u32 rs1, u32 rs2
             break;
         }
 
-        /* Arithmetic VV */
-        case Op::VADD_VV:
-            for (u32 i = 0; i < vl; ++i)
-                vs.regs.set_elem32(inst.rd, i,
-                                   vs.regs.get_elem32(inst.rs2, i) + vs.regs.get_elem32(inst.rs1, i));
-            break;
-        case Op::VSUB_VV:
-            for (u32 i = 0; i < vl; ++i)
-                vs.regs.set_elem32(inst.rd, i,
-                                   vs.regs.get_elem32(inst.rs2, i) - vs.regs.get_elem32(inst.rs1, i));
-            break;
-        case Op::VAND_VV:
-            for (u32 i = 0; i < vl; ++i)
-                vs.regs.set_elem32(inst.rd, i,
-                                   vs.regs.get_elem32(inst.rs2, i) & vs.regs.get_elem32(inst.rs1, i));
-            break;
-        case Op::VOR_VV:
-            for (u32 i = 0; i < vl; ++i)
-                vs.regs.set_elem32(inst.rd, i,
-                                   vs.regs.get_elem32(inst.rs2, i) | vs.regs.get_elem32(inst.rs1, i));
-            break;
-        case Op::VXOR_VV:
-            for (u32 i = 0; i < vl; ++i)
-                vs.regs.set_elem32(inst.rd, i,
-                                   vs.regs.get_elem32(inst.rs2, i) ^ vs.regs.get_elem32(inst.rs1, i));
-            break;
+        // ── Arithmetic VV ───────────────────────────────
+        case Op::VADD_VV: exec_vv([](u32 a, u32 b) { return a + b; }); break;
+        case Op::VSUB_VV: exec_vv([](u32 a, u32 b) { return a - b; }); break;
+        case Op::VAND_VV: exec_vv([](u32 a, u32 b) { return a & b; }); break;
+        case Op::VOR_VV:  exec_vv([](u32 a, u32 b) { return a | b; }); break;
+        case Op::VXOR_VV: exec_vv([](u32 a, u32 b) { return a ^ b; }); break;
 
-        /* Arithmetic VX (scalar broadcast) */
-        case Op::VADD_VX:
-            for (u32 i = 0; i < vl; ++i)
-                vs.regs.set_elem32(inst.rd, i,
-                                   vs.regs.get_elem32(inst.rs2, i) + rs1);
-            break;
-        case Op::VSUB_VX:
-            for (u32 i = 0; i < vl; ++i)
-                vs.regs.set_elem32(inst.rd, i,
-                                   vs.regs.get_elem32(inst.rs2, i) - rs1);
-            break;
-        case Op::VAND_VX:
-            for (u32 i = 0; i < vl; ++i)
-                vs.regs.set_elem32(inst.rd, i,
-                                   vs.regs.get_elem32(inst.rs2, i) & rs1);
-            break;
-        case Op::VOR_VX:
-            for (u32 i = 0; i < vl; ++i)
-                vs.regs.set_elem32(inst.rd, i,
-                                   vs.regs.get_elem32(inst.rs2, i) | rs1);
-            break;
-        case Op::VXOR_VX:
-            for (u32 i = 0; i < vl; ++i)
-                vs.regs.set_elem32(inst.rd, i,
-                                   vs.regs.get_elem32(inst.rs2, i) ^ rs1);
-            break;
-        case Op::VSLL_VX:
-            for (u32 i = 0; i < vl; ++i)
-                vs.regs.set_elem32(inst.rd, i,
-                                   vs.regs.get_elem32(inst.rs2, i) << (rs1 & 0x1F));
-            break;
-        case Op::VSRL_VX:
-            for (u32 i = 0; i < vl; ++i)
-                vs.regs.set_elem32(inst.rd, i,
-                                   vs.regs.get_elem32(inst.rs2, i) >> (rs1 & 0x1F));
-            break;
+        // ── Arithmetic VX (scalar broadcast) ────────────
+        case Op::VADD_VX: exec_vx([](u32 a, u32 b) { return a + b; }); break;
+        case Op::VSUB_VX: exec_vx([](u32 a, u32 b) { return a - b; }); break;
+        case Op::VAND_VX: exec_vx([](u32 a, u32 b) { return a & b; }); break;
+        case Op::VOR_VX:  exec_vx([](u32 a, u32 b) { return a | b; }); break;
+        case Op::VXOR_VX: exec_vx([](u32 a, u32 b) { return a ^ b; }); break;
+        case Op::VSLL_VX: exec_vx([](u32 a, u32 b) { return a << (b & 0x1F); }); break;
+        case Op::VSRL_VX: exec_vx([](u32 a, u32 b) { return a >> (b & 0x1F); }); break;
 
-        /* Comparisons (write mask to vd) */
+        // ── Comparisons (write mask to vd) ──────────────
         case Op::VMSEQ_VV:
-            for (u32 i = 0; i < vl; ++i)
-                vs.regs.set_mask_bit(i,
-                                     vs.regs.get_elem32(inst.rs2, i) == vs.regs.get_elem32(inst.rs1, i));
+            exec_mask([&](u32 i)
+            {
+                return vregs.get_elem32(vs2, i) ==
+                       vregs.get_elem32(vs1, i);
+            });
             break;
         case Op::VMSEQ_VX:
-            for (u32 i = 0; i < vl; ++i)
-                vs.regs.set_mask_bit(i,
-                                     vs.regs.get_elem32(inst.rs2, i) == rs1);
+            exec_mask([&](u32 i)
+            {
+                return vregs.get_elem32(vs2, i) == rs1;
+            });
             break;
         case Op::VMSLT_VV:
-            for (u32 i = 0; i < vl; ++i)
-                vs.regs.set_mask_bit(i,
-                                     static_cast<i32>(vs.regs.get_elem32(inst.rs2, i)) <
-                                     static_cast<i32>(vs.regs.get_elem32(inst.rs1, i)));
+            exec_mask([&](u32 i)
+            {
+                return static_cast<i32>(vregs.get_elem32(vs2, i)) <
+                       static_cast<i32>(vregs.get_elem32(vs1, i));
+            });
             break;
         case Op::VMSLTU_VV:
-            for (u32 i = 0; i < vl; ++i)
-                vs.regs.set_mask_bit(i,
-                                     vs.regs.get_elem32(inst.rs2, i) < vs.regs.get_elem32(inst.rs1, i));
+            exec_mask([&](u32 i)
+            {
+                return vregs.get_elem32(vs2, i) <
+                       vregs.get_elem32(vs1, i);
+            });
             break;
 
-        /* Mask operations */
+        // ── Mask operations ─────────────────────────────
         case Op::VMAND_MM: case Op::VMNAND_MM: case Op::VMANDN_MM:
         case Op::VMXOR_MM: case Op::VMOR_MM:   case Op::VMNOR_MM:
-        case Op::VMORN_MM: case Op::VMXNOR_MM: {
+        case Op::VMORN_MM: case Op::VMXNOR_MM:
+        {
             for (u32 i = 0; i < vl; ++i)
             {
-                u32 b2 = vs.regs.get_elem32(inst.rs2, i / 32);
-                u32 b1 = vs.regs.get_elem32(inst.rs1, i / 32);
+                u32 b2 = vregs.get_elem32(vs2, i / 32);
+                u32 b1 = vregs.get_elem32(vs1, i / 32);
                 u32 bit_pos = i % 32;
                 bool bit2 = (b2 >> bit_pos) & 1;
                 bool bit1 = (b1 >> bit_pos) & 1;
-                bool result;
+                bool bit_result;
 
-                switch(inst.op) {
-                    case Op::VMAND_MM:  result = bit2 & bit1;    break;
-                    case Op::VMNAND_MM: result = !(bit2 & bit1); break;
-                    case Op::VMANDN_MM: result = bit2 & (!bit1); break;
-                    case Op::VMXOR_MM:  result = bit2 ^ bit1;    break;
-                    case Op::VMOR_MM:   result = bit2 | bit1;    break;
-                    case Op::VMNOR_MM:  result = !(bit2 | bit1); break;
-                    case Op::VMORN_MM:  result = bit2 | (!bit1); break;
-                    case Op::VMXNOR_MM: result = !(bit2 ^ bit1); break;
+                switch(inst.op)
+                {
+                    case Op::VMAND_MM:  bit_result = bit2 & bit1;    break;
+                    case Op::VMNAND_MM: bit_result = !(bit2 & bit1); break;
+                    case Op::VMANDN_MM: bit_result = bit2 & (!bit1); break;
+                    case Op::VMXOR_MM:  bit_result = bit2 ^ bit1;    break;
+                    case Op::VMOR_MM:   bit_result = bit2 | bit1;    break;
+                    case Op::VMNOR_MM:  bit_result = !(bit2 | bit1); break;
+                    case Op::VMORN_MM:  bit_result = bit2 | (!bit1); break;
+                    case Op::VMXNOR_MM: bit_result = !(bit2 ^ bit1); break;
+                    default:            bit_result = false;          break;
                 }
-                u32 dst_elem = vs.regs.get_elem32(inst.rd, i / 32);
+                u32 dst_elem = vregs.get_elem32(vd, i / 32);
 
-                if (result) dst_elem |= (1u << bit_pos);
-                else        dst_elem &= ~(1u << bit_pos);
-                vs.regs.set_elem32(inst.rd, i / 32, dst_elem);
+                if (bit_result) dst_elem |= (1u << bit_pos);
+                else            dst_elem &= ~(1u << bit_pos);
+                vregs.set_elem32(vd, i / 32, dst_elem);
             }
             break;
         }
 
-        /* Reduction */
-        case Op::VREDSUM_VS: {
-            /* vd[0] = vs1[0] + sum(vs2[0..vl-1]) */
-            u32 acc = vs.regs.get_elem32(inst.rs1, 0);
+        // ── Reduction ───────────────────────────────────
+        case Op::VREDSUM_VS:
+        {
+            // vd[0] = vs1[0] + sum(vs2[0..vl-1])
+            u32 acc = vregs.get_elem32(vs1, 0);
             for (u32 i = 0; i < vl; ++i)
-                acc += vs.regs.get_elem32(inst.rs2, i);
-            vs.regs.set_elem32(inst.rd, 0, acc);
+                acc += vregs.get_elem32(vs2, i);
+            vregs.set_elem32(vd, 0, acc);
             break;
         }
 
-        /* Move */
+        // ── Move ────────────────────────────────────────
         case Op::VMV_V_X:
-            /* Splat scalar rs1 to all elements of vd */
+            // Splat scalar rs1 to all elements of vd
             for (u32 i = 0; i < vl; ++i)
-                vs.regs.set_elem32(inst.rd, i, rs1);
+                vregs.set_elem32(vd, i, rs1);
             break;
         case Op::VMV_X_S:
-            /* Extract element 0 of vs2 into scalar rd */
-            set_reg(inst.rd, vs.regs.get_elem32(inst.rs2, 0));
+            // Extract element 0 of vs2 into scalar rd
+            set_reg(inst.rd, vs.regs.get_elem32(vs2, 0));
             result.rd_value = regs_[inst.rd];
             break;
 
@@ -589,7 +612,8 @@ ExecuteResult Executor::execute_vector(const DecodedInst& inst, u32 rs1, u32 rs2
             break;
     }
 
-    if (result.ok) {
+    if (result.ok)
+    {
         stats_.instructions++;
         stats_.cycles += result.cycles;
     }

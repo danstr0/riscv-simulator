@@ -17,57 +17,15 @@
 
 #include "core/cache.hpp"
 #include "core/coherence.hpp"
-
-#include <cstdint>
-#include <format>
-#include <functional>
-#include <iostream>
-#include <memory>
-#include <string>
-#include <vector>
+#include "test_framework.hpp"
 
 using namespace riscv;
-
-// ── Shared test infrastructure ─────────────────────────────────────────
-
-struct TestCase {
-    std::string             name;
-    std::function<bool()>   func;
-};
-extern std::vector<TestCase> g_tests;
-
-#define TEST(name)                                                            \
-    bool test_##name();                                                       \
-    static bool reg_##name = (g_tests.push_back({#name, test_##name}), true); \
-    bool test_##name()
-
-#define ASSERT(cond)                                                        \
-    do {                                                                    \
-        if (!(cond)) {                                                      \
-            std::cerr << "  FAILED: " << #cond << "\n"                      \
-                      << "    at " << __FILE__ << ":" << __LINE__ << "\n";  \
-            return false;                                                   \
-        }                                                                   \
-    } while (0)
-
-#define ASSERT_EQ(a, b)                                                      \
-    do {                                                                     \
-        auto actual_   = (a);                                                \
-        auto expected_ = (b);                                                \
-        if (actual_ != expected_) {                                          \
-            std::cerr << "  FAILED: " << #a << " == " << #b << "\n"          \
-                      << "    got: " << static_cast<std::int64_t>(actual_)   \
-                      << " != "      << static_cast<std::int64_t>(expected_) \
-                      << "\n"                                                \
-                      << "    at " << __FILE__ << ":" << __LINE__ << "\n";   \
-            return false;                                                    \
-        }                                                                    \
-    } while (0)
 
 // ── Test fixture ───────────────────────────────────────────────────────
 
 // Creates a 2-core setup with L1 caches backed by a shared memory
-struct CoherenceSetup {
+struct CoherenceSetup
+{
     std::shared_ptr<FlatMemory> main_mem;
     std::shared_ptr<Cache>      l1_0; // Core 0 L1
     std::shared_ptr<Cache>      l1_1; // Core 1 L1

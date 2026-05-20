@@ -21,7 +21,8 @@
 namespace riscv {
 
 /// Hardware configuration parameters for the vector unit.
-struct VectorConfig {
+struct VectorConfig
+{
     u32 vlen = 128; ///< Vector register length in bits. Must be a power of 2, minimum 64.
 
     /// @return Number of bytes per vector register (VLENB).
@@ -43,7 +44,8 @@ struct VectorConfig {
  * Encodes how vector registers are interpreted. Fields map to 
  * bits [0:7] and bit [31] of the vtype CSR.
  */
-struct VType {
+struct VType
+{
     u32 sew   = 32;     ///< Selected element width in bits.
     u32 lmul  = 1;      ///< Register grouping multiplier.
     bool vta  = false;  ///< Tail agnostic: tail elements may be overwritten with 1s.
@@ -60,7 +62,7 @@ struct VType {
 
         u32 vsew_field = 0;
         switch(sew)
-	{
+        {
             case 8:  vsew_field = 0b000; break;
             case 16: vsew_field = 0b001; break;
             case 32: vsew_field = 0b010; break;
@@ -74,14 +76,14 @@ struct VType {
 
     /**
      * @brief Decodes a vsetvli immediate into a VType struct. 
-     * @note Sets vill if SEW is not 32-bit.
+     * @note Sets @c vill if SEW is not 32-bit.
      */
     static VType decode(u32 zimm)
     {
         VType vt;
         u32 vsew = (zimm >> 3) & 0x7;
         switch (vsew)
-	{
+        {
             case 0b000: vt.sew = 8;  break;
             case 0b001: vt.sew = 16; break;
             case 0b010: vt.sew = 32; break;
@@ -132,18 +134,20 @@ public:
         std::memcpy(&data_[(vreg * vlenb()) + (elem * 4)], &value, 4);
     }
 
-    /// Read mask bit @p elem from v0 (bit @p elem of register v0).
-    [[nodiscard]] bool get_mask_bit(u32 elem) const noexcept
+    /// Read mask bit @p elem from register @p vreg.
+    [[nodiscard]] bool get_mask_bit(u32 vreg, u32 elem) const noexcept
     {
-        u32 byte_idx = elem / 8;
+        u32 base = vreg * vlenb();
+        u32 byte_idx = base + elem / 8;
         u32 bit_idx  = elem % 8;
         return (data_[byte_idx] >> bit_idx) & 1;
     }
 
-    /// Set mask bit @p elem in v0.
-    void set_mask_bit(u32 elem, bool val) noexcept
+    /// Set mask bit @p elem in register @p vreg.
+    void set_mask_bit(u32 vreg, u32 elem, bool val) noexcept
     {
-        u32 byte_idx = elem / 8;
+        u32 base = vreg * vlenb();
+        u32 byte_idx = base + elem / 8;
         u32 bit_idx  = elem % 8;
         if (val)
             data_[byte_idx] |=  (1u << bit_idx);

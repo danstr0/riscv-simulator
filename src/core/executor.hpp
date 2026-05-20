@@ -1,19 +1,15 @@
 /**
  * @file executor.hpp
- * @brief Execution engine for decoded RV32I instructions.
+ * @brief Execution engine for decoded RISC-V instructions.
  *
- * The Executor maintains the architectural state of the Hart, including the
- * 31 general-purpose registers (x1-x31), the hardwired zero register (x0),
- * and the Program Counter (PC).
+ * Maintains the architectural state of the hart: 32 integer registers
+ * (x0 hardwired to zero), the program counter, CSR file, and vector unit.
  *
- * @section EXECUTION_CONTRACT Execution Contract
- * - **State Mutability:** The Executor modifies registers and memory.
- * - **PC Management:** The Executor *reads* the current PC for relative
- * calculations (branches/AUIPC) but does not commit the new PC state.
- * The caller is responsible for updating the PC using @ref ExecuteResult.next_pc.
- * - **Register x0:** Rigorously maintained as 0. Writes to index 0 are discarded.
+ * @par PC management
+ * The exeuctor reads the current PC for relative calculations but does
+ * @b not commit the new PC. The caller updates PC using @c ExecuteResult::next_pc.
  *
- * @note Reference: RISC-V Unprivileged ISA Specification v20260120, §2.1, §12.1, §13.1, §30.1.
+ * @see RISC-V Unprivileged ISA Specification v20260120, §2.1, §12.1, §13.1, §30.1.
  */
 
 #pragma once
@@ -29,12 +25,9 @@
 
 namespace riscv {
 
-/* ═══════════════════════════════════════════════════════════════════════
- * Execution Statistics
- * ═══════════════════════════════════════════════════════════════════════ */
-
-/** @brief Performance and telemetry counters. */
-struct CpuStats {
+/// Performance and telemetry counters.
+struct CpuStats
+{
     cycle_t cycles         = 0;
     u64     instructions   = 0;
     u64     loads          = 0;
@@ -43,13 +36,13 @@ struct CpuStats {
     u64     branches_taken = 0;
     u64     jumps          = 0;
 
-    /** @brief Returns Instructions Per Cycle (IPC). */
+    /// @return Instructions per cycle.
     [[nodiscard]] double ipc() const noexcept
     {
         return cycles > 0 ? static_cast<double>(instructions) / static_cast<double>(cycles) : 0.0;
     }
 
-    /** @brief Returns the ratio of branches that resulted in a PC change. */
+    /// @return Fraction of branches that changed the PC.
     [[nodiscard]] double branch_taken_rate() const noexcept
     {
         return branches > 0 ? static_cast<double>(branches_taken) / static_cast<double>(branches) : 0.0;
@@ -58,45 +51,43 @@ struct CpuStats {
     void reset() noexcept { *this = CpuStats{}; }
 };
 
-/* ═══════════════════════════════════════════════════════════════════════
- * Single-Instruction Execution Result
- * ═══════════════════════════════════════════════════════════════════════ */
-
 /**
- * @brief Metadata returned by the executor after processing an instruction.
- * * This structure informs the top-level CPU loop how to transition to the
- * next state (e.g., updating the PC or handling system traps).
+ * @brief Result returned by the executor after processing one instruction.
+ *
+ * Informs the CPU loop how to transition to the next state.
  */
-struct [[nodiscard]] ExecuteResult {
-    bool   ok           = true;   ///< False if an exception (e.g., memory fault) occurred.
-    u32    cycles       = 1;      ///< Total latency incurred by this instruction.
-    bool   branch_taken = false;  ///< Telemetry: was a branch/jump target taken?
-    addr_t next_pc      = 0;      ///< The calculated next instruction address.  
+struct [[nodiscard]] ExecuteResult
+{
+    bool   ok           = true;   ///< False if a fault occurred.
+    u32    cycles       = 1;      ///< Total latency of this instruction.
+    bool   branch_taken = false;  ///< Whether a branch/jump was taken.
+    addr_t next_pc      = 0;      ///< Next instruction address.  
 
-    bool   ecall        = false;  ///< Environment Call trap triggered.
-    bool   ebreak       = false;  ///< Breakpoint trap triggered.
+    bool   ecall        = false;  ///< Environment call trap.
+    bool   ebreak       = false;  ///< Breakpoint trap.
 
-    /** @brief Optional record of what was written to the destination register. */
-    std::optional<u32> rd_value;
+    std::optional<u32> rd_value;  ///< Value written to rd, if any.
 };
 
-/* ═══════════════════════════════════════════════════════════════════════
- * Executor
- * ═══════════════════════════════════════════════════════════════════════ */
-
+/**
+ * @brief Instruction executor maintaining hart architectural state.
+ *
+ * Executes decoded instructions against the register file and memory,
+ * returning an @c ExecuteResult describing the state transition.
+ */
 class Executor {
 public:
     explicit Executor(Memory& memory);
 
     /**
-     * @brief Transforms the Hart state based on a decoded instruction.
+     * @brief Execute a decoded instruction.
      * @param inst  The instruction to execute.
-     * @return Result containing the next PC and execution metadata.
+     * @return Execution metadata including the next PC.
      */
     [[nodiscard]] ExecuteResult execute(const DecodedInst& inst);
 
-    /** @name Register Access */
-    /** @{ */
+    /// @name Register access
+    /// @{
     [[nodiscard]] u32 reg(reg_idx_t r) const noexcept { return regs_[r]; }
     
     void set_reg(reg_idx_t r, u32 value) noexcept
@@ -105,32 +96,32 @@ public:
     }
 
     [[nodiscard]] const std::array<u32, 32>& regs() const noexcept { return regs_; }
-    /** @} */
+    /// @}
 
-    /** @name Program Counter Access */
-    /** @{ */
+    /// @name Program counter
+    /// @{
     [[nodiscard]] addr_t pc() const noexcept { return pc_; }
     void set_pc(addr_t pc) noexcept { pc_ = pc; }
-    /** @} */
+    /// @}
 
-    /** @name Statistics and Telemetry */
-    /** @{ */
+    /// @name Statistics
+    /// @{
     [[nodiscard]] const CpuStats& stats() const noexcept { return stats_; }
-    [[nodiscard]] CpuStats&       stats()       noexcept { return stats_; }
-    /** @} */
+    [[nodiscard]]       CpuStats& stats()       noexcept { return stats_; }
+    /// @}
 
-    /** @brief Access the vector unit state. */
+    /// @name Subsystem access
+    /// @{
     [[nodiscard]] const VectorState& vstate() const noexcept { return vstate_; }
     [[nodiscard]]       VectorState& vstate()       noexcept { return vstate_; }
+    [[nodiscard]] const CSRFile&     csrs()   const noexcept { return csrs_; }
+    [[nodiscard]]       CSRFile&     csrs()         noexcept { return csrs_; }
+    /// @}
 
-    /** @brief Access the CSR file. */
-    [[nodiscard]] const CSRFile& csrs() const noexcept { return csrs_; }
-    [[nodiscard]]       CSRFile& csrs()       noexcept { return csrs_; }
-
-    /** @brief Resets the architectural state and statistics. */
+    /// Resets all architectural state and statistics.
     void reset();
 
-    /** @brief Prints the current register state to stdout for debugging. */
+    /// Dump register file to stdout.
     void dump_regs() const;
 
 private:
@@ -139,24 +130,17 @@ private:
     addr_t              pc_ = 0;
     CpuStats            stats_;
 
-    /**
-     * @brief LR/SC reservation address. Set by LR.W, cleared by SC.W
-     * or any store to the reserved address.
-     */
+    /// LR/SC reservation address. Set by LR.W, cleared by SC.w or overlapping stores.
     std::optional<addr_t> reservation_;
 
-    /** @brief Vector unit state. */
     VectorState vstate_;
-
-    /** @brief Machine-mode CSR file. */
     CSRFile csrs_;
 
-    /** @brief Vector execution helper */
+    /// Vector instruction dispatch.
     ExecuteResult execute_vector(const DecodedInst& inst, u32 rs1_val, u32 rs2_val);
 
-    /** @name Internal ALU operations */
-    /** @{ */
-
+    /// @name ALU operations
+    /// @{
     static constexpr u32 alu_add(u32 a, u32 b) noexcept { return a + b; }
     static constexpr u32 alu_sub(u32 a, u32 b) noexcept { return a - b; }
     static constexpr u32 alu_and(u32 a, u32 b) noexcept { return a & b; }
@@ -164,37 +148,25 @@ private:
     static constexpr u32 alu_xor(u32 a, u32 b) noexcept { return a ^ b; }
     static constexpr u32 alu_sll(u32 a, u32 b) noexcept { return a << (b & 0x1Fu); }
     static constexpr u32 alu_srl(u32 a, u32 b) noexcept { return a >> (b & 0x1Fu); }
-    
-    /**
-     * @brief Arithmetic Right Shift.
-     * Manually replicates the sign bit to ensure portability across compilers
-     * where signed right shifts might be implementation-defined
-     */
+
+    /// Arithmetic right shift with portable sign-bit replication.
     static constexpr u32 alu_sra(u32 a, u32 b) noexcept
     { 
         u32 shamt = b & 0x1Fu;
         u32 shifted = a >> shamt;
-        if ((a & 0x8000'0000u) && shamt > 0) {
+        if ((a & 0x8000'0000u) && shamt > 0)
             shifted |= ~u32{0} << (32 - shamt);
-        }
         return shifted; 
     }
 
-    static constexpr u32 alu_slt(u32 a, u32 b) noexcept
-    { 
-        return static_cast<i32>(a) < static_cast<i32>(b) ? 1u : 0u;
-    }
-    
-    static constexpr u32 alu_sltu(u32 a, u32 b) noexcept
-    {
-        return a < b ? 1u : 0u;
-    }
+    static constexpr u32 alu_slt(u32 a, u32 b) noexcept  { return static_cast<i32>(a) <
+                                                                  static_cast<i32>(b) ? 1u
+                                                                                      : 0u; }
+    static constexpr u32 alu_sltu(u32 a, u32 b) noexcept { return a < b ? 1u : 0u; }
+    /// @}
 
-    /** @} */
-
-    /** @name RV32M multiply/divide (spec §12.1) */
-    /** @{ */
-
+    /// @name RV32M multiply/divide
+    /// @{
     static constexpr u32 alu_mul(u32 a, u32 b) noexcept { return a * b; }
     
     static constexpr u32 alu_mulh(u32 a, u32 b) noexcept
@@ -253,24 +225,25 @@ private:
     {
         return b == 0 ? a : a % b;
     }
+    /// @}
 
-    /** @} */
-
-    /** @name Branch conditions */
-    /** @{ */
+    /// @name Branch conditions
+    /// @{
     static constexpr bool cond_eq(u32 a, u32 b)  noexcept { return a == b; }
     static constexpr bool cond_ne(u32 a, u32 b)  noexcept { return a != b; }
-    static constexpr bool cond_lt(u32 a, u32 b)  noexcept { return static_cast<i32>(a) < static_cast<i32>(b); }
-    static constexpr bool cond_ge(u32 a, u32 b)  noexcept { return static_cast<i32>(a) >= static_cast<i32>(b); }
+    static constexpr bool cond_lt(u32 a, u32 b)  noexcept { return static_cast<i32>(a) <
+                                                                   static_cast<i32>(b); }
+    static constexpr bool cond_ge(u32 a, u32 b)  noexcept { return static_cast<i32>(a) >=
+                                                                   static_cast<i32>(b); }
     static constexpr bool cond_ltu(u32 a, u32 b) noexcept { return a < b; }
     static constexpr bool cond_geu(u32 a, u32 b) noexcept { return a >= b; }
-    /** @} */
+    /// @}
 
-    /** @name Memory sub-executors */
-    /** @{ */
+    /// @name Memory sub-executors
+    /// @{
     ExecuteResult execute_load(const DecodedInst& inst);
     ExecuteResult execute_store(const DecodedInst& inst);
-    /** @} */
+    /// @}
 };
 
 } // namespace riscv

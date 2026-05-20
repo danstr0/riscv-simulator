@@ -15,65 +15,9 @@
  */
 
 #include "core/decoder.hpp"
-
-#include <cstdint>
-#include <format>
-#include <functional>
-#include <iostream>
-#include <string>
-#include <vector>
+#include "test_framework.hpp"
 
 using namespace riscv;
-
-// ── Shared test infrastructure ─────────────────────────────────────────
-
-struct TestCase {
-    std::string           name;
-    std::function<bool()> func;
-};
-extern std::vector<TestCase> g_tests;
-
-#define TEST(name)                                                            \
-    bool test_##name();                                                       \
-    static bool reg_##name = (g_tests.push_back({#name, test_##name}), true); \
-    bool test_##name()
-
-#define ASSERT(cond)                                                        \
-    do {                                                                    \
-        if (!(cond)) {                                                      \
-            std::cerr << "  FAILED: " << #cond << "\n"                      \
-                      << "    at " << __FILE__ << ":" << __LINE__ << "\n";  \
-            return false;                                                   \
-        }                                                                   \
-    } while (0)
-
-#define ASSERT_EQ(a, b)                                                      \
-    do {                                                                     \
-        auto actual_   = (a);                                                \
-        auto expected_ = (b);                                                \
-        if (actual_ != expected_) {                                          \
-            std::cerr << "  FAILED: " << #a << " == " << #b << "\n"          \
-                      << "    got: " << static_cast<std::int64_t>(actual_)   \
-                      << " != "      << static_cast<std::int64_t>(expected_) \
-                      << "\n"                                                \
-                      << "    at " << __FILE__ << ":" << __LINE__ << "\n";   \
-            return false;                                                    \
-        }                                                                    \
-    } while (0)
-
-#define ASSERT_HEX_EQ(a, b)                                                 \
-    do {                                                                    \
-        auto actual_   = (a);                                               \
-        auto expected_ = (b);                                               \
-        if (actual_ != expected_) {                                         \
-            std::cerr << "  FAILED: " << #a << " == " << #b << "\n"         \
-                      << std::format("    got: 0x{:x} != 0x{:x}\n",         \
-                            static_cast<std::uint64_t>(actual_),            \
-                            static_cast<std::uint64_t>(expected_))          \
-                      << "    at " << __FILE__ << ":" << __LINE__ << "\n";  \
-            return false;                                                   \
-        }                                                                   \
-    } while (0)
 
 // ═══════════════════════════════════════════════════════════════════════
 //  1. R-type instructions
@@ -690,21 +634,34 @@ TEST(decode_mret) {
 // ═══════════════════════════════════════════════════════════════════════
 
 TEST(decoded_writes_rd) {
-    auto expects_no_rd_write = [](u32 raw)
+    auto expects_no_rd_write = [](u32 raw) -> bool
     {
         auto inst = Decoder::decode(raw);
         ASSERT(!inst.writes_rd());
+        return true;
     };
 
     auto add = Decoder::decode(0x0031'00b3u); // add x1, x2, x3
     ASSERT(add.writes_rd());
 
-    expects_no_rd_write(0x0031'0033u); // add x0, x2, x3  - x0 is always 0
-    expects_no_rd_write(0x0011'2623u); // sw  x1, 12(x2)
-    expects_no_rd_write(0x0020'8863u); // beq x1, x2, 16
+    ASSERT(expects_no_rd_write(0x0031'0033u)); // add x0, x2, x3  - x0 is always 0
+
+    // auto add_x0 = Decoder::decode(0x0031'0033u);
+    // ASSERT(!add_x0.writes_rd());
+
+    ASSERT(expects_no_rd_write(0x0011'2623u)); // sw  x1, 12(x2)
+    
+    // auto sw = Decoder::decode(0x0011'2623u);
+    // ASSERT(!sw.writes_rd());
+    
+    ASSERT(expects_no_rd_write(0x0020'8863u)); // beq x1, x2, 16
+
+    // auto beq = Decoder::decode(0x0020'8863u);
+    // ASSERT(!beq.writes_rd());
 
     return true;
 }
+
 
 TEST(decoded_reads_rs1) {
     auto add = Decoder::decode(0x0031'00b3u); // add x1, x2, x3

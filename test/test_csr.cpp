@@ -3,67 +3,14 @@
  * @brief Tests for CSR instructions.
  *
  * Sections:
- *   1 (line 62) : Decoder
+ *   1 (line 16) : Decoder
  */
 
 #include "core/cpu.hpp"
 #include "core/pipeline.hpp"
-
-#include <cstdint>
-#include <format>
-#include <iostream>
+#include "test_framework.hpp"
 
 using namespace riscv;
-
-// ── Shared test infrastructure ─────────────────────────────────────────
-
-struct TestCase {
-    std::string           name;
-    std::function<bool()> func;
-};
-extern std::vector<TestCase> g_tests;
-
-#define TEST(name)                                                            \
-    bool test_##name();                                                       \
-    static bool reg_##name = (g_tests.push_back({#name, test_##name}), true); \
-    bool test_##name()
-
-#define ASSERT(cond)                                                        \
-    do {                                                                    \
-        if (!(cond)) {                                                      \
-            std::cerr << "  FAILED: " << #cond << "\n"                      \
-                      << "    at " << __FILE__ << ":" << __LINE__ << "\n";  \
-            return false;                                                   \
-        }                                                                   \
-    } while (0)
-
-#define ASSERT_EQ(a, b)                                                      \
-    do {                                                                     \
-        auto actual_   = (a);                                                \
-        auto expected_ = (b);                                                \
-        if (actual_ != expected_) {                                          \
-            std::cerr << "  FAILED: " << #a << " == " << #b << "\n"          \
-                      << "    got: " << static_cast<std::int64_t>(actual_)   \
-                      << " != "      << static_cast<std::int64_t>(expected_) \
-                      << "\n"                                                \
-                      << "    at " << __FILE__ << ":" << __LINE__ << "\n";   \
-            return false;                                                    \
-        }                                                                    \
-    } while (0)
-
-#define ASSERT_HEX_EQ(a, b)                                                 \
-    do {                                                                    \
-        auto actual_   = (a);                                               \
-        auto expected_ = (b);                                               \
-        if (actual_ != expected_) {                                         \
-            std::cerr << "  FAILED: " << #a << " == " << #b << "\n"         \
-                      << std::format("    got: 0x{:x} != 0x{:x}\n",         \
-                            static_cast<std::uint64_t>(actual_),            \
-                            static_cast<std::uint64_t>(expected_))          \
-                      << "    at " << __FILE__ << ":" << __LINE__ << "\n";  \
-            return false;                                                   \
-        }                                                                   \
-    } while (0)
 
 // ═══════════════════════════════════════════════════════════════════════
 //  1. Decoder

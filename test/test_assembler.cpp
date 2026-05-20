@@ -17,67 +17,13 @@
 
 #include "core/assembler.hpp"
 #include "core/cpu.hpp"
-
-#include <cstdint>
-#include <format>
-#include <functional>
-#include <iostream>
-#include <string>
-#include <vector>
+#include "test_framework.hpp"
 
 using namespace riscv;
 
-// ── Shared test infrastructure ─────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────
 
-struct TestCase {
-    std::string             name;
-    std::function<bool()>   func;
-};
-extern std::vector<TestCase> g_tests;
-
-#define TEST(name)                                                            \
-    bool test_##name();                                                       \
-    static bool reg_##name = (g_tests.push_back({#name, test_##name}), true); \
-    bool test_##name()
-
-#define ASSERT(cond)                                                        \
-    do {                                                                    \
-        if (!(cond)) {                                                      \
-            std::cerr << "  FAILED: " << #cond << "\n"                      \
-                      << "    at " << __FILE__ << ":" << __LINE__ << "\n";  \
-            return false;                                                   \
-        }                                                                   \
-    } while (0)
-
-#define ASSERT_EQ(a, b)                                                      \
-    do {                                                                     \
-        auto actual_   = (a);                                                \
-        auto expected_ = (b);                                                \
-        if (actual_ != expected_) {                                          \
-            std::cerr << "  FAILED: " << #a << " == " << #b << "\n"          \
-                      << "    got: " << static_cast<std::int64_t>(actual_)   \
-                      << " != "      << static_cast<std::int64_t>(expected_) \
-                      << "\n"                                                \
-                      << "    at " << __FILE__ << ":" << __LINE__ << "\n";   \
-            return false;                                                    \
-        }                                                                    \
-    } while (0)
-
-#define ASSERT_HEX_EQ(a, b)                                                 \
-    do {                                                                    \
-        auto actual_   = (a);                                               \
-        auto expected_ = (b);                                               \
-        if (actual_ != expected_) {                                         \
-            std::cerr << "  FAILED: " << #a << " == " << #b << "\n"         \
-                      << std::format("    got: 0x{:08x} != 0x{:08x}\n",     \
-                            static_cast<std::uint32_t>(actual_),            \
-                            static_cast<std::uint32_t>(expected_))          \
-                      << "    at " << __FILE__ << ":" << __LINE__ << "\n";  \
-            return false;                                                   \
-        }                                                                   \
-    } while (0)
-
-// Helper: assemble one line and return the first word
+/// Assemble one line and return the first word.
 static u32 asm1(const char* line)
 {
     Assembler as;
@@ -90,7 +36,7 @@ static u32 asm1(const char* line)
          | (static_cast<u32>(r.code[3]) << 24);
 }
 
-// Helper: run an assembled program and return a register value
+/// Run an assembled program and return a register value.
 static u32 run_asm(const char* source, u32 result_reg = 1)
 {
     Assembler as;

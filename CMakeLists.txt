@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(rvsim
-    VERSION     0.4.3
+    VERSION     0.4.4
     LANGUAGES   CXX
     DESCRIPTION "RV32I CPU architecture engine"
 )
