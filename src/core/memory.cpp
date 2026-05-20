@@ -16,12 +16,13 @@ FlatMemory::FlatMemory(addr_t base_addr, size_t size)
     : base_addr_(base_addr)
     , ram_(size, 0)
 {
-    /* Ensure addr_t isn't overflowed during range checks later */
+    // Ensure addr_t isn't overflowed during range checks later
     assert(base_addr + size >= base_addr && "Memory region wraps around address space");
 }
 
 MemoryResult FlatMemory::read32(addr_t addr) const
 {
+    if (addr & 3) return {0, 1, false};
     if (!in_range(addr, 4)) return {0, 1, false};
     u32 value;
     std::memcpy(&value, &ram_[addr - base_addr_], 4);
@@ -30,6 +31,7 @@ MemoryResult FlatMemory::read32(addr_t addr) const
 
 MemoryResult FlatMemory::write32(addr_t addr, u32 value)
 {
+    if (addr & 3) return {0, 1, false};
     if (!in_range(addr, 4)) return {0, 1, false};
     std::memcpy(&ram_[addr - base_addr_], &value, 4);
     return {value, 1, true};
@@ -37,6 +39,7 @@ MemoryResult FlatMemory::write32(addr_t addr, u32 value)
 
 MemoryResult FlatMemory::read16(addr_t addr) const
 {
+    if (addr & 1) return {0, 1, false};
     if (!in_range(addr, 2)) return {0, 1, false};
     u16 value;
     std::memcpy(&value, &ram_[addr - base_addr_], 2);
@@ -45,6 +48,7 @@ MemoryResult FlatMemory::read16(addr_t addr) const
 
 MemoryResult FlatMemory::write16(addr_t addr, u16 value)
 {
+    if (addr & 1) return {0, 1, false};
     if (!in_range(addr, 2)) return {0, 1, false};
     std::memcpy(&ram_[addr - base_addr_], &value, 2);
     return {value, 1, true};
@@ -101,7 +105,7 @@ void MMIOBus::set_default(std::shared_ptr<Memory> mem)
 void MMIOBus::map(addr_t base, addr_t size, std::shared_ptr<Memory> device,
                   std::string name)
 {
-    /* Clean up overlapping or identical base mappings */
+    // Clean up overlapping or identical base mappings
     unmap(base);
     regions_.push_back({base, size, std::move(device), std::move(name)});
 }
@@ -114,14 +118,15 @@ void MMIOBus::unmap(addr_t base)
 Memory* MMIOBus::find_region(addr_t addr, addr_t* offset) const
 {
     for (auto& r : regions_) {
-        /* Check if addr falls within [base, base + size) */
-        if (addr >= r.base && addr < r.base + r.size) {
+        // Check if addr falls within [base, base + size)
+        if (addr >= r.base && addr < r.base + r.size)
+        {
             if (offset) *offset = addr - r.base;
             return r.device.get();
         }
     }
 
-    /* Fallback: route absolute address to default memory if it exists */
+    // Fallback: route absolute address to default memory if it exists
     if (offset) *offset = addr;
     return default_mem_.get();
 }
@@ -181,9 +186,9 @@ bool MMIOBus::valid_address(addr_t addr, size_t size) const
 {
     if (size == 0) return true;
     addr_t end = addr + static_cast<addr_t>(size);
-    if (end < addr) return false;  /* overflow */
+    if (end < addr) return false;  // overflow
 
-    /* Single-region check; does not validate ranges spanning multiple regions. */
+    // Single-region check; does not validate ranges spanning multiple regions.
     for (const auto& r : regions_)
     {
         if (addr >= r.base && end <= r.base + r.size)
