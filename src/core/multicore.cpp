@@ -16,16 +16,17 @@ MultiCoreCPU::MultiCoreCPU(MultiCoreConfig config)
 {
     assert(config_.num_cores > 0 && config_.num_cores <= 16);
 
-    /* Build memory hierarchy bottom-up */
+    // Build memory hierarchy bottom-up
     main_mem_ = std::make_shared<FlatMemory>(0, config_.main_memory_size);
 
     std::shared_ptr<Memory> l2_backing;
-    if (config_.l3.size_bytes > 0){
+    if (config_.l3.size_bytes > 0)
+    {
         l3_cache_ = std::make_shared<Cache>(config_.l3, main_mem_);
         l2_backing = l3_cache_;
-    } else {
-        l2_backing = main_mem_;
     }
+    else
+        l2_backing = main_mem_;
 
     l2_cache_ = std::make_shared<Cache>(config_.l2, l2_backing);
 
@@ -33,7 +34,7 @@ MultiCoreCPU::MultiCoreCPU(MultiCoreConfig config)
     for (u32 i = 0; i < config_.num_cores; ++i)
         l1d_caches_.push_back(std::make_shared<Cache>(config_.l1d, l2_cache_));
 
-    /* Coherence controller */
+    // Coherence controller
 
     std::vector<Cache*> l1_ptrs;
     l1_ptrs.reserve(config_.num_cores);
@@ -43,7 +44,8 @@ MultiCoreCPU::MultiCoreCPU(MultiCoreConfig config)
                                                        l2_cache_, 
                                                        config_.l1d.line_size);
 
-    for (u32 i = 0; i < config_.num_cores; ++i) {
+    for (u32 i = 0; i < config_.num_cores; ++i)
+    {
         auto* ctrl = coherence_.get();
         u32 core_id = i;
 
@@ -58,14 +60,15 @@ MultiCoreCPU::MultiCoreCPU(MultiCoreConfig config)
         });
     }
 
-    /* Create cores with per-core MMIO buses */
+    // Create cores with per-core MMIO buses
     
-    auto plic_mem =  std::shared_ptr<Memory>(std::shared_ptr<void>{}, &plic_);
+    auto plic_mem  = std::shared_ptr<Memory>(std::shared_ptr<void>{}, &plic_);
     auto timer_mem = std::shared_ptr<Memory>(std::shared_ptr<void>{}, &timer_);
 
     cores_.reserve(config_.num_cores);
     buses_.reserve(config_.num_cores);
-    for (u32 i = 0; i < config_.num_cores; ++i) {
+    for (u32 i = 0; i < config_.num_cores; ++i)
+    {
         auto bus = std::make_shared<MMIOBus>();
         bus->set_default(l1d_caches_[i]);
         bus->map(0x1000'0000, PLIC::REG_SIZE, plic_mem, "plic");
@@ -82,10 +85,11 @@ MultiCoreCPU::MultiCoreCPU(MultiCoreConfig config)
 
 void MultiCoreCPU::wire_interrupts()
 {
-    /* Timer -> all cores' mip.MTIP */
+    // Timer -> all cores' mip.MTIP
     timer_.set_notify([this](bool pending)
     {
-        for (auto& core : cores_) {
+        for (auto& core : cores_)
+        {
             if (pending)
                 core->csrs().set_mip_bit(MInterrupt::MTIE);
             else
@@ -93,10 +97,11 @@ void MultiCoreCPU::wire_interrupts()
         }
     });
 
-    /* PLIC -> all cores' mip.MEIP */
+    // PLIC -> all cores' mip.MEIP
     plic_.set_notify([this](bool pending)
     {
-        for (auto& core : cores_) {
+        for (auto& core : cores_)
+        {
             if (pending)
                 core->csrs().set_mip_bit(MInterrupt::MEIE);
             else
@@ -114,7 +119,8 @@ void MultiCoreCPU::load_program(addr_t addr, std::span<const u8> program)
 
 void MultiCoreCPU::load_instruction(addr_t addr, u32 instruction)
 {
-    const std::array<u8, 4> bytes = {
+    const std::array<u8, 4> bytes =
+    {
         static_cast<u8>(instruction),
         static_cast<u8>(instruction >> 8),
         static_cast<u8>(instruction >> 16),
@@ -134,7 +140,8 @@ bool MultiCoreCPU::tick()
     if (nic_) nic_->tick(cycle_count_);
 
     bool any_running = false;
-    for (auto& core : cores_) {
+    for (auto& core : cores_)
+    {
         if (core->tick())
             any_running = true;
     }
@@ -145,12 +152,9 @@ bool MultiCoreCPU::tick()
 cycle_t MultiCoreCPU::run_cycles(cycle_t n)
 {
     cycle_t count = 0;
-    while (count < n) {
-        cycle_count_++;
-        timer_.tick(cycle_count_);
-
-        if (nic_) nic_->tick(cycle_count_);
-        for (auto& core : cores_) core->tick();
+    while (count < n)
+    {
+        tick();
         ++count;
     }
     return count;
@@ -159,7 +163,8 @@ cycle_t MultiCoreCPU::run_cycles(cycle_t n)
 cycle_t MultiCoreCPU::run_until_all_halted(cycle_t max_cycles)
 {
     cycle_t count = 0;
-    while (count < max_cycles) {
+    while (count < max_cycles)
+    {
         if (!tick()) break;
         ++count;
     }
@@ -205,7 +210,8 @@ MultiCoreStats MultiCoreCPU::get_stats() const
     s.core_stats.resize(config_.num_cores);
     s.l1d_stats.resize(config_.num_cores);
 
-    for (u32 i = 0; i < config_.num_cores; ++i) {
+    for (u32 i = 0; i < config_.num_cores; ++i)
+    {
         s.core_stats[i] = cores_[i]->stats();
         s.l1d_stats[i]  = l1d_caches_[i]->stats();
     }
@@ -230,7 +236,8 @@ void MultiCoreCPU::reset_stats()
 void MultiCoreCPU::reset()
 {
     for (auto& core : cores_) core->reset();
-    for (auto& l1 : l1d_caches_) {
+    for (auto& l1 : l1d_caches_)
+    {
         l1->flush_all();
         l1->stats().reset();
     }
@@ -238,7 +245,8 @@ void MultiCoreCPU::reset()
     l2_cache_->flush_all();
     l2_cache_->stats().reset();
 
-    if (l3_cache_) {
+    if (l3_cache_)
+    {
         l3_cache_->flush_all();
         l3_cache_->stats().reset();
     }
@@ -246,6 +254,7 @@ void MultiCoreCPU::reset()
     coherence_->reset_stats();
     plic_.reset();
     timer_.reset();
+    if (nic_) nic_->reset();
     cycle_count_ = 0;
 }
 
