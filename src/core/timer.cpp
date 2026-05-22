@@ -25,7 +25,8 @@ bool Timer::tick(cycle_t cycle)
 void Timer::check()
 {
     bool new_pending = (mtime_ >= mtimecmp_);
-    if (new_pending != pending_) {
+    if (new_pending != pending_)
+    {
         pending_ = new_pending;
         if (notify_cb_) notify_cb_(pending_);
     }
@@ -35,10 +36,11 @@ void Timer::check()
 
 MemoryResult Timer::read32(addr_t addr) const
 {
-    switch(addr) {
-        case MTIME_LO:    return {static_cast<u32>(mtime_), 1, true};
-        case MTIME_HI:    return {static_cast<u32>(mtime_ >> 32), 1, true};
-        case MTIMECMP_LO: return {static_cast<u32>(mtimecmp_), 1, true};
+    switch(addr)
+    {
+        case MTIME_LO:    return {static_cast<u32>(mtime_),          1, true};
+        case MTIME_HI:    return {static_cast<u32>(mtime_ >> 32),    1, true};
+        case MTIMECMP_LO: return {static_cast<u32>(mtimecmp_),       1, true};
         case MTIMECMP_HI: return {static_cast<u32>(mtimecmp_ >> 32), 1, true};
         default:          return {0, 1, false};
     }
@@ -46,10 +48,11 @@ MemoryResult Timer::read32(addr_t addr) const
 
 MemoryResult Timer::write32(addr_t addr, u32 value)
 {
-    switch(addr) {
+    switch(addr)
+    {
         case MTIME_LO:
         case MTIME_HI:
-            /* read-only in this implementation */
+            // Silently ignored; mtime advances only via tick()
             return {value, 1, true};
 
         case MTIMECMP_LO:
@@ -58,7 +61,8 @@ MemoryResult Timer::write32(addr_t addr, u32 value)
             return {value, 1, true};
 
         case MTIMECMP_HI:
-            mtimecmp_ = (mtimecmp_ & 0x0000'0000'FFFF'FFFFULL) | (static_cast<u64>(value) << 32);
+            mtimecmp_ = (mtimecmp_ & 0x0000'0000'FFFF'FFFFULL)
+                      | (static_cast<u64>(value) << 32);
             check();
             return {value, 1, true};
 
@@ -67,9 +71,9 @@ MemoryResult Timer::write32(addr_t addr, u32 value)
     }
 }
 
-bool Timer::valid_address(addr_t addr, size_t) const
+bool Timer::valid_address(addr_t addr, size_t size) const
 {
-    return addr < REG_SIZE;
+    return size > 0 && addr + size <= REG_SIZE;
 }
 
 } // namespace riscv
