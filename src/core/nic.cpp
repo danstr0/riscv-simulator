@@ -68,12 +68,17 @@ u32 NIC::compute_rss_hash(const Packet& pkt) const
 {
     if (pkt.data.size() < 20) return 0;
 
-    u32 src_ip = (static_cast<u32>(pkt.data[12]) << 24) | (static_cast<u32>(pkt.data[13]) << 16)
-               | (static_cast<u32>(pkt.data[14]) << 8)  |  static_cast<u32>(pkt.data[15]);
-    u32 dst_ip = (static_cast<u32>(pkt.data[16]) << 24) | (static_cast<u32>(pkt.data[17]) << 16)
-               | (static_cast<u32>(pkt.data[18]) << 8)  |  static_cast<u32>(pkt.data[19]);
+    u32 src_ip = (static_cast<u32>(pkt.data[12]) << 24)
+               | (static_cast<u32>(pkt.data[13]) << 16)
+               | (static_cast<u32>(pkt.data[14]) << 8)
+               |  static_cast<u32>(pkt.data[15]);
 
-    u32 hash = src_ip & dst_ip;
+    u32 dst_ip = (static_cast<u32>(pkt.data[16]) << 24)
+               | (static_cast<u32>(pkt.data[17]) << 16)
+               | (static_cast<u32>(pkt.data[18]) << 8)
+               |  static_cast<u32>(pkt.data[19]);
+
+    u32 hash = src_ip ^ dst_ip;
     if (pkt.data.size() >= 24 && (pkt.data[9] == 6 || pkt.data[9] == 17))
     {
         u16 src_port = (static_cast<u16>(pkt.data[20]) << 8) | pkt.data[21];
@@ -113,6 +118,7 @@ MemoryResult NIC::read32(addr_t addr) const
 
     u32 value = regs_[addr / 4];
 
+    // ICR: read-on-clear per 82599 spec
     if (addr == NicReg::ICR)
         regs_[NicReg::ICR / 4] = 0;
 
@@ -181,6 +187,8 @@ MemoryResult NIC::write32(addr_t addr, u32 value)
 
 MemoryResult NIC::read16(addr_t addr) const
 {
+    if ((addr & ~3u) == NicReg::ICR) return {0, 1, false};
+
     auto r = read32(addr & ~3u);
     if (!r.ok) return {0, 1, false};
 
@@ -190,6 +198,8 @@ MemoryResult NIC::read16(addr_t addr) const
 
 MemoryResult NIC::write16(addr_t addr, u16 value)
 {
+    if ((addr & ~3u) == NicReg::ICR) return {0, 1, false};
+
     auto r = read32(addr & ~3u);
     if (!r.ok) return {0, 1, false};
 
@@ -200,6 +210,8 @@ MemoryResult NIC::write16(addr_t addr, u16 value)
 
 MemoryResult NIC::read8(addr_t addr) const
 {
+    if ((addr & ~3u) == NicReg::ICR) return {0, 1, false};
+
     auto r = read32(addr & ~3u);
     if (!r.ok) return {0, 1, false};
 
@@ -209,6 +221,8 @@ MemoryResult NIC::read8(addr_t addr) const
 
 MemoryResult NIC::write8(addr_t addr, u8 value)
 {
+    if ((addr & ~3u) == NicReg::ICR) return {0, 1, false};
+
     auto r = read32(addr & ~3u);
     if (!r.ok) return {0, 1, false};
 
@@ -219,7 +233,7 @@ MemoryResult NIC::write8(addr_t addr, u8 value)
 
 bool NIC::valid_address(addr_t addr, size_t size) const
 {
-    return addr + size <= NicReg::REG_SIZE;
+    return size > 0 && addr + size <= NicReg::REG_SIZE;
 }
 
 // ── Simulation tick ────────────────────────────────────────────────────
@@ -277,11 +291,11 @@ void NIC::raise_interrupt(u32 cause)
 {
     regs_[NicReg::ICR / 4] |= cause;
 
-    if (cause & interrupt_mask_ && !interrupt_pending_)
+    if ((cause & interrupt_mask_) && !interrupt_pending_)
     {
         interrupt_pending_ = true;
         stats_.interrupts_raised++;
-        
+
         if (interrupt_cb_)
             interrupt_cb_();
     }
@@ -358,6 +372,14 @@ void NIC::process_tx_ring(u32 qid)
     while (ring.head != ring.tail)
     {
         TxDescriptor desc = read_tx_desc(qid, ring.head);
+
+        if (desc.length == 0 || !sys_mem_->valid_address(desc.buffer_addr, desc.length))
+        {
+            stats_.tx_dropped++;
+            ring.head = (ring.head + 1) % ring.ring_size;
+            continue;
+        }
+
         Packet pkt;
         pkt.data.resize(desc.length);
         pkt.dma_start_cycle = current_cycle_;
@@ -378,7 +400,8 @@ void NIC::process_tx_ring(u32 qid)
 
 void NIC::complete_dma()
 {
-    while (!pending_dma_.empty() && pending_dma_.front().complete_cycle <= current_cycle_)
+    while (!pending_dma_.empty()
+         && pending_dma_.front().complete_cycle <= current_cycle_)
     {
         PendingDma dma = std::move(pending_dma_.front());
         pending_dma_.pop_front();
@@ -387,38 +410,41 @@ void NIC::complete_dma()
         {
             auto& ring = rx_rings_[dma.queue_id];
             RxDescriptor desc = read_rx_desc(dma.queue_id, dma.desc_idx);
-            
-            for (size_t i = 0; i < dma.packet.data.size(); ++i)
-                sys_mem_->write8(desc.buffer_addr + static_cast<addr_t>(i), dma.packet.data[i]);
 
-            /* Update descriptor status */
+            for (size_t i = 0; i < dma.packet.data.size(); ++i)
+                sys_mem_->load(desc.buffer_addr,
+                               std::span<const u8>(dma.packet.data.data(),
+                                                   dma.packet.data.size()));
+
+            // Update descriptor status
             desc.length = static_cast<u16>(dma.packet.data.size());
             desc.status = RxDescriptor::STATUS_DD | RxDescriptor::STATUS_EOP;
             desc.errors = 0;
             write_rx_desc(dma.queue_id, dma.desc_idx, desc);
 
-            /* Advance head */
+            // Advance head
             ring.head = (dma.desc_idx + 1) % ring.ring_size;
             regs_[NicReg::RDH / 4] = ring.head;
 
-            /* Statistics */
+            // Statistics
             stats_.rx_packets++;
             stats_.rx_bytes += dma.packet.data.size();
             regs_[NicReg::RXPKT / 4]++;
             regs_[NicReg::RXBYTES / 4] += static_cast<u32>(dma.packet.data.size());
 
-            /* Latency tracking */
+            // Latency tracking
             dma.packet.dma_done_cycle = current_cycle_;
             cycle_t latency = current_cycle_ - dma.packet.arrival_cycle;
             stats_.total_rx_latency += latency;
             stats_.min_rx_latency = std::min(stats_.min_rx_latency, latency);
             stats_.max_rx_latency = std::max(stats_.max_rx_latency, latency);
 
-            /* Interrupt */
+            // Interrupt
             check_coalescing(dma.queue_id, NicInt::RXQ0);
-        
-        } else {
-            /* TX: Read packet data from buffer */
+        }
+        else
+        {
+            // TX: Read packet data from buffer
             auto& ring = tx_rings_[dma.queue_id];
             TxDescriptor desc = read_tx_desc(dma.queue_id, dma.desc_idx);
 
@@ -430,15 +456,15 @@ void NIC::complete_dma()
                     dma.packet.data[i] = r.ok ? static_cast<u8>(r.value) : 0;
             }
 
-            /* Mark descriptor done */
+            // Mark descriptor done
             desc.status = TxDescriptor::STATUS_DD;
             write_tx_desc(dma.queue_id, dma.desc_idx, desc);
 
-            /* Advance head */
+            // Advance head
             ring.head = (dma.desc_idx + 1) % ring.ring_size;
             if (dma.queue_id == 0) regs_[NicReg::TDH / 4] = ring.head;
 
-            /* Statistics */
+            // Statistics
             stats_.tx_packets++;
             stats_.tx_bytes += dma.packet.data.size();
             regs_[NicReg::TXPKT / 4]++;
@@ -460,14 +486,14 @@ RxDescriptor NIC::read_rx_desc(u32 qid, u32 idx) const
     RxDescriptor d{};
     d.buffer_addr    = sys_mem_->read32(addr).value;
     d.buffer_addr_hi = sys_mem_->read32(addr + 4).value;
-    
+
     u32 w2 = sys_mem_->read32(addr + 8).value;
     u32 w3 = sys_mem_->read32(addr + 12).value;
 
-    d.length   = static_cast<u16>(w2 & 0xFFFF);
+    d.length   = static_cast<u16>(w2         & 0xFFFF);
     d.checksum = static_cast<u16>((w2 >> 16) & 0xFFFF);
-    d.status   = static_cast<u8>(w3 & 0xFF);
-    d.errors   = static_cast<u8>((w3 >> 8) & 0xFF);
+    d.status   = static_cast<u8>(w3          & 0xFF);
+    d.errors   = static_cast<u8>((w3 >> 8)   & 0xFF);
     d.vlan     = static_cast<u16>((w3 >> 16) & 0xFFFF);
     return d;
 }
@@ -476,11 +502,11 @@ void NIC::write_rx_desc(u32 qid, u32 idx, const RxDescriptor& d)
 {
     addr_t addr = rx_rings_[qid].base_addr + idx * 16;
 
-    sys_mem_->write32(addr,      d.buffer_addr);
-    sys_mem_->write32(addr + 4,  d.buffer_addr_hi);
-    sys_mem_->write32(addr + 8,  d.length | (static_cast<u32>(d.checksum) << 16));
-    sys_mem_->write32(addr + 12, d.status | (static_cast<u32>(d.errors) << 8)
-                                          | (static_cast<u32>(d.vlan) << 16));
+    (void)sys_mem_->write32(addr,      d.buffer_addr);
+    (void)sys_mem_->write32(addr + 4,  d.buffer_addr_hi);
+    (void)sys_mem_->write32(addr + 8,  d.length | (static_cast<u32>(d.checksum) << 16));
+    (void)sys_mem_->write32(addr + 12, d.status | (static_cast<u32>(d.errors) << 8)
+                                                | (static_cast<u32>(d.vlan) << 16));
 }
 
 TxDescriptor NIC::read_tx_desc(u32 qid, u32 idx) const
@@ -494,11 +520,11 @@ TxDescriptor NIC::read_tx_desc(u32 qid, u32 idx) const
     u32 w2 = sys_mem_->read32(addr + 8).value;
     u32 w3 = sys_mem_->read32(addr + 12).value;
 
-    d.length = static_cast<u16>(w2 & 0xFFFF);
-    d.cso    = static_cast<u8>((w2 >> 16) & 0xFF);
-    d.cmd    = static_cast<u8>((w2 >> 24) & 0xFF);
-    d.status = static_cast<u8>(w3 & 0xFF);
-    d.css    = static_cast<u8>((w3 >> 8) & 0xFF);
+    d.length = static_cast<u16>(w2         & 0xFFFF);
+    d.cso    = static_cast<u8>((w2 >> 16)  & 0xFF);
+    d.cmd    = static_cast<u8>((w2 >> 24)  & 0xFF);
+    d.status = static_cast<u8>(w3          & 0xFF);
+    d.css    = static_cast<u8>((w3 >> 8)   & 0xFF);
     d.vlan   = static_cast<u16>((w3 >> 16) & 0xFFFF);
     return d;
 }
@@ -507,12 +533,12 @@ void NIC::write_tx_desc(u32 qid, u32 idx, const TxDescriptor& d)
 {
     addr_t addr = tx_rings_[qid].base_addr + idx * 16;
 
-    sys_mem_->write32(addr,      d.buffer_addr);
-    sys_mem_->write32(addr + 4,  d.buffer_addr_hi);
-    sys_mem_->write32(addr + 8,  d.length | (static_cast<u32>(d.cso) << 16)
-                                          | (static_cast<u32>(d.cmd) << 24));
-    sys_mem_->write32(addr + 12, d.status | (static_cast<u32>(d.css) << 8)
-                                          | (static_cast<u32>(d.vlan) << 16));
+    (void)sys_mem_->write32(addr,      d.buffer_addr);
+    (void)sys_mem_->write32(addr + 4,  d.buffer_addr_hi);
+    (void)sys_mem_->write32(addr + 8,  d.length | (static_cast<u32>(d.cso) << 16)
+                                                | (static_cast<u32>(d.cmd) << 24));
+    (void)sys_mem_->write32(addr + 12, d.status | (static_cast<u32>(d.css) << 8)
+                                                | (static_cast<u32>(d.vlan) << 16));
 }
 
 // ── Loopback ───────────────────────────────────────────────────────────
