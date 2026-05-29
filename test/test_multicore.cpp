@@ -22,7 +22,7 @@ static MultiCoreConfig test_config(u32 num_cores = 2)
 {
     MultiCoreConfig cfg;
     cfg.num_cores = num_cores;
-    cfg.main_memory_size = 64 * 1024;  // 64 KB
+    cfg.main_memory_size = 64 * 1024; // 64 KB
 
     cfg.l1d =
     {

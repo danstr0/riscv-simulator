@@ -6,17 +6,12 @@
  * directory-based coherence, a shared cache hierarchy, and
  * memory-mapped I/O devices (PLIC, Timer, NIC).
  *
- * @par Memory map
- * @code
- *   ┌──────────────┬─────────────┬────────────────────┬────────────┐
- *   │ Base Address │ End Address │ Description        │ Attributes │
- *   ├──────────────┼─────────────┼────────────────────┼────────────┤
- *   │ 0x0000_0000  │ 0x0FFF_FFFF │ Main Memory (DRAM) │ Cached/RW  │
- *   │ 0x1000_0000  │ 0x1000_0FFF │ PLIC               │ MMIO/RW    │
- *   │ 0x1000_1000  │ 0x1000_100F │ Machine Timer      │ MMIO/RW    │
- *   │ 0x1000_2000  │ 0x1000_207F │ NIC                │ MMIO/RW    │
- *   └──────────────┴─────────────┴────────────────────┴────────────┘
- * @endcode
+ * @par Memory layout
+ * Device MMIO addresses are placed immediately above main memory:
+ * - @c device_base = align_up(mem_size, 0x1000)
+ * - PLIC: device_base + 0x0000
+ * - Timer: device_base + 0x1000
+ * - NIC: device_base + 0x2000
  *
  * @par Interrupt delivery
  * External devices signal the PLIC, which performs priority arbitration
@@ -43,15 +38,16 @@ namespace riscv {
 /// System-level configuration for the multi-core SoC.
 struct MultiCoreConfig
 {
-    u32            num_cores = 2;
-    PipelineConfig pipeline  = {};
-    CacheConfig    l1d       = CacheConfig::L1_typical();
-    CacheConfig    l2        = CacheConfig::L2_typical();
-    CacheConfig    l3        = CacheConfig::L3_typical();  ///< Set @c size_bytes=0 to bypass.
-    u32            main_memory_size = 256 * 1024 * 1024;
+    u32 num_cores = 2;
+    PipelineConfig pipeline = {};
 
-    u32 nic_plic_source   = 1;
-    u32 timer_plic_source = 0;  ///< 0 = timer uses direct @c mip.MTIP, not PLIC.
+    CacheConfig l1d = CacheConfig::L1_typical();  ///< Set @c size_bytes=0 to disable all caches.
+    CacheConfig l2  = CacheConfig::L2_typical();  ///< Required when L1 is enabled.
+    CacheConfig l3  = CacheConfig::L3_typical();  ///< Set @c size_bytes=0 to disable.
+
+    u32 main_memory_size = 64 * 1024; // 64 KiB default
+
+    u32 nic_plic_source = 1;
 };
 
 /// Aggregated statistics across all cores, caches, and coherence.
@@ -106,16 +102,20 @@ public:
     [[nodiscard]] Memory& main_memory() noexcept { return *main_mem_; }
 
     /// Attch a nic: maps into the address space and wires its interrupt to the PLIC.
-    void attach_nic(std::shared_ptr<NIC> nic, addr_t mmio_base = 0x1000'2000);
+    void attach_nic(std::shared_ptr<NIC> nic);
     [[nodiscard]] NIC* nic() noexcept { return nic_.get(); }
+    
+    /// Get the computed device MMIO base address.
+    [[nodiscard]] addr_t device_base() const noexcept { return device_base_; }
     /// @}
 
     /// @name Cache hierarchy
     /// @{
-    [[nodiscard]] Cache& l1d(u32 core_id) { return *l1d_caches_.at(core_id); }
-    [[nodiscard]] Cache& l2()             { return *l2_cache_; }
-    [[nodiscard]] Cache* l3()             { return l3_cache_.get(); }
-    [[nodiscard]] CoherenceController& coherence() { return *coherence_; }
+    [[nodiscard]] Cache* l1d(u32 core_id);
+    [[nodiscard]] Cache* l2() { return l2_cache_.get(); }
+    [[nodiscard]] Cache* l3() { return l3_cache_.get(); }
+    [[nodiscard]] CoherenceController* coherence() { return coherence_.get(); }
+    [[nodiscard]] bool has_caches() const noexcept { return !l1d_caches_.empty(); }
     /// @}
 
     /// @name Statistics
@@ -134,6 +134,7 @@ public:
 
 private:
     MultiCoreConfig config_;
+    addr_t device_base_ = 0;
 
     std::shared_ptr<FlatMemory>                main_mem_;
     std::shared_ptr<Cache>                     l3_cache_;
