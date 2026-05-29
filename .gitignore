@@ -20,7 +20,7 @@ benchmark/
 benchmark_scripts/
 doc/
 
-# Binaries / Code Dumps
+# Binaries / Core Dumps
 .bin
 /core
 vgcore.*
@@ -28,5 +28,11 @@ vgcore.*
 # Experimental files
 exp_*
 
-# requirements.txt - add in benchmarking/documentation update
-requirements.txt
+# Stepper files
+src/core/stepper.?pp
+src/stepper_main.cpp
+
+# Virtual environments
+venv/
+.venv/
+env/
