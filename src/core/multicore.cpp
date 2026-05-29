@@ -9,6 +9,13 @@
 
 namespace riscv {
 
+// ── Alignment helper ───────────────────────────────────────────────────
+
+static addr_t align_up(addr_t v, addr_t align)
+{
+    return (v + align - 1) & ~(align - 1);
+}
+
 // ── Construction ───────────────────────────────────────────────────────
 
 MultiCoreCPU::MultiCoreCPU(MultiCoreConfig config)
@@ -16,63 +23,87 @@ MultiCoreCPU::MultiCoreCPU(MultiCoreConfig config)
 {
     assert(config_.num_cores > 0 && config_.num_cores <= 16);
 
-    // Build memory hierarchy bottom-up
+    // ── Main memory ─────────────────────────────────────
+
     main_mem_ = std::make_shared<FlatMemory>(0, config_.main_memory_size);
 
-    std::shared_ptr<Memory> l2_backing;
-    if (config_.l3.size_bytes > 0)
+    // ── Device MMIO base ────────────────────────────────
+    // Immediately above main memory, page-aligned
+
+    device_base_ = align_up(config_.main_memory_size, 0x1000);
+
+    // ── Build cache hierarchy ───────────────────────────
+
+    bool use_caches = (config_.l1d.size_bytes > 0);
+
+    std::shared_ptr<Memory> shared_backing = main_mem_;
+
+    if (use_caches)
     {
-        l3_cache_ = std::make_shared<Cache>(config_.l3, main_mem_);
-        l2_backing = l3_cache_;
-    }
-    else
-        l2_backing = main_mem_;
-
-    l2_cache_ = std::make_shared<Cache>(config_.l2, l2_backing);
-
-    l1d_caches_.reserve(config_.num_cores);
-    for (u32 i = 0; i < config_.num_cores; ++i)
-        l1d_caches_.push_back(std::make_shared<Cache>(config_.l1d, l2_cache_));
-
-    // Coherence controller
-
-    std::vector<Cache*> l1_ptrs;
-    l1_ptrs.reserve(config_.num_cores);
-    for (auto& c : l1d_caches_) l1_ptrs.push_back(c.get());
-
-    coherence_ = std::make_unique<CoherenceController>(std::move(l1_ptrs), 
-                                                       l2_cache_, 
-                                                       config_.l1d.line_size);
-
-    for (u32 i = 0; i < config_.num_cores; ++i)
-    {
-        auto* ctrl = coherence_.get();
-        u32 core_id = i;
-
-        l1d_caches_[i]->set_on_read_miss([ctrl, core_id](addr_t line_addr) -> u32
+        // Optional L3
+        if (config_.l3.size_bytes > 0)
         {
-            return ctrl->handle_read_miss(core_id, line_addr);
-        });
+            l3_cache_ = std::make_shared<Cache>(config.l3, main_mem_);
+            shared_backing = l3_cache_;
+        }
+
+        // L2 required when L1 present
+        assert(config_.l2.size_bytes > 0);
+        l2_cache_ = std::make_shared<Cache>(config_.l2, shared_backing);
+
+        // Per-core L1 caches
+        l1d_caches_.reserve(config_.num_cores);
+        for (u32 i = 0; i < config_.num_cores; ++i)
+            l1d_caches_.push_back(std::make_shared<Cache>(config_.l1d, l2_cache_));
     
-        l1d_caches_[i]->set_on_write([ctrl, core_id](addr_t line_addr) -> u32
+        // Coherence controller
+        std::vector<Cache*> l1_ptrs;
+        l1_ptrs.reserve(config_.num_cores);
+        for (auto& c : l1d_caches_) l1_ptrs.push_back(c.get());
+
+        coherence_ = std::make_unique<CoherenceController>(std::move(l1_ptrs), 
+                                                           l2_cache_, 
+                                                           config_.l1d.line_size);
+
+        // Wire coherence callbacks
+        for (u32 i = 0; i < config_.num_cores; ++i)
         {
-            return ctrl->handle_write_miss(core_id, line_addr);
-        });
+            auto* ctrl = coherence_.get();
+            u32 core_id = i;
+
+            l1d_caches_[i]->set_on_read_miss([ctrl, core_id](addr_t line_addr) -> u32
+            {
+                return ctrl->handle_read_miss(core_id, line_addr);
+            });
+        
+            l1d_caches_[i]->set_on_write([ctrl, core_id](addr_t line_addr) -> u32
+            {
+                return ctrl->handle_write_miss(core_id, line_addr);
+            });
+        }
     }
 
-    // Create cores with per-core MMIO buses
+    // ── Create cores with per-core MMIO buses ───────────
     
-    auto plic_mem  = std::shared_ptr<Memory>(std::shared_ptr<void>{}, &plic_);
-    auto timer_mem = std::shared_ptr<Memory>(std::shared_ptr<void>{}, &timer_);
+    auto plic_ptr  = std::shared_ptr<Memory>(std::shared_ptr<void>{}, &plic_);
+    auto timer_ptr = std::shared_ptr<Memory>(std::shared_ptr<void>{}, &timer_);
 
     cores_.reserve(config_.num_cores);
     buses_.reserve(config_.num_cores);
+
     for (u32 i = 0; i < config_.num_cores; ++i)
     {
         auto bus = std::make_shared<MMIOBus>();
-        bus->set_default(l1d_caches_[i]);
-        bus->map(0x1000'0000, PLIC::REG_SIZE, plic_mem, "plic");
-        bus->map(0x1000'1000, Timer::REG_SIZE, timer_mem, "timer");
+
+        // L1 cache if present, otherwise main memory
+        if (use_caches)
+            bus->set_default(l1d_caches_[i]);
+        else
+            bus->set_default(main_mem_);
+
+        // Map devices above main memory
+        bus->map(device_base_,          PLIC::REG_SIZE,  plic_ptr,  "plic");
+        bus->map(device_base_ + 0x1000, Timer::REG_SIZE, timer_ptr, "timer");
 
         buses_.push_back(bus);
         cores_.push_back(std::make_unique<PipelinedCPU>(bus, config_.pipeline));
@@ -85,29 +116,42 @@ MultiCoreCPU::MultiCoreCPU(MultiCoreConfig config)
 
 void MultiCoreCPU::wire_interrupts()
 {
-    // Timer -> all cores' mip.MTIP
     timer_.set_notify([this](bool pending)
     {
         for (auto& core : cores_)
         {
-            if (pending)
-                core->csrs().set_mip_bit(MInterrupt::MTIE);
-            else
-                core->csrs().clear_mip_bit(MInterrupt::MTIE);
+            if (pending) core->csrs().set_mip_bit(MInterrupt::MTIE);
+            else         core->csrs().clear_mip_bit(MInterrupt::MTIE);
         }
     });
 
-    // PLIC -> all cores' mip.MEIP
     plic_.set_notify([this](bool pending)
     {
         for (auto& core : cores_)
         {
-            if (pending)
-                core->csrs().set_mip_bit(MInterrupt::MEIE);
-            else
-                core->csrs().clear_mip_bit(MInterrupt::MEIE);
+            if (pending) core->csrs().set_mip_bit(MInterrupt::MEIE);
+            else         core->csrs().clear_mip_bit(MInterrupt::MEIE);
         }
     });
+}
+
+// ── NIC attachment ─────────────────────────────────────────────────────
+
+void MultiCoreCPU::attach_nic(std::shared_ptr<NIC> nic)
+{
+    nic_ = std::move(nic);
+    nic_->plic_source = config_.nic_plic_source;
+
+    u32 source = config_.nic_plic_source;
+    nic_->set_interrupt_callback([this, source]()
+    {
+        plic_.set_pending(source);
+    });
+
+    // Map NIC MMIO on each core's bus
+    addr_t nic_base = device_base_ + 0x2000;
+    for (auto& bus : buses_)
+        bus->map(nic_base, NicReg::REG_SIZE, nic_, "nic");
 }
 
 // ── Program loading ────────────────────────────────────────────────────
@@ -141,23 +185,17 @@ bool MultiCoreCPU::tick()
 
     bool any_running = false;
     for (auto& core : cores_)
-    {
-        if (core->tick())
-            any_running = true;
-    }
+        if (core->tick()) any_running = true;
 
     return any_running;
 }
 
 cycle_t MultiCoreCPU::run_cycles(cycle_t n)
 {
-    cycle_t count = 0;
-    while (count < n)
-    {
+    for (cycle_t i = 0; i < n; ++i)
         tick();
-        ++count;
-    }
-    return count;
+
+    return n;
 }
 
 cycle_t MultiCoreCPU::run_until_all_halted(cycle_t max_cycles)
@@ -171,22 +209,6 @@ cycle_t MultiCoreCPU::run_until_all_halted(cycle_t max_cycles)
     return count;
 }
 
-// ── NIC attachment ─────────────────────────────────────────────────────
-
-void MultiCoreCPU::attach_nic(std::shared_ptr<NIC> nic, addr_t mmio_base)
-{
-    nic_ = std::move(nic);
-    nic_->plic_source = config_.nic_plic_source;
-
-    u32 source = config_.nic_plic_source;
-    nic_->set_interrupt_callback([this, source]()
-    {
-        plic_.set_pending(source);
-    });
-
-    for (auto& bus : buses_)
-        bus->map(mmio_base, NicReg::REG_SIZE, nic_, "nic");
-}
 
 // ── Core configuration ─────────────────────────────────────────────────
 
@@ -202,6 +224,15 @@ void MultiCoreCPU::set_core_reg(u32 core_id, reg_idx_t r, u32 value)
     cores_[core_id]->set_reg(r, value);
 }
 
+// ── Cache access ───────────────────────────────────────────────────────
+
+Cache* MultiCoreCPU::l1d(u32 core_id)
+{
+    if (core_id < l1d_caches_.size())
+        return l1d_caches_[core_id].get();
+    return nullptr;
+}
+
 // ── Statistics ─────────────────────────────────────────────────────────
 
 MultiCoreStats MultiCoreCPU::get_stats() const
@@ -213,12 +244,13 @@ MultiCoreStats MultiCoreCPU::get_stats() const
     for (u32 i = 0; i < config_.num_cores; ++i)
     {
         s.core_stats[i] = cores_[i]->stats();
-        s.l1d_stats[i]  = l1d_caches_[i]->stats();
+        if (i < l1d_caches_.size())
+            s.l1d_stats[i] = l1d_caches_[i]->stats();
     }
 
-    s.l2_stats  = l2_cache_->stats();
+    s.l2_stats  = l2_cache_ ? l2_cache_->stats() : CacheStats{};
     s.l3_stats  = l3_cache_ ? l3_cache_->stats() : CacheStats{};
-    s.coherence = coherence_->stats();
+    s.coherence = coherence_ ? coherence_->stats() : CoherenceStats{};
 
     return s;
 }
@@ -226,9 +258,9 @@ MultiCoreStats MultiCoreCPU::get_stats() const
 void MultiCoreCPU::reset_stats()
 {
     for (auto& l1 : l1d_caches_) l1->stats().reset();
-    l2_cache_->stats().reset();
+    if (l2_cache_) l2_cache_->stats().reset();
     if (l3_cache_) l3_cache_->stats().reset();
-    coherence_->reset_stats();
+    if (coherence_) coherence_->reset_stats();
 }
 
 // ── Reset ──────────────────────────────────────────────────────────────
@@ -242,8 +274,11 @@ void MultiCoreCPU::reset()
         l1->stats().reset();
     }
 
-    l2_cache_->flush_all();
-    l2_cache_->stats().reset();
+    if (l2_cache_)
+    {
+        l2_cache_->flush_all();
+        l2_cache_->stats().reset();
+    }
 
     if (l3_cache_)
     {
@@ -251,7 +286,7 @@ void MultiCoreCPU::reset()
         l3_cache_->stats().reset();
     }
 
-    coherence_->reset_stats();
+    if (coherence_) coherence_->reset_stats();
     plic_.reset();
     timer_.reset();
     if (nic_) nic_->reset();
