@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(rvsim
-    VERSION     0.4.5
+    VERSION     0.4.6
     LANGUAGES   CXX
     DESCRIPTION "RV32I CPU architecture engine"
 )
@@ -76,6 +76,7 @@ add_library(rvsim_core STATIC
     src/core/coherence.cpp
     src/core/multicore.cpp
     src/core/assembler.cpp
+    src/core/config.cpp
 )
 
 target_include_directories(rvsim_core PUBLIC src)
@@ -113,6 +114,7 @@ add_executable(rvsim_tests
     test/test_coherence.cpp
     test/test_multicore.cpp
     test/test_assembler.cpp
+    test/test_config.cpp
 )
  
 target_link_libraries(rvsim_tests PRIVATE rvsim_core)
