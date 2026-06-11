@@ -5,16 +5,9 @@
 
 #include "plic.hpp"
 
-namespace riscv {
+#include <iostream>
 
-void PLIC::reset()
-{
-    priorities_.fill(0);
-    pending_bits_ = 0;
-    enable_bits_  = 0;
-    threshold_    = 0;
-    claimed_      = 0;
-}
+namespace riscv {
 
 // ── MMIO reads ─────────────────────────────────────────────────────────
 
@@ -83,6 +76,10 @@ MemoryResult PLIC::write32(addr_t addr, u32 value)
     if (addr == THRESHOLD_ADDR)
     {
         threshold_ = value & 0x7;
+
+        if (trace_)
+            std::cout << std::format("[PLIC] threshold={}", threshold_);
+
         notify();
         return {value, 1, true};
     }
@@ -94,6 +91,9 @@ MemoryResult PLIC::write32(addr_t addr, u32 value)
          && value < PLICConfig::MAX_SOURCES
          && value == claimed_)
         {
+            if (trace_)
+                std::cout << std::format("[PLIC] Complete IRQ{}", value);
+
             claimed_ = 0;
             notify();
         }
@@ -111,6 +111,10 @@ void PLIC::set_pending(u32 source)
      || source >= PLICConfig::MAX_SOURCES) return;
 
     pending_bits_ |= (1u << source);
+
+    if (trace_)
+        std::cout << std::format("[PLIC] IRQ{} pending", source);
+
     notify();
 }
 
@@ -120,18 +124,21 @@ void PLIC::clear_pending(u32 source)
      || source >= PLICConfig::MAX_SOURCES) return;
 
     pending_bits_ &= ~(1u << source);
+
+    if (trace_)
+        std::cout << std::format("[PLIC] IRQ{} cleared", source);
+
     notify();
 }
 
 bool PLIC::interrupt_pending() const
 {
     for (u32 i = 1; i < PLICConfig::MAX_SOURCES; ++i)
-    {
         if ((pending_bits_ & (1u << i))
          && (enable_bits_  & (1u << i))
          && priorities_[i] > threshold_)
             return true;
-    }
+
     return false;
 }
 
@@ -140,20 +147,22 @@ u32 PLIC::claim()
     u32 best = 0;
     u32 best_prio = 0;
     for (u32 i = 1; i < PLICConfig::MAX_SOURCES; ++i)
-    {
         if ((pending_bits_ & (1u << i))
          && (enable_bits_  & (1u << i)))
-        {
             if (priorities_[i] > threshold_
              && priorities_[i] > best_prio)
             {
                 best = i;
                 best_prio = priorities_[i];
             }
-        }
-    }
+
     if (best != 0)
     {
+
+        if (trace_)
+            std::cout << std::format("[PLIC] Claim IRQ{} | prio={}",
+                                     best, priorities_[best]);
+
         pending_bits_ &= ~(1u << best);
         claimed_ = best;
         notify();
@@ -167,6 +176,9 @@ void PLIC::complete(u32 source)
      && source < PLICConfig::MAX_SOURCES
      && source == claimed_)
     {
+        if (trace_)
+            std::cout << std::format("[PLIC] Complete IRQ{}", source);
+
         claimed_ = 0;
         notify();
     }
@@ -177,6 +189,10 @@ void PLIC::set_priority(u32 source, u32 prio)
     if (source > 0
      && source < PLICConfig::MAX_SOURCES)
     {
+        if (trace_)
+            std::cout << std::format("[PLIC] IRQ{} -> priority={}",
+                                     source, priorities_[source]);
+
         priorities_[source] = prio & 0x7;
         notify();
     }
@@ -187,6 +203,11 @@ void PLIC::set_enable(u32 source, bool enable)
     if (source > 0
      && source < PLICConfig::MAX_SOURCES)
     {
+        if (trace_)
+            std::cout << std::format("[PLIC] IRQ{} {}",
+                                     source,
+                                     enable ? "enabled" : "disabled");
+
         if (enable)
             enable_bits_ |= (1u << source);
         else

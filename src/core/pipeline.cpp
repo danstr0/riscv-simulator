@@ -23,11 +23,7 @@ PipelinedCPU::PipelinedCPU(std::shared_ptr<Memory> memory, PipelineConfig config
     , bht_(config.bht_size, 0)
 {
     assert(memory_ != nullptr);
-    reset();
-}
-
-void PipelinedCPU::reset()
-{
+    
     regs_.fill(0);
     pc_ = 0;
     for (auto& s : stages_) s.clear();
@@ -38,12 +34,6 @@ void PipelinedCPU::reset()
     csrs_.reset();
     stats_.reset();
     std::fill(bht_.begin(), bht_.end(), u8{0});
-}
-
-void PipelinedCPU::set_config(const PipelineConfig& cfg)
-{
-    config_ = cfg;
-    bht_.assign(cfg.bht_size, 0);
 }
 
 void PipelinedCPU::load_program(addr_t addr, std::span<const u8> program)
@@ -77,21 +67,30 @@ bool PipelinedCPU::tick()
 {
     if (halted_ && pipeline_empty())
         return false;
-    
+
     stats_.cycles++;
-    
+    if (trace_ )
+        std::cout << std::format("\n[Cycle {}] PC=0x{:08x}\n",
+                                 stats_.cycles, pc_);
+
     // ── 1. Hardware snapshot ─────────────────────────────────
     auto cur = stages_;
     std::array<PipelineReg, kNumStages> next{};
-    
+
     // 2. WB: Retire and commit to architectural state ─────────
     {
         const auto& wb = cur[static_cast<int>(Stage::WB)];
         if (wb.valid)
         {
             if (wb.reg_write && wb.inst.rd != 0)
+            {
                 regs_[wb.inst.rd] = wb.rd_val;
-
+            
+                if (trace_)
+                    std::cout << std::format("[WB] x{} <= 0x{:08x} ({})\n",
+                                             wb.inst.rd, wb.rd_val,
+                                             wb.inst.disassemble());
+            }
             stats_.instructions_retired++;
         }
     }
@@ -104,14 +103,19 @@ bool PipelinedCPU::tick()
         {
             addr_t trap_pc = pc_;
 
-            for (int i = kNumStages - 1; i >= 0; --i)
-            {
+            // for (int i = kNumStages - 1; i >= 0; --i)
+            for (auto i = kNumStages - 1; i >= 0; --i)
                 if (cur[i].valid)
                 {
                     trap_pc = cur[i].pc;
                     break;
                 }
-            }
+
+            if (trace_)
+                std::cout << std::format("[TRAP] cause={} pc=0x{:08x} "
+                                         "-> mtvec=0x{:08x}\n",
+                                         cause, trap_pc, csrs_.mtvec());
+
             csrs_.enter_trap(trap_pc, cause);
             flush_pipeline_ = true;
             flush_target_ = csrs_.mtvec();
@@ -122,115 +126,152 @@ bool PipelinedCPU::tick()
     {
         const auto& mem_in = cur[static_cast<int>(Stage::MEM)];
         auto& wb_out = next[static_cast<int>(Stage::WB)];
-        
+
         if (mem_in.valid)
         {
             wb_out = mem_in;
             addr_t addr = mem_in.alu_result;
+
+            auto log_mem_op = [&](std::string_view op_name,
+                                std::string_view direction,
+                                u32 val)
+            {
+                if (trace_)
+                    std::cout << std::format("[{}] {} | addr={:08x} {} 0x{:08x}\n",
+                                             op_name, mem_in.inst.disassemble(),
+                                             addr, direction, val);
+            };
 
             if (mem_in.mem_read)
             {
                 MemoryResult r{};
                 switch (mem_in.inst.op)
                 {
-                    case Op::LB:
-                        r = memory_->read8(addr);
-                        wb_out.rd_val = static_cast<u32>(sign_extend<8>(r.value));
-                        break;
-                    case Op::LH:
-                        r = memory_->read16(addr);
-                        wb_out.rd_val = static_cast<u32>(sign_extend<16>(r.value));
-                        break;
-                    case Op::LW:
-                        r = memory_->read32(addr);
-                        wb_out.rd_val = r.value;
-                        break;
-                    case Op::LBU:
-                        r = memory_->read8(addr);
-                        wb_out.rd_val = r.value & 0xFFu;
-                        break;
-                    case Op::LHU:
-                        r = memory_->read16(addr);
-                        wb_out.rd_val = r.value & 0xFFFFu;
-                        break;
+                case Op::LB:
+                    r = memory_->read8(addr);
+                    wb_out.rd_val = static_cast<u32>(sign_extend<8>(r.value));
+                    log_mem_op("LOAD", "->", wb_out.rd_val);
+                    break;
+                case Op::LH:
+                    r = memory_->read16(addr);
+                    wb_out.rd_val = static_cast<u32>(sign_extend<16>(r.value));
+                    log_mem_op("LOAD", "->", wb_out.rd_val);
+                    break;
+                case Op::LW:
+                    r = memory_->read32(addr);
+                    wb_out.rd_val = r.value;
+                    log_mem_op("LOAD", "->", wb_out.rd_val);
+                    break;
+                case Op::LBU:
+                    r = memory_->read8(addr);
+                    wb_out.rd_val = r.value & 0xFFu;
+                    log_mem_op("LOAD", "->", wb_out.rd_val);
+                    break;
+                case Op::LHU:
+                    r = memory_->read16(addr);
+                    wb_out.rd_val = r.value & 0xFFFFu;
+                    log_mem_op("LOAD", "->", wb_out.rd_val);
+                    break;
 
-                    // ── RVV vector load ─────────────────
-                    case Op::VLE32:
-                        if (addr & 3)
-                        {
-                            std::cerr << std::format("[Pipeline] Misaligned vector load "
-                                                     "at 0x{:08x} (PC 0x{:08x})\n",
-                                                     addr, mem_in.pc);
-                            wb_out.valid = false;
-                            halted_ = true;
-                            return true;
-                        }
-                        for (u32 i = 0; i < vstate_.vl; ++i)
-                        {
-                            r = memory_->read32(addr + i * 4);
-                            vstate_.regs.set_elem32(mem_in.inst.rd, i, r.value);
-                        }
-                        break;
+                // ── RVV vector load ─────────────────
+                case Op::VLE32:
+                    if (addr & 3)
+                    {
+                        std::cerr << std::format("[ERROR] Misaligned vector load "
+                                                 "at 0x{:08x} (PC 0x{:08x})\n",
+                                                 addr, mem_in.pc);
+                        wb_out.valid = false;
+                        halted_ = true;
+                        return true;
+                    }
+                    for (u32 i = 0; i < vstate_.vl; ++i)
+                    {
+                        r = memory_->read32(addr + i * 4);
+                        vstate_.regs.set_elem32(mem_in.inst.rd, i, r.value);
+                    }
+                    if (trace_)
+                        std::cout << std::format("[VLOAD] vd=v{} | base=0x{:08x} | vl={}\n",
+                                                 mem_in.inst.rd, addr, vstate_.vl);
+                    break;
 
-                    // ── RV32A memory operation ──────────
-                    case Op::LR_W:
-                    {
-                        r = memory_->read32(addr);
-                        wb_out.rd_val = r.value;
-                        reservation_ = addr;
-                        break;
-                    }
-                    case Op::SC_W:
-                    {
-                        if (reservation_.has_value() && reservation_.value() == addr)
-                        {
-                            memory_->write32(addr, mem_in.rs2_val);
-                            wb_out.rd_val = 0; // success
-                        }
-                        else
-                            wb_out.rd_val = 1; // failure
-                        reservation_.reset();
-                        break;
-                    }
-                    case Op::AMOSWAP_W: case Op::AMOADD_W: case Op::AMOXOR_W:
-                    case Op::AMOAND_W:  case Op::AMOOR_W:
-                    case Op::AMOMIN_W:  case Op::AMOMAX_W:
-                    case Op::AMOMINU_W: case Op::AMOMAXU_W:
-                    {
-                        r = memory_->read32(addr);
-                        u32 old_val = r.value;
-                        u32 rs2v    = mem_in.rs2_val;
-                        u32 new_val;
-                        switch (mem_in.inst.op)
-                        {
-                        case Op::AMOSWAP_W: new_val = rs2v; break;
-                        case Op::AMOADD_W:  new_val = old_val + rs2v; break;
-                        case Op::AMOXOR_W:  new_val = old_val ^ rs2v; break;
-                        case Op::AMOAND_W:  new_val = old_val & rs2v; break;
-                        case Op::AMOOR_W:   new_val = old_val | rs2v; break;
-                        case Op::AMOMIN_W:  new_val = (static_cast<i32>(old_val) <
-                                                       static_cast<i32>(rs2v)) ? old_val 
-                                                                               : rs2v; break;
-                        case Op::AMOMAX_W:  new_val = (static_cast<i32>(old_val) >
-                                                       static_cast<i32>(rs2v)) ? old_val 
-                                                                               : rs2v; break;
-                        case Op::AMOMINU_W: new_val = (old_val < rs2v) ? old_val
-                                                                       : rs2v; break;
-                        case Op::AMOMAXU_W: new_val = (old_val > rs2v) ? old_val
-                                                                       : rs2v; break;
-                        default: new_val = old_val; break;
-                        }
-                        memory_->write32(addr, new_val);
-                        wb_out.rd_val = old_val;
-                        break;
-                    }
+                // ── RV32A memory operation ──────────
+                case Op::LR_W:
+                {
+                    r = memory_->read32(addr);
+                    wb_out.rd_val = r.value;
+                    reservation_ = addr;
 
-                    default: break;
+                    if (trace_)
+                        std::cout << std::format("[LR] addr=0x{:08x} | value=0x{:08x} | "
+                                                 "reservation=set\n",
+                                                 addr, r.value);
+                    break;
+                }
+                case Op::SC_W:
+                {
+                    if (reservation_.has_value() && reservation_.value() == addr)
+                    {
+                        memory_->write32(addr, mem_in.rs2_val);
+                        wb_out.rd_val = 0; // success
+                    }
+                    else
+                        wb_out.rd_val = 1; // failure
+
+                    if (trace_)
+                        std::cout << std::format("[SC] addr=0x{:08x} | {} | "
+                                                 "value=0x{:08x}\n",
+                                                 addr,
+                                                 wb_out.rd_val ? "FAIL" : "SUCCESS",
+                                                 mem_in.rs2_val);
+                    reservation_.reset();
+                    break;
+                }
+                case Op::AMOSWAP_W: case Op::AMOADD_W: case Op::AMOXOR_W:
+                case Op::AMOAND_W:  case Op::AMOOR_W:
+                case Op::AMOMIN_W:  case Op::AMOMAX_W:
+                case Op::AMOMINU_W: case Op::AMOMAXU_W:
+                {
+                    r = memory_->read32(addr);
+                    u32 old_val = r.value;
+                    u32 rs2v    = mem_in.rs2_val;
+                    u32 new_val;
+                    switch (mem_in.inst.op)
+                    {
+                    case Op::AMOSWAP_W: new_val = rs2v; break;
+                    case Op::AMOADD_W:  new_val = old_val + rs2v; break;
+                    case Op::AMOXOR_W:  new_val = old_val ^ rs2v; break;
+                    case Op::AMOAND_W:  new_val = old_val & rs2v; break;
+                    case Op::AMOOR_W:   new_val = old_val | rs2v; break;
+                    case Op::AMOMIN_W:  new_val = (static_cast<i32>(old_val)
+                                                 < static_cast<i32>(rs2v))
+                                                 ? old_val 
+                                                 : rs2v;
+                                        break;
+                    case Op::AMOMAX_W:  new_val = (static_cast<i32>(old_val)
+                                                 > static_cast<i32>(rs2v))
+                                                 ? old_val 
+                                                 : rs2v;
+                                        break;
+                    case Op::AMOMINU_W: new_val = (old_val < rs2v) ? old_val : rs2v; break;
+                    case Op::AMOMAXU_W: new_val = (old_val > rs2v) ? old_val : rs2v; break;
+                    default: new_val = old_val; break;
+                    }
+                    memory_->write32(addr, new_val);
+                    wb_out.rd_val = old_val;
+
+                    if (trace_)
+                        std::cout << std::format("[AMO] {} | addr=0x{:08x} | "
+                                                 "old=0x{:08x} | new=0x{:08x}",
+                                                 mem_in.inst.disassemble(), addr,
+                                                 old_val, new_val);
+                    break;
                 }
 
+                default: break;
+                }
                 if (!r.ok)
                 {
-                    std::cerr << std::format("[Pipeline] Memory {} fault at address 0x{:08x} "
+                    std::cerr << std::format("[ERROR] Memory {} fault at address 0x{:08x} "
                                              "(PC 0x{:08x})\n",
                                              mem_in.mem_read ? "read" : "write", addr, mem_in.pc);
                     wb_out.valid = false;
@@ -244,14 +285,23 @@ bool PipelinedCPU::tick()
                 u32 val = mem_in.rs2_val;
                 switch (mem_in.inst.op)
                 {
-                case Op::SB: r = memory_->write8(addr, static_cast<u8>(val)); break;
-                case Op::SH: r = memory_->write16(addr, static_cast<u16>(val)); break;
-                case Op::SW: r = memory_->write32(addr, val); break;
+                case Op::SB:
+                    r = memory_->write8(addr, static_cast<u8>(val));
+                    log_mem_op("STORE", "<-", val);
+                    break;
+                case Op::SH:
+                    r = memory_->write16(addr, static_cast<u16>(val));
+                    log_mem_op("STORE", "<-", val);
+                    break;
+                case Op::SW:
+                    r = memory_->write32(addr, val);
+                    log_mem_op("STORE", "<-", val);
+                    break;
 
                 case Op::VSE32:
                     if (addr & 3)
                     {
-                        std::cerr << std::format("[Pipeline] Misaligned vector load "
+                        std::cerr << std::format("[ERROR] Misaligned vector store "
                                                  "at 0x{:08x} (PC 0x{:08x})\n",
                                                  addr, mem_in.pc);
                         wb_out.valid = false;
@@ -261,13 +311,17 @@ bool PipelinedCPU::tick()
                     for (u32 i = 0; i < vstate_.vl; ++i)
                         memory_->write32(addr + i * 4,
                                          vstate_.regs.get_elem32(mem_in.inst.rd, i));
+
+                    if (trace_)
+                        std::cout << std::format("[VSTORE] vd=v{} | base=0x{:08x} | vl={}\n",
+                                                 mem_in.inst.rd, addr, vstate_.vl);
                     break;
 
                 default: break;
                 }
                 if (!r.ok)
                 {
-                    std::cerr << std::format("[Pipeline] Memory {} fault at address 0x{:08x} "
+                    std::cerr << std::format("[ERROR] Memory {} fault at address 0x{:08x} "
                                              "(PC 0x{:08x})\n",
                                              mem_in.mem_read ? "read" : "write", addr, mem_in.pc);
                     wb_out.valid = false;
@@ -286,7 +340,13 @@ bool PipelinedCPU::tick()
                         default:     store_size = 0; break;
                     }
                     if (addr < res + 4 && addr + store_size > res)
+                    {
                         reservation_.reset();
+
+                        if (trace_)
+                            std::cout << std::format("[LR/SC] reservation cleared by store "
+                                                     "addr=0x{:08x}\n", addr);
+                    }
                 }
             }
             else
@@ -315,13 +375,26 @@ bool PipelinedCPU::tick()
             const auto& inst = ex_in.inst;
             u32 uimm = static_cast<u32>(inst.imm);
 
+            if (trace_)
+                std::cout << std::format("[PIPELINE] Executing: {}\n",
+                                         inst.disassemble());
+
             auto exec_csr = [&](auto compute_new_val, bool do_write)
             {
                 const u32 csr_addr = uimm & 0xFFF;
                 const u32 old_val  = csrs_.read(csr_addr);
 
                 if (do_write)
-                    csrs_.write(csr_addr, compute_new_val(old_val));
+                {
+                    const u32 new_val = compute_new_val(old_val);
+
+                    csrs_.write(csr_addr, new_val);
+
+                    if (trace_)
+                        std::cout << std::format("[CSR] csr=0x{:03x} | "
+                                                 "old=0x{:08x} | new=0x{:08x}\n",
+                                                 csr_addr, old_val, new_val);
+                }
 
                 mem_out.alu_result = old_val;
                 mem_out.rd_val     = old_val;
@@ -335,15 +408,14 @@ bool PipelinedCPU::tick()
                 mem_out.branch_taken  = true;
                 mem_out.branch_target = target;
 
-                /*
-                 * Real hardware often resolves JAL/JALR at decode.
-                 * This model resolves control flow in EX.
-                 */
+                if (trace_)
+                    std::cout << std::format("[JUMP] 0x{:08x} -> 0x{:08x}\n",
+                                             inst.pc, target);
+
                 flush_pipeline_ = true;
                 flush_target_   = target;
 
-                stats_.branches++;
-                stats_.branches_taken++;
+                stats_.jumps++;
             };
 
             switch (inst.op)
@@ -353,18 +425,25 @@ bool PipelinedCPU::tick()
                 case Op::BGE: case Op::BLTU: case Op::BGEU:
                 {
                     bool taken = branch_check(inst.op, rs1, rs2);
-                    addr_t target = static_cast<addr_t>(inst.pc + inst.imm);
-                    
+                    addr_t target = inst.pc + static_cast<addr_t>(inst.imm);
+
                     if (taken && (target & 3))
                     {
-                        std::cerr << std::format("[Pipeline] Misaligned branch target 0x{:08x} "
+                        std::cerr << std::format("[ERROR] Misaligned branch target 0x{:08x} "
                                                  "(PC 0x{:08x})\n",
                                                  target, inst.pc);
                         halted_ = true;
                         return true;
                     }
-            
+
                     bool predicted_taken = predict_branch(inst.pc, inst.imm);
+
+                    if (trace_)
+                        std::cout << std::format("[BRANCH] pc=0x{:08x} "
+                                                 "predicted={} actual={} "
+                                                 "target=0x{:08x}\n",
+                                                 inst.pc, predicted_taken, taken,
+                                                 target);
 
                     stats_.branches++;
                     if (taken) stats_.branches_taken++;
@@ -372,6 +451,11 @@ bool PipelinedCPU::tick()
 
                     if (taken != predicted_taken)
                     {
+                        if (trace_)
+                            std::cout << std::format("[FLUSH] branch mispredict "
+                                                     "-> pc=0x{:08x}\n",
+                                                     taken ? target : inst.pc + 4);
+
                         stats_.branch_mispredicts++;
                         stats_.stalls_control += config_.branch_mispred_penalty;
                         flush_pipeline_ = true;
@@ -386,7 +470,7 @@ bool PipelinedCPU::tick()
                 // ── Jumps ────────────────────────────────────
                 case Op::JAL:
                 {
-                    addr_t target = static_cast<addr_t>(inst.pc + inst.imm);
+                    addr_t target = inst.pc + static_cast<addr_t>(inst.imm);
                     if (target & 3)
                     {
                         std::cerr << std::format("[Pipeline] Misaligned JAL target 0x{:08x} "
@@ -412,17 +496,17 @@ bool PipelinedCPU::tick()
                     exec_jump(target);
                     break;
                 }
-                
+
                 // ── Upper immediate ──────────────────────────
                 case Op::LUI:   mem_out.alu_result = uimm; break;
                 case Op::AUIPC: mem_out.alu_result = inst.pc + uimm; break;
-                
+
                 // ── Load / store address ─────────────────────
                 case Op::LB: case Op::LH: case Op::LW:
                 case Op::LBU: case Op::LHU:
                 case Op::SB: case Op::SH: case Op::SW:
                     mem_out.alu_result = rs1 + uimm; break;
-                
+
                 // ── ALU ──────────────────────────────────────
                 case Op::ADDI: case Op::SLTI: case Op::SLTIU:
                 case Op::XORI: case Op::ORI:  case Op::ANDI:
@@ -488,7 +572,7 @@ bool PipelinedCPU::tick()
                                    inst.rd, inst.rs2, inst.rs1,
                                    rs1, rs2);
                     break;
-                
+
                 case Op::VMV_X_S:
                     mem_out.alu_result = vstate_.regs.get_elem32(inst.rs2, 0);
                     mem_out.rd_val     = mem_out.alu_result;
@@ -589,7 +673,7 @@ bool PipelinedCPU::tick()
                 {
                     auto quick = Decoder::decode(r.value, pc_);
                     if (predict_branch(pc_, quick.imm))
-                        pc_ = static_cast<addr_t>(pc_ + quick.imm);
+                        pc_ = pc_ + static_cast<addr_t>(quick.imm);
                     else
                         pc_ += 4;
                 }
@@ -610,6 +694,10 @@ bool PipelinedCPU::tick()
     // ── 8. Synchronous flush (misprediction recovery) ────────
     if (flush_pipeline_)
     {
+        if (trace_)
+            std::cout << std::format("[PIPELINE] flush -> pc=0x{:08x}\n",
+                                     flush_target_);
+
         next[static_cast<int>(Stage::IF)].clear();
         next[static_cast<int>(Stage::ID)].clear();
         next[static_cast<int>(Stage::EX)].clear();
@@ -617,12 +705,10 @@ bool PipelinedCPU::tick()
         flush_pipeline_ = false;
     	halted_ = false;
     }
-    
-    // ── 9. Committing next state ─────────────────────────────
+
+    // ── 9. Commit next state ─────────────────────────────────
     stages_ = next;
-    
-    if (trace_) dump_pipeline();
-    
+
     return true;
 }
 
@@ -679,6 +765,11 @@ bool PipelinedCPU::detect_data_stall(const std::array<PipelineReg, kNumStages>& 
 
         if (needs_rs1 || needs_rs2)
         {
+            if (trace_)
+                std::cout << std::format("[STALL] load-use hazard: ID needs x{}, "
+                                         "EX loading it\n",
+                                         ex.inst.rd);
+
             stats_.stalls_load_use++;
             return true;
         }
@@ -703,6 +794,9 @@ bool PipelinedCPU::detect_data_stall(const std::array<PipelineReg, kNumStages>& 
         if (id.inst.reads_rs2() && check(id.inst.rs2)) hazard = true;
         if (hazard)
         {
+            if (trace_)
+                std::cout << "[STALL] RAW hazard\n";
+
             stats_.stalls_raw++;
             return true;
         }
@@ -710,7 +804,6 @@ bool PipelinedCPU::detect_data_stall(const std::array<PipelineReg, kNumStages>& 
 
     // Partial forwarding: stall on EX->EX hazards (only MEM->EX is available)
     if (config_.forwarding == ForwardingPolicy::PARTIAL)
-    {
         if (ex.valid && ex.reg_write && !ex.mem_read && ex.inst.rd != 0)
         {
             bool needs_rs1 = id.inst.reads_rs1() && id.inst.rs1 == ex.inst.rd;
@@ -722,7 +815,6 @@ bool PipelinedCPU::detect_data_stall(const std::array<PipelineReg, kNumStages>& 
                 return true;
             }
         }
-    }
 
     return false;
 }
@@ -731,7 +823,7 @@ bool PipelinedCPU::detect_data_stall(const std::array<PipelineReg, kNumStages>& 
 
 PipelinedCPU::ForwardResult PipelinedCPU::try_forward(
         reg_idx_t reg,
-        const std::array<PipelineReg, kNumStages>& cur,
+        [[maybe_unused]] const std::array<PipelineReg, kNumStages>& cur,
         const std::array<PipelineReg, kNumStages>& next) const
 {
     if (reg == 0) return {};
@@ -740,13 +832,19 @@ PipelinedCPU::ForwardResult PipelinedCPU::try_forward(
     if (config_.forwarding != ForwardingPolicy::NONE)
     {
         const auto& wb_out = next[static_cast<int>(Stage::WB)];
-        if (wb_out.valid && wb_out.reg_write && wb_out.inst.rd == reg)
+        if (wb_out.valid
+         && wb_out.reg_write
+         && wb_out.inst.rd == reg)
         {
+            if (trace_)
+                std::cout << std::format("[FWD] MEM->EX x{} = 0x{:08x}\n",
+                                         reg, wb_out.rd_val);
+
             stats_.forwards_mem_ex++;
             return {true, wb_out.rd_val};
         }
     }
-    
+
     return {};
 }
 
@@ -818,7 +916,9 @@ void PipelinedCPU::update_predictor(addr_t pc, bool taken)
 
         case BranchPredictor::BIMODAL_2BIT:
             if (taken)
+            {
                 if (bht_[idx] < 3) bht_[idx]++;
+            }
             else
                 if (bht_[idx] > 0) bht_[idx]--;
             break;
@@ -917,27 +1017,27 @@ u32 PipelinedCPU::alu_execute(Op op, u32 rs1, u32 rs2, i32 imm)
 
 void PipelinedCPU::execute_vector(Op op, VectorState& vs,
                                   u32 vd, u32 vs2, u32 vs1,
-                                  u32 rs1_val, u32 rs2_val)
+                                  u32 rs1_val, [[maybe_unused]] u32 rs2_val)
 {
     u32 vl      = vs.vl;
     auto& vregs = vs.regs;
 
-    auto exec_vv = [&](auto op)
+    auto exec_vv = [&](auto vv_op)
     {
         for (u32 i = 0; i < vl; ++i)
         {
             vregs.set_elem32(vd, i,
-                             op(vregs.get_elem32(vs2, i),
-                                vregs.get_elem32(vs1, i)));
+                             vv_op(vregs.get_elem32(vs2, i),
+                                   vregs.get_elem32(vs1, i)));
         }
     };
 
-    auto exec_vx = [&](auto op)
+    auto exec_vx = [&](auto vx_op)
     {
         for (u32 i = 0; i < vl; ++i)
         {
             const u32 lhs = vregs.get_elem32(vs2, i);
-            vregs.set_elem32(vd, i, op(lhs, rs1_val));
+            vregs.set_elem32(vd, i, vx_op(lhs, rs1_val));
         }
     };
 
@@ -1065,22 +1165,21 @@ bool PipelinedCPU::branch_check(Op op, u32 rs1, u32 rs2)
 
 // ── Debug output ───────────────────────────────────────────────────────
 
-void PipelinedCPU::dump_pipeline() const
+void PipelinedCPU::dump_stats() const
 {
-    static constexpr const char* names[] = {"IF ", "ID ", "EX ", "MEM ", "WB "};
-    
-    std::cout << std::format("Cycle {}:\n", stats_.cycles);
-    for (int i = 0; i < kNumStages; ++i)
-    {
-        const auto& s = stages_[i];
-        std::cout << std::format("  {}: ", names[i]);
-        if (s.valid)
-            std::cout << std::format("0x{:08x} {}", s.pc, s.inst.disassemble());
-        else
-            std::cout << "---";
-        std::cout << "\n";
-    }
-    std::cout << std::format("  PC: 0x{:08x}\n\n", pc_);
+    const auto& s = stats_;
+
+    std::cout
+        << std::format("Retired={} IPC={:.3f}\n"
+                       "Stalls(LU={}, RAW={}, CTRL={}) "
+                       "Bubbles={}\n"
+                       "Branches={} Taken={} Mispred={} "
+                       "Acc={:.2f}%\n"
+                       "Forwards(MEM->EX={})\n",
+                       s.instructions_retired, s.ipc(),
+                       s.stalls_load_use, s.stalls_raw, s.stalls_control, s.bubbles,
+                       s.branches, s.branches_taken, s.branch_mispredicts,
+                       s.branch_accuracy() * 100.0, s.forwards_mem_ex);
 }
 
 void PipelinedCPU::dump_regs() const

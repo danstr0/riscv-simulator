@@ -13,11 +13,6 @@ namespace riscv {
 Executor::Executor(Memory& memory)
     : memory_(memory)
 {
-    reset();
-}
-
-void Executor::reset()
-{
     regs_.fill(0);
     pc_ = 0;
     reservation_.reset();
@@ -45,7 +40,7 @@ ExecuteResult Executor::execute_load(const DecodedInst& inst)
 {
     ExecuteResult result;
 
-    /* 
+    /*
      * Address calculation: rs1 + sign-extended immediate.
      *
      * Spec §2.1.6: "The effective address is obtained by adding register r1
@@ -84,7 +79,14 @@ ExecuteResult Executor::execute_load(const DecodedInst& inst)
     result.ok     = mem.ok;
     result.cycles = mem.cycles;
     if (mem.ok)
+    {
         result.rd_value = regs_[inst.rd];
+
+        if (trace_)
+            std::cout << std::format("[LOAD] addr=0x{:08x} -> 0x{:08x}\n",
+                                     addr, regs_[inst.rd]);
+    }
+
     return result;
 }
 
@@ -107,6 +109,10 @@ ExecuteResult Executor::execute_store(const DecodedInst& inst)
 
     result.ok     = mem.ok;
     result.cycles = mem.cycles;
+        
+    if (trace_)
+        std::cout << std::format("[STORE] addr={:08x} <- 0x{:08x}\n",
+                                 addr, memory_.read32(addr).value);
 
     // Any store to the reserved address invalidates the reservation
     if (reservation_.has_value())
@@ -122,7 +128,13 @@ ExecuteResult Executor::execute_store(const DecodedInst& inst)
 	    }
         // Check if [addr, addr+store_size) overlaps [res, res+4)
         if (addr < res + 4 && addr + store_size > res)
+        {
             reservation_.reset();
+
+            if (trace_)
+                std::cout << std::format("[LR/SC] reservation cleared by store | "
+                                         "addr=0x{:08x}\n", addr);
+        }
     }
 
     return result;
@@ -132,8 +144,12 @@ ExecuteResult Executor::execute_store(const DecodedInst& inst)
 
 ExecuteResult Executor::execute(const DecodedInst& inst)
 {
+    if (trace_)
+        std::cout << std::format("[CPU] Executing: {}\n",
+                                 inst.disassemble());
+
     ExecuteResult result;
-    result.next_pc = pc_ + 4; // default: sequential
+    result.next_pc = pc_ + 4;
 
     u32 rs1 = regs_[inst.rs1];
     u32 rs2 = regs_[inst.rs2];
@@ -144,6 +160,11 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
         result.rd_value = pc_ + 4;
         set_reg(inst.rd, *result.rd_value);
         result.next_pc  = target;
+
+        if (trace_)
+            std::cout << std::format("[JUMP] 0x{:08x} -> 0x{:08x}\n",
+                                     pc_, target);
+
         stats_.jumps++;
     };
 
@@ -158,7 +179,16 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
         const u32 old_val  = csrs_.read(csr_addr);
         
         if (do_write)
-            csrs_.write(csr_addr, compute_new_val(old_val));
+        {
+            const u32 new_val = compute_new_val(old_val);
+
+            csrs_.write(csr_addr, new_val);
+        
+            if (trace_)
+                std::cout << std::format("[CSR] csr=0x{:03x} | "
+                                         "old=0x{:08x} | new=0x{:08x}\n",
+                                         csr_addr, old_val, new_val);
+        }
 
         set_reg(inst.rd, old_val);
         result.rd_value = old_val;
@@ -188,22 +218,35 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
         case Op::BLTU: result.branch_taken = cond_ltu(rs1, rs2); goto branch_common;
         case Op::BGEU: result.branch_taken = cond_geu(rs1, rs2); goto branch_common;
         branch_common:
+        {
+            addr_t target = pc_ + static_cast<addr_t>(inst.imm);
+
             result.next_pc = result.branch_taken 
-                           ? (pc_ + inst.imm)
+                           ? target
                            : (pc_ + 4);
             if (result.next_pc & 3)
             {
+                std::cerr << std::format("[ERROR] Misaligned branch target 0x{:08x} "
+                                         "(pc=0x{:08x})\n",
+                                         target, pc_);
+
                 result.ok = false;
                 return result;
             }
+
+            if (trace_)
+                std::cout << std::format("[BRANCH] pc=0x{:08x} -> 0x{:08x}\n",
+                                         pc_, result.next_pc);
+
             stats_.branches++;
             if (result.branch_taken) stats_.branches_taken++;
             break;
+        }
 
         // ── Jumps ───────────────────────────────────────
         case Op::JAL:
         {
-            addr_t target = static_cast<addr_t>(pc_ + inst.imm);
+            addr_t target = pc_ + static_cast<addr_t>(inst.imm);
             if (target & 3)
             {
                 result.ok = false;
@@ -283,6 +326,12 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
                 reservation_ = rs1;
                 result.rd_value = mem.value;
             }
+
+            if (trace_)
+                std::cout << std::format("[LR] addr=0x{:08x} | value=0x{:08x} | "
+                                         "reservation SET\n",
+                                         rs1, mem.value);
+
             result.ok = mem.ok;
             result.cycles = mem.cycles;
             break;
@@ -302,6 +351,11 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
                 set_reg(inst.rd, 1);  // failure
                 result.rd_value = 1;
             }
+
+            if (trace_)
+                std::cout << std::format("[SC] addr=0x{:08x} | value=0x{:08x} | {}\n",
+                                         rs1, rs2,
+                                         result.rd_value ? "FAIL" : "SUCCESS");
             reservation_.reset();
             break;
         }
@@ -321,12 +375,16 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
                 case Op::AMOXOR_W:  new_val = old_val ^ rs2; break;
                 case Op::AMOAND_W:  new_val = old_val & rs2; break;
                 case Op::AMOOR_W:   new_val = old_val | rs2; break;
-                case Op::AMOMIN_W:  new_val = (static_cast<i32>(old_val) <
-                                               static_cast<i32>(rs2)) ? old_val
-                                                                      : rs2; break;
-                case Op::AMOMAX_W:  new_val = (static_cast<i32>(old_val) >
-                                               static_cast<i32>(rs2)) ? old_val
-                                                                      : rs2; break;
+                case Op::AMOMIN_W:  new_val = (static_cast<i32>(old_val)
+                                             < static_cast<i32>(rs2))
+                                             ? old_val
+                                             : rs2;
+                                    break;
+                case Op::AMOMAX_W:  new_val = (static_cast<i32>(old_val)
+                                             > static_cast<i32>(rs2))
+                                             ? old_val
+                                             : rs2;
+                                    break;
                 case Op::AMOMINU_W: new_val = (old_val < rs2) ? old_val : rs2; break;
                 case Op::AMOMAXU_W: new_val = (old_val > rs2) ? old_val : rs2; break;
                 default: new_val = old_val; break;
@@ -335,6 +393,11 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
             set_reg(inst.rd, old_val);
             result.rd_value = old_val;
             result.cycles = mem.cycles;
+            
+            if (trace_)
+                std::cout << std::format("[AMO] addr=0x{:08x} | "
+                                         "old=0x{:08x} | new=0x{:08x}\n",
+                                         rs1, old_val, new_val);
             break;
         }
 
@@ -408,7 +471,8 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
 
 // ── Vector execution ──────────────────────────────────── 
 
-ExecuteResult Executor::execute_vector(const DecodedInst& inst, u32 rs1, u32 rs2)
+ExecuteResult Executor::execute_vector(const DecodedInst& inst,
+                                       u32 rs1, [[maybe_unused]] u32 rs2)
 {
     ExecuteResult result;
     result.next_pc = pc_ + 4;
@@ -472,6 +536,10 @@ ExecuteResult Executor::execute_vector(const DecodedInst& inst, u32 rs1, u32 rs2
             addr_t base = rs1;
             if (base & 3)
             {
+                std::cerr << std::format("[ERROR] Misaligned vector load "
+                                         "at 0x{:08x} (pc=0x{:08x})\n",
+                                         base, pc_);
+
                 result.ok = false;
                 return result;
             }
@@ -481,6 +549,11 @@ ExecuteResult Executor::execute_vector(const DecodedInst& inst, u32 rs1, u32 rs2
                 if (!r.ok) { result.ok = false; return result; }
                 vregs.set_elem32(vd, i, r.value);
             }
+
+            if (trace_)
+                std::cout << std::format("[VLOAD] vd=v{} | base=0x{:08x} | vl={}\n",
+                                         inst.rd, base, vstate_.vl);
+
             result.cycles = vl;  // 1 cycle per element
             break;
         }
@@ -491,6 +564,10 @@ ExecuteResult Executor::execute_vector(const DecodedInst& inst, u32 rs1, u32 rs2
             addr_t base = rs1;
             if (base & 3)
             {
+                std::cerr << std::format("[ERROR] Misaligned vector store "
+                                         "at 0x{:08x} (pc=0x{:08x})\n",
+                                         base, pc_);
+
                 result.ok = false;
                 return result;
             }
@@ -500,6 +577,11 @@ ExecuteResult Executor::execute_vector(const DecodedInst& inst, u32 rs1, u32 rs2
                 auto r = memory_.write32(base + i * 4, val);
                 if (!r.ok) { result.ok = false; return result; }
             }
+
+            if (trace_)
+                std::cout << std::format("[VSTORE] vd=v{} | base=0x{:08x} | vl={}\n",
+                                         inst.rd, base, vstate_.vl);
+
             result.cycles = vl;
             break;
         }
@@ -524,8 +606,8 @@ ExecuteResult Executor::execute_vector(const DecodedInst& inst, u32 rs1, u32 rs2
         case Op::VMSEQ_VV:
             exec_mask([&](u32 i)
             {
-                return vregs.get_elem32(vs2, i) ==
-                       vregs.get_elem32(vs1, i);
+                return vregs.get_elem32(vs2, i)
+                    == vregs.get_elem32(vs1, i);
             });
             break;
         case Op::VMSEQ_VX:
@@ -537,15 +619,15 @@ ExecuteResult Executor::execute_vector(const DecodedInst& inst, u32 rs1, u32 rs2
         case Op::VMSLT_VV:
             exec_mask([&](u32 i)
             {
-                return static_cast<i32>(vregs.get_elem32(vs2, i)) <
-                       static_cast<i32>(vregs.get_elem32(vs1, i));
+                return static_cast<i32>(vregs.get_elem32(vs2, i))
+                     < static_cast<i32>(vregs.get_elem32(vs1, i));
             });
             break;
         case Op::VMSLTU_VV:
             exec_mask([&](u32 i)
             {
-                return vregs.get_elem32(vs2, i) <
-                       vregs.get_elem32(vs1, i);
+                return vregs.get_elem32(vs2, i)
+                     < vregs.get_elem32(vs1, i);
             });
             break;
 

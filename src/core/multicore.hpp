@@ -129,7 +129,6 @@ public:
     [[nodiscard]] const MultiCoreConfig& config() const noexcept { return config_; }
     void set_core_pc(u32 core_id, addr_t pc);
     void set_core_reg(u32 core_id, reg_idx_t r, u32 value);
-    void reset();
     /// @}
 
 private:

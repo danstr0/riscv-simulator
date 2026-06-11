@@ -263,34 +263,4 @@ void MultiCoreCPU::reset_stats()
     if (coherence_) coherence_->reset_stats();
 }
 
-// ── Reset ──────────────────────────────────────────────────────────────
-
-void MultiCoreCPU::reset()
-{
-    for (auto& core : cores_) core->reset();
-    for (auto& l1 : l1d_caches_)
-    {
-        l1->flush_all();
-        l1->stats().reset();
-    }
-
-    if (l2_cache_)
-    {
-        l2_cache_->flush_all();
-        l2_cache_->stats().reset();
-    }
-
-    if (l3_cache_)
-    {
-        l3_cache_->flush_all();
-        l3_cache_->stats().reset();
-    }
-
-    if (coherence_) coherence_->reset_stats();
-    plic_.reset();
-    timer_.reset();
-    if (nic_) nic_->reset();
-    cycle_count_ = 0;
-}
-
 } // namespace riscv

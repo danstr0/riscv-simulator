@@ -14,7 +14,7 @@
  *
  * @par Parameterization
  * @code
- *   - Fowarding:           none, partial, full.
+ *   - Fowarding:           none, partial.
  *   - Branch Prediction:   not taken, always taken, backward-taken,
  *                          1 bit bimodal, 2 bit bimodal.
  *   - Mispredict Penalty:  configurable cycle count.
@@ -52,13 +52,13 @@ enum class Stage : u8
 
 inline constexpr int kNumStages = 5;
 
-
 /// State held in the latch between two pipeline stages.
-struct PipelineReg {
+struct PipelineReg
+{
     bool        valid  = false;
     DecodedInst inst{};
     addr_t      pc     = 0;
-    
+
     /// @name Datapath values
     /// @{
     u32 rs1_val    = 0;  ///< Source register 1 value (post-forwarding).
@@ -85,7 +85,6 @@ enum class ForwardingPolicy : u8
 {
     NONE,     ///< All RAW hazards stall until WB.
     PARTIAL,  ///< Forward from MEM→EX only.
-    FULL,     ///< Forward from EX→EX and MEM→EX.
 };
 
 /// Branch prediction strategy.
@@ -101,9 +100,9 @@ enum class BranchPredictor : u8
 /// Pipeline configuration knobs.
 struct PipelineConfig
 {
-    ForwardingPolicy forwarding = ForwardingPolicy::FULL;
+    ForwardingPolicy forwarding = ForwardingPolicy::PARTIAL;
     BranchPredictor  predictor  = BranchPredictor::NOT_TAKEN;
-    u32 branch_mispred_penalty  = 2;  ///< Cycles lost on a misprediction.
+    u32 branch_mispred_penalty  = 2;    ///< Cycles lost on a misprediction.
     u32 bht_size                = 256;  ///< Branch history table entries.
 };
 
@@ -112,7 +111,7 @@ struct PipelineStats
 {
     cycle_t cycles               = 0;
     u64     instructions_retired = 0;
-   
+
     /// @name Hazard accounting
     /// @{ 
     u64 stalls_load_use = 0;  ///< Load-use dependency stalls.
@@ -121,8 +120,9 @@ struct PipelineStats
     u64 bubbles         = 0;  ///< Total non-functional pipeline cycles.
     /// @}
 
-    /// @name Branch and forwarding metrics
+    /// @name Branch, jump, and forwarding metrics
     /// @{
+    u64 jumps              = 0;
     u64 branches           = 0;
     u64 branches_taken     = 0;
     u64 branch_mispredicts = 0;
@@ -135,14 +135,14 @@ struct PipelineStats
             ? static_cast<double>(instructions_retired) / static_cast<double>(cycles)
             : 0.0;
     }
-    
+
     [[nodiscard]] double branch_accuracy() const noexcept
     {
         return branches > 0
             ? 1.0 - static_cast<double>(branch_mispredicts) / static_cast<double>(branches)
             : 1.0;
     }
-    
+
     void reset() noexcept { *this = PipelineStats{}; }
 };
 
@@ -156,7 +156,7 @@ class PipelinedCPU {
 public:
     explicit PipelinedCPU(std::shared_ptr<Memory> memory, 
                           PipelineConfig config = {});
-    
+
     /// @name Program loading
     /// @{
     void load_program(addr_t addr, std::span<const u8> program);
@@ -168,8 +168,8 @@ public:
     void set_pc(addr_t pc) noexcept { pc_ = pc; };
     [[nodiscard]] addr_t pc() const noexcept { return pc_; }
 
-    [[nodiscard]] u32 reg(reg_idx_t r) const noexcept { return regs_[r]; }
     void set_reg(reg_idx_t r, u32 value) noexcept { if (r != 0) regs_[r] = value; }
+    [[nodiscard]] u32 reg(reg_idx_t r) const noexcept { return regs_[r]; }
     /// @}
 
     /// @name Execution
@@ -177,11 +177,11 @@ public:
 
     /// Advance the pipeline by one clock cycle. Returns false if halted and drained.
     bool tick();
-    
+
     cycle_t run_cycles(cycle_t n);
     cycle_t run_instructions(u64 n);
     cycle_t run_until_pc(addr_t target);
-    
+
     template<typename Pred>
     cycle_t run_until(Pred&& pred, cycle_t max_cycles = 10'000'000)
     {
@@ -201,17 +201,11 @@ public:
     [[nodiscard]] bool  halted()                       const noexcept { return halted_; }
     /// @}
 
-    /// @name Lifecycle
-    /// @{
-    void reset();
-    void set_config(const PipelineConfig& cfg);
-    void set_trace(bool enable) noexcept { trace_ = enable; }
-    /// @}
-
     /// @name Debug
     /// @{
-    void dump_pipeline() const;
+    void dump_stats() const;
     void dump_regs() const;
+    void set_trace(bool enable) noexcept { trace_ = enable; }
     [[nodiscard]] Memory& memory() noexcept { return *memory_; }
     /// @}
 
@@ -226,16 +220,16 @@ public:
 private:
     std::shared_ptr<Memory> memory_;
     PipelineConfig          config_;
-    
+
     std::array<u32, 32>     regs_{};
     addr_t                  pc_ = 0;
-    
+
     std::array<PipelineReg, kNumStages> stages_{};
-    
+
     bool   halted_         = false;
     bool   flush_pipeline_ = false;
     addr_t flush_target_   = 0;
-    
+
     mutable PipelineStats stats_{};
     bool                  trace_ = false;
 
@@ -261,7 +255,7 @@ private:
     };
 
     [[nodiscard]] ForwardResult try_forward(reg_idx_t reg,
-                                            const std::array<PipelineReg, kNumStages>& cur,
+                           [[maybe_unused]] const std::array<PipelineReg, kNumStages>& cur,
                                             const std::array<PipelineReg, kNumStages>& next) const;
     [[nodiscard]] u32 resolve_rs1(const PipelineReg& ex,
                                   const std::array<PipelineReg, kNumStages>& cur,
@@ -281,7 +275,8 @@ private:
     static u32  alu_execute(Op op, u32 rs1, u32 rs2, i32 imm);
     static void execute_vector(Op op, VectorState& vs,
                                u32 rd, u32 vs2, u32 vs1,
-                               u32 rs1_val, u32 rs2_val);
+                               u32 rs1_val,
+                               [[maybe_unused]] u32 rs2_val);
     static bool branch_check(Op op, u32 rs1, u32 rs2);
     /// @}
 };

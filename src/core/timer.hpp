@@ -85,15 +85,18 @@ public:
     /// Callback for interrupt signal transitions (simulates the MTIP wire).
     using NotifyCallback = std::function<void(bool pending)>;
     void set_notify(NotifyCallback cb) { notify_cb_ = std::move(cb); }
+    /// @}
 
-    /// Reset @c mtime to 0, @c mtimecmp to @c UINT64_MAX, clear pending.
-    void reset();
+    /// @name Debug
+    /// @{
+    void set_trace(bool enable) noexcept { trace_ = enable; }
     /// @}
 
 private:
     cycle_t mtime_    = 0;
     u64     mtimecmp_ = ~u64{0};
     bool    pending_  = false;
+    bool    trace_    = false;
 
     NotifyCallback notify_cb_;
 
