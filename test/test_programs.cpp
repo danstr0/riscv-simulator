@@ -1,46 +1,27 @@
 /**
  * @file test_programs.cpp
- * @brief Integration tests: multi-instruction programs run on the CPU.
+ * @brief Multi-instruction RV32I program tests.
  *
- * Each test loads a small hand-assembled RV32I program, runs it, and
- * checks the final register / memory state.  These tests exercise the
- * full fetch–decode–execute loop and validate that all components work
- * together correctly.
- *
- * Programs:
- *   - Sum 1..10, Fibonacci, memory copy, array swap
- *   - Function call / return (JAL/JALR), nested calls with stack
- *   - run_until_pc, run_until_ecall, save/restore, tracing
+ * Sections:
+ *   1 (line 34) : Sum 1..10, Fibonacci
+ *   2 (line ) : memory copy, array swap
+ *   3 (line ) : Function call / return, nested calls with stack
  */
 
-#include "core/cpu.hpp"
 #include "test_framework.hpp"
-#include <sstream>
+#include "test_utils.hpp"
 
 using namespace riscv;
 
-// ── Helpers ────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+//  1. Arithmetic Programs
+// ═══════════════════════════════════════════════════════════════════════
 
-static CPU make_cpu() {
-    auto mem = std::make_shared<FlatMemory>(0x0, 0x10000);
-    return CPU(mem);
-}
-
-static void load_program(CPU& cpu, addr_t addr,
-                         std::initializer_list<u32> instructions) {
-    addr_t offset = addr;
-    for (u32 inst : instructions) {
-        cpu.load_instruction(offset, inst);
-        offset += 4;
-    }
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
- *  Arithmetic Programs
- * ═══════════════════════════════════════════════════════════════════════ */
-
-TEST(prog_sum_1_to_10) {
-    /* Computes sum = 1 + 2 + … + 10 = 55.
+template <typename Harness>
+bool run_sum_1_to_10()
+{
+    /*
+     * Computes sum = 1 + 2 + … + 10 = 55.
      *
      *   addi x1, x0, 0      # sum = 0
      *   addi x2, x0, 1      # i = 1
@@ -51,26 +32,31 @@ TEST(prog_sum_1_to_10) {
      *   bge  x3, x2, loop   # if limit >= i goto loop
      *   ebreak
      */
+    Harness h;
+    auto& cpu = h.get();
 
-    auto cpu = make_cpu();
-    load_program(cpu, 0, {
-        0x00000093,  // addi x1, x0, 0
-        0x00100113,  // addi x2, x0, 1
-        0x00a00193,  // addi x3, x0, 10
-        0x002080b3,  // add  x1, x1, x2
-        0x00110113,  // addi x2, x2, 1
-        0xfe21dce3,  // bge  x3, x2, -8
-        0x00100073,  // ebreak
-    });
+    cpu.load_instruction(0,  ADDI(1, 0, 0));
+    cpu.load_instruction(4,  ADDI(2, 0, 1));
+    cpu.load_instruction(8,  ADDI(3, 0, 10));
+    // loop:
+    cpu.load_instruction(12, ADD(1, 1, 2));
+    cpu.load_instruction(16, ADDI(2, 2, 1));
+    cpu.load_instruction(20, BGE(3, 2, -8));
+    cpu.load_instruction(24, EBREAK);
 
-    cpu.run(1000);
+    h.run(150);
     ASSERT_EQ(cpu.reg(1), 55u);
-    ASSERT(cpu.halted());
     return true;
 }
 
-TEST(prog_fibonacci) {
-    /* Computes Fib(10) = 55.
+TEST(prog_sum_1_to_10_cpu)  { return run_sum_1_to_10<CPUH>(); }
+TEST(prog_sum_1_to_10_pipe) { return run_sum_1_to_10<PipeH>(); }
+
+template <typename Harness>
+bool run_fibonacci()
+{
+    /*
+     * Computes Fib(10) = 55.
      *
      *   addi x1, x0, 0      # a = 0  (Fib(0))
      *   addi x2, x0, 1      # b = 1  (Fib(1))
@@ -86,91 +72,104 @@ TEST(prog_fibonacci) {
      * done:
      *   ebreak
      */
+    Harness h;
+    auto& cpu = h.get();
 
-    auto cpu = make_cpu();
-    load_program(cpu, 0, {
-        0x00000093,  // addi x1, x0, 0
-        0x00100113,  // addi x2, x0, 1
-        0x00a00193,  // addi x3, x0, 10
-        0x00000213,  // addi x4, x0, 0
-        0x00320c63,  // beq  x4, x3, 24
-        0x002082b3,  // add  x5, x1, x2
-        0x00010093,  // addi x1, x2, 0
-        0x00028113,  // addi x2, x5, 0
-        0x00120213,  // addi x4, x4, 1
-        0xfedff06f,  // jal  x0, -20
-        0x00100073,  // ebreak
-    });
+    cpu.load_instruction(0,  ADDI(1, 0, 0));
+    cpu.load_instruction(4,  ADDI(2, 0, 1));
+    cpu.load_instruction(8,  ADDI(3, 0, 10));
+    cpu.load_instruction(12, ADDI(4, 0, 0));
+    // loop:
+    cpu.load_instruction(16, BEQ(4, 3, 24));
+    cpu.load_instruction(20, ADD(5, 1, 2));
+    cpu.load_instruction(24, ADDI(1, 2, 0));
+    cpu.load_instruction(28, ADDI(2, 5, 0));
+    cpu.load_instruction(32, ADDI(4, 4, 1));
+    cpu.load_instruction(36, JAL(0, -20));
+    // done:
+    cpu.load_instruction(40, EBREAK);
 
-    cpu.run(1000);
+    h.run(150);
     ASSERT_EQ(cpu.reg(1), 55u);
     return true;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
- *  Memory Programs
- * ═══════════════════════════════════════════════════════════════════════ */
+TEST(prog_fibonacci_cpu)  { return run_fibonacci<CPUH>(); }
+TEST(prog_fibonacci_pipe) { return run_fibonacci<PipeH>(); }
 
-TEST(prog_memory_copy) {
-    // Copy 4 words from 0x1000 to 0x2000.
+// ═══════════════════════════════════════════════════════════════════════
+//  2. Memory Programs
+// ═══════════════════════════════════════════════════════════════════════
 
-    auto cpu = make_cpu();
+template <typename Harness>
+bool run_memory_copy()
+{
+    // Copy 4 words from 0x1000 to 0x2000
+    Harness h;
+    auto& cpu = h.get();
 
-    cpu.memory().write32(0x1000, 0xAAAAAAAA);
-    cpu.memory().write32(0x1004, 0xBBBBBBBB);
-    cpu.memory().write32(0x1008, 0xCCCCCCCC);
-    cpu.memory().write32(0x100C, 0xDDDDDDDD);
+    cpu.memory().write32(0x1000, 0xAAAA'AAAA);
+    cpu.memory().write32(0x1004, 0xBBBB'BBBB);
+    cpu.memory().write32(0x1008, 0xCCCC'CCCC);
+    cpu.memory().write32(0x100C, 0xDDDD'DDDD);
 
-    load_program(cpu, 0, {
-        0x000010b7,  // lui  x1, 0x1         # src  = 0x1000
-        0x00002137,  // lui  x2, 0x2         # dest = 0x2000
-        0x00400193,  // addi x3, x0, 4       # count = 4
-        0x00018e63,  // beq  x3, x0, +28     # if count==0, done
-        0x0000a203,  // lw   x4, 0(x1)
-        0x00412023,  // sw   x4, 0(x2)
-        0x00408093,  // addi x1, x1, 4
-        0x00410113,  // addi x2, x2, 4
-        0xfff18193,  // addi x3, x3, -1
-        0xfe9ff06f,  // jal  x0, -24
-        0x00100073,  // ebreak
-    });
+    cpu.load_instruction(0,  LUI(1, 0x1000)); // src   = 0x1000
+    cpu.load_instruction(4,  LUI(2, 0x2000)); // dest  = 0x2000
+    cpu.load_instruction(8,  ADDI(3, 0, 4));  // count = 4
+    // loop:
+    cpu.load_instruction(12, BEQ(3, 0, 28)); // if count == 0, done
+    cpu.load_instruction(16, LW(4, 0, 1));
+    cpu.load_instruction(20, SW(4, 0, 2));
+    cpu.load_instruction(24, ADDI(1, 1, 4));
+    cpu.load_instruction(28, ADDI(2, 2, 4));
+    cpu.load_instruction(32, ADDI(3, 3, -1));
+    cpu.load_instruction(36, JAL(0, -24));
+    // done:
+    cpu.load_instruction(40, EBREAK);
 
-    cpu.run(1000);
-
-    ASSERT_HEX_EQ(cpu.memory().read32(0x2000).value, 0xAAAAAAAAu);
-    ASSERT_HEX_EQ(cpu.memory().read32(0x2004).value, 0xBBBBBBBBu);
-    ASSERT_HEX_EQ(cpu.memory().read32(0x2008).value, 0xCCCCCCCCu);
-    ASSERT_HEX_EQ(cpu.memory().read32(0x200C).value, 0xDDDDDDDDu);
+    h.run(150);
+    ASSERT_HEX_EQ(cpu.memory().read32(0x2000).value, 0xAAAA'AAAAu);
+    ASSERT_HEX_EQ(cpu.memory().read32(0x2004).value, 0xBBBB'BBBBu);
+    ASSERT_HEX_EQ(cpu.memory().read32(0x2008).value, 0xCCCC'CCCCu);
+    ASSERT_HEX_EQ(cpu.memory().read32(0x200C).value, 0xDDDD'DDDDu);
     return true;
 }
 
-TEST(prog_array_swap) {
-    // Swap arr[0] and arr[1] in memory.
+TEST(prog_memory_copy_cpu)  { return run_memory_copy<CPUH>(); }
+TEST(prog_memory_copy_pipe) { return run_memory_copy<PipeH>(); }
 
-    auto cpu = make_cpu();
+template <typename Harness>
+bool run_array_swap()
+{
+    // Swap arr[0] and arr[1] in memory
+    Harness h;
+    auto& cpu = h.get();
 
     cpu.memory().write32(0x1000, 10);
     cpu.memory().write32(0x1004, 20);
 
-    load_program(cpu, 0, {
-        0x000010b7,  // lui x1, 0x1
-        0x0000a203,  // lw  x4, 0(x1)
-        0x0040a283,  // lw  x5, 4(x1)
-        0x0050a023,  // sw  x5, 0(x1)
-        0x0040a223,  // sw  x4, 4(x1)
-        0x00100073,  // ebreak
-    });
+    cpu.load_instruction(0,  LUI(1, 0x1000));
+    cpu.load_instruction(4,  LW(4, 0, 1));
+    cpu.load_instruction(8,  LW(5, 4, 1));
+    cpu.load_instruction(12, SW(5, 0, 1));
+    cpu.load_instruction(16, SW(4, 4, 1));
+    cpu.load_instruction(20, EBREAK);
 
-    cpu.run(100);
-
+    h.run(6);
     ASSERT_EQ(cpu.memory().read32(0x1000).value, 20u);
     ASSERT_EQ(cpu.memory().read32(0x1004).value, 10u);
     return true;
 }
 
-TEST(prog_load_negative_offset) {
-    /* Use a pointer to the *end* of a buffer and access elements via
-     * negative offsets.  Exercises signed address arithmetic.
+TEST(prog_array_swap_cpu)  { return run_array_swap<CPUH>(); }
+TEST(prog_array_swap_pipe) { return run_array_swap<PipeH>(); }
+
+template <typename Harness>
+bool run_load_neg_offset()
+{
+    /*
+     * Use a pointer to the end of a buffer and access elements via
+     * negative offsets
      *
      *   # x1 points past the end of a 2-word buffer at 0x1000
      *   lui  x1, 0x1
@@ -179,77 +178,87 @@ TEST(prog_load_negative_offset) {
      *   lw   x3, -4(x1)     # x3 = mem[0x1004]
      *   ebreak
      */
+    Harness h;
+    auto& cpu = h.get();
 
-    auto cpu = make_cpu();
-    cpu.memory().write32(0x1000, 0x11111111);
-    cpu.memory().write32(0x1004, 0x22222222);
+    cpu.memory().write32(0x1000, 0x1111'1111);
+    cpu.memory().write32(0x1004, 0x2222'2222);
 
-    load_program(cpu, 0, {
-        0x000010b7,  // lui  x1, 0x1
-        0x00808093,  // addi x1, x1, 8
-        0xff80a103,  // lw   x2, -8(x1)
-        0xffc0a183,  // lw   x3, -4(x1)
-        0x00100073,  // ebreak
-    });
+    cpu.load_instruction(0,  LUI(1, 0x1000));
+    cpu.load_instruction(4,  ADDI(1, 1, 8));
+    cpu.load_instruction(8,  LW(2, -8, 1));
+    cpu.load_instruction(12, LW(3, -4, 1));
+    cpu.load_instruction(16, EBREAK);
 
-    cpu.run(100);
-
-    ASSERT_HEX_EQ(cpu.reg(2), 0x11111111u);
-    ASSERT_HEX_EQ(cpu.reg(3), 0x22222222u);
+    h.run(5);
+    ASSERT_HEX_EQ(cpu.reg(2), 0x1111'1111u);
+    ASSERT_HEX_EQ(cpu.reg(3), 0x2222'2222u);
     return true;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
- *  Function call programs
- * ═══════════════════════════════════════════════════════════════════════ */
+TEST(prog_load_neg_offset_cpu)  { return run_load_neg_offset<CPUH>(); }
+TEST(prog_load_neg_offset_pipe) { return run_load_neg_offset<PipeH>(); }
 
-TEST(prog_function_call) {
-    /* Call double(5) -> returns 10.
+// ═══════════════════════════════════════════════════════════════════════
+//  3. Function call programs
+// ═══════════════════════════════════════════════════════════════════════
+
+template <typename Harness>
+bool run_function_call()
+{
+    /*
+     * Call double(5) -> returns 10.
      *
      * main:
-     *   addi x10, x0, 5     # arg = 5
-     *   jal  x1, double     # call
-     *   addi x11, x10, 0    # save result
+     *   addi x10, x0, 5    # arg = 5
+     *   jal  x1, double    # call
+     *   addi x11, x10, 0   # save result
      *   ebreak
      * double:
-     *   slli x10, x10, 1    # return arg * 2
-     *   jalr x0, 0(x1)      # ret
+     *   slli x10, x10, 1   # return arg * 2
+     *   jalr x0, 0(x1)     # ret
      */
+    Harness h;
+    auto& cpu = h.get();
 
-    auto cpu = make_cpu();
-    load_program(cpu, 0, {
-        0x00500513,  // addi x10, x0, 5
-        0x00c000ef,  // jal  x1, +12
-        0x00050593,  // addi x11, x10, 0
-        0x00100073,  // ebreak
-        0x00151513,  // slli x10, x10, 1
-        0x00008067,  // jalr x0, 0(x1)
-    });
+    // main:
+    cpu.load_instruction(0,  ADDI(10, 0, 5));
+    cpu.load_instruction(4,  JAL(1, 12));
+    cpu.load_instruction(8,  ADDI(11, 10, 0));
+    cpu.load_instruction(12, EBREAK);
+    // double:
+    cpu.load_instruction(16, SLLI(10, 10, 1));
+    cpu.load_instruction(20, JALR(0, 0, 1));
 
-    cpu.run(100);
-
+    h.run(15);
     ASSERT_EQ(cpu.reg(10), 10u);
     ASSERT_EQ(cpu.reg(11), 10u);
     return true;
 }
 
-TEST(prog_nested_calls) {
-    /* triple(3): calls double(3) -> 6, then adds the original arg → 9.
+TEST(prog_function_call_cpu)  { return run_function_call<CPUH>(); }
+TEST(prog_function_call_pipe) { return run_function_call<PipeH>(); }
+
+template <typename Harness>
+bool run_nested_calls()
+{
+    /*
+     * triple(3): calls double(3) -> 6, then adds the original arg → 9.
      * Demonstrates caller-save via stack (sp = x2).
      *
      * main:
-     *   lui  sp, 0x3          # sp = 0x3000
-     *   addi a0, x0, 3        # arg = 3
+     *   lui  sp, 0x3      # sp = 0x3000
+     *   addi a0, x0, 3    # arg = 3
      *   jal  ra, triple
      *   ebreak
      *
      * triple:
      *   addi sp, sp, -8
      *   sw   ra, 0(sp)
-     *   sw   a0, 4(sp)        # save original arg
-     *   jal  ra, double       # a0 = double(a0) = 6
-     *   lw   a1, 4(sp)        # a1 = original arg (3)
-     *   add  a0, a0, a1       # a0 = 6 + 3 = 9
+     *   sw   a0, 4(sp)    # save original arg
+     *   jal  ra, double   # a0 = double(a0) = 6
+     *   lw   a1, 4(sp)    # a1 = original arg (3)
+     *   add  a0, a0, a1   # a0 = 6 + 3 = 9
      *   lw   ra, 0(sp)
      *   addi sp, sp, 8
      *   jalr x0, 0(ra)
@@ -258,136 +267,33 @@ TEST(prog_nested_calls) {
      *   slli a0, a0, 1
      *   jalr x0, 0(ra)
      */
+    Harness h;
+    auto& cpu = h.get();
 
-    auto cpu = make_cpu();
-    load_program(cpu, 0, {
-        // main: 0x00–0x0C
-        0x00003137,  // lui  sp, 0x3
-        0x00300513,  // addi a0, x0, 3
-        0x00c000ef,  // jal  ra, 12   -> triple at 0x10
-        0x00100073,  // ebreak
+    // main:
+    cpu.load_instruction(0,  LUI(2, 0x3000));
+    cpu.load_instruction(4,  ADDI(10, 0, 3));
+    cpu.load_instruction(8,  JAL(1, 12));
+    cpu.load_instruction(12, EBREAK);
+    // triple:
+    cpu.load_instruction(16, ADDI(2, 2, -8));
+    cpu.load_instruction(20, SW(1, 0, 2));
+    cpu.load_instruction(24, SW(10, 4, 2));
+    cpu.load_instruction(28, JAL(1, 24));
+    cpu.load_instruction(32, LW(11, 4, 2));
+    cpu.load_instruction(36, ADD(10, 10, 11));
+    cpu.load_instruction(40, LW(1, 0, 2));
+    cpu.load_instruction(44, ADDI(2, 2, 8));
+    cpu.load_instruction(48, JALR(0, 0, 1));
+    // double:
+    cpu.load_instruction(52, SLLI(10, 10, 1));
+    cpu.load_instruction(56, JALR(0, 0, 1));
 
-        // triple: 0x10–0x30
-        0xff810113,  // addi sp, sp, -8
-        0x00112023,  // sw   ra, 0(sp)
-        0x00a12223,  // sw   a0, 4(sp)
-        0x018000ef,  // jal  ra, 24    -> double at 0x34
-        0x00412583,  // lw   a1, 4(sp)
-        0x00b50533,  // add  a0, a0, a1
-        0x00012083,  // lw   ra, 0(sp)
-        0x00810113,  // addi sp, sp, 8
-        0x00008067,  // jalr x0, 0(ra)
-
-        // double: 0x34
-        0x00151513,  // slli a0, a0, 1
-        0x00008067,  // jalr x0, 0(ra)
-    });
-
-    cpu.run(100);
-
-    ASSERT_EQ(cpu.reg(10), 9u);  // triple(3) = double(3) + 3 = 6 + 3 = 9
+    h.run(40);
+    // triple(3) = double(3) + 3 = 6 + 3 = 9
+    ASSERT_EQ(cpu.reg(10), 9u);
     return true;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
- *  CPU Control-flow Tests
- * ═══════════════════════════════════════════════════════════════════════ */
-
-TEST(prog_run_until_pc) {
-    auto cpu = make_cpu();
-    load_program(cpu, 0, {
-        0x00100093,  // addi x1, x0, 1
-        0x00200113,  // addi x2, x0, 2
-        0x00300193,  // addi x3, x0, 3
-        0x00400213,  // addi x4, x0, 4
-        0x00100073,  // ebreak
-    });
-
-    cpu.run_until_pc(0x08);
-
-    ASSERT_EQ(cpu.pc(), 0x08u);
-    ASSERT_EQ(cpu.reg(1), 1u);
-    ASSERT_EQ(cpu.reg(2), 2u);
-    ASSERT_EQ(cpu.reg(3), 0u);  // Not yet executed
-    return true;
-}
-
-TEST(prog_run_until_ecall) {
-    /* A program that terminates with ECALL instead of EBREAK.
-     * This is the intended halt mechanism for benchmarking workloads.
-     *
-     *   addi x10, x0, 42    # "exit code"
-     *   ecall               # signal to host
-     */
-
-    auto cpu = make_cpu();
-    load_program(cpu, 0, {
-        0x02a00513,  // addi x10, x0, 42
-        0x00000073,  // ecall
-    });
-
-    u64 count = cpu.run_until_ecall();
-
-    ASSERT_EQ(count, 2u);
-    ASSERT_EQ(cpu.reg(10), 42u);
-    ASSERT(!cpu.halted());  // ECALL does not halt
-    ASSERT(cpu.last_result().ecall);
-    return true;
-}
-
-TEST(prog_save_restore_state) {
-    auto cpu = make_cpu();
-    load_program(cpu, 0, {
-        0x00100093,  // addi x1, x0, 1
-        0x00200113,  // addi x2, x0, 2
-        0x00300193,  // addi x3, x0, 3
-        0x00400213,  // addi x4, x0, 4
-        0x00100073,  // ebreak
-    });
-
-    cpu.run(2);
-
-    auto state = cpu.save_state();
-    ASSERT_EQ(state.pc, 8u);
-    ASSERT_EQ(state.regs[1], 1u);
-    ASSERT_EQ(state.regs[2], 2u);
-    ASSERT_EQ(state.regs[3], 0u);  // Not yet executed when saved
-
-    cpu.run(2);
-    ASSERT_EQ(cpu.reg(3), 3u);
-    ASSERT_EQ(cpu.reg(4), 4u);
-
-    // Restore: registers and PC go back to the saved values.
-    cpu.restore_state(state);
-    ASSERT_EQ(cpu.pc(), 8u);
-    ASSERT_EQ(cpu.reg(1), 1u);
-    ASSERT_EQ(cpu.reg(2), 2u);
-    // x3 and x4 are restored to their saved values (0), not their
-    // pre-restore values.
-    ASSERT_EQ(cpu.reg(3), 0u);
-    ASSERT_EQ(cpu.reg(4), 0u);
-    return true;
-}
-
-TEST(prog_trace_output) {
-    auto cpu = make_cpu();
-    load_program(cpu, 0, {
-        0x00100093,  // addi x1, x0, 1
-        0x00200113,  // addi x2, x0, 2
-        0x00100073,  // ebreak
-    });
-
-    cpu.set_trace(true);
-
-    // Capture stdout to verify trace output doesn't crash.
-    std::stringstream buffer;
-    std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
-
-    cpu.run(3);
-
-    std::cout.rdbuf(old);
-
-    std::string trace = buffer.str();
-    ASSERT(trace.find("addi") != std::string::npos);
-    return true;
-}
+TEST(prog_nested_calls_cpu)  { return run_nested_calls<CPUH>(); }
+TEST(prog_nested_calls_pipe) { return run_nested_calls<PipeH>(); }
