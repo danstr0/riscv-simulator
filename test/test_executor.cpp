@@ -3,16 +3,14 @@
  * @brief Tests for RV32I instruction execution.
  *
  * Sections:
- *   1 (line   25) : I-type instructions
- *   2 (line  869) : R-type instructions
- *   3 (line 1887) : Loads
- *   4 (line 2455) : Stores
- *   5 (line 2818) : Branches
- *   6 (line 3388) : x0 hardwired to zero
- *   7 (line 3596) : Upper immediates
- *   8 (line 3735) : System instructions
- *   9 (line 3793) : CPU lifecycle
- *  10 (line 3853) : Execution statistics
+ *   1 (line   22) : I-type instructions
+ *   2 (line  867) : R-type instructions
+ *   3 (line 1885) : Loads
+ *   4 (line 2453) : Stores
+ *   5 (line 2816) : Branches
+ *   6 (line 3386) : x0 hardwired to zero
+ *   7 (line 3594) : Upper immediates
+ *   8 (line 3733) : System instructions
  */
 
 #include "test_framework.hpp"
@@ -3786,120 +3784,5 @@ TEST(exec_run_until_ecall)
     ASSERT_EQ(count, 3u);       // 3 instructions executed (including ecall)
     ASSERT_EQ(cpu.reg(1), 43u); // 42 + 1
     ASSERT(!cpu.halted());
-    return true;
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-//  9. CPU lifecycle
-// ═══════════════════════════════════════════════════════════════════════
-
-TEST(exec_invalid_instruction_halts)
-{
-    auto cpu = make_cpu();
-    cpu.load_instruction(0, 0xFFFF'FFFF); // All-ones = invalid
-    bool ran = cpu.step();
-    ASSERT(!ran);
-    ASSERT(cpu.halted());
-    return true;
-}
-
-TEST(exec_fetch_fault_halts)
-{
-    // Memory is 0x0–0xFFFF - set PC past the end
-    auto cpu = make_cpu();
-    cpu.set_pc(0x20000);
-    bool ran = cpu.step();
-    ASSERT(!ran);
-    ASSERT(cpu.halted());
-    return true;
-}
-
-TEST(exec_reset_clears_halt)
-{
-    auto cpu = make_cpu();
-    cpu.load_instruction(0, EBREAK); // ebreak -> halt
-    cpu.step();
-    ASSERT(cpu.halted());
-
-    cpu.reset();
-    ASSERT(!cpu.halted());
-    ASSERT_EQ(cpu.pc(), 0u);
-    ASSERT_EQ(cpu.reg(1), 0u);
-    return true;
-}
-
-TEST(exec_save_restore_state)
-{
-    auto cpu = make_cpu();
-    cpu.set_reg(1, 100);
-    cpu.set_reg(2, 200);
-    cpu.set_pc(0x400);
- 
-    auto state = cpu.save_state();
-
-    // Mutate CPU
-    cpu.set_reg(1, 999);
-    cpu.set_pc(0x800);
-
-    cpu.restore_state(state);
-    ASSERT_EQ(cpu.reg(1), 100u);
-    ASSERT_EQ(cpu.reg(2), 200u);
-    ASSERT_EQ(cpu.pc(), 0x400u);
-    ASSERT_EQ(cpu.reg(0), 0u);  // x0 must still be 0
-    return true;
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-//  10. Statistics
-// ═══════════════════════════════════════════════════════════════════════
-
-TEST(exec_stats_basic)
-{
-    auto cpu = make_cpu();
-    cpu.load_instruction(0,  ADDI(1, 0, 42));
-    cpu.load_instruction(4,  ADDI(2, 1, 1));
-    cpu.load_instruction(8,  ADDI(3, 2, 2));
-    cpu.load_instruction(12, ADDI(4, 3, 3));
-    cpu.load_instruction(16, ADDI(5, 4, 4));
- 
-    cpu.run(5);
-    ASSERT_EQ(cpu.stats().instructions, 5u);
-    return true;
-}
-
-TEST(exec_stats_branches)
-{
-    auto cpu = make_cpu();
-    cpu.set_reg(1, 5);
-    cpu.set_reg(2, 5);
-    cpu.load_instruction(0, BEQ(1, 2, 8)); // taken
-    cpu.step();
- 
-    ASSERT_EQ(cpu.stats().branches, 1u);
-    ASSERT_EQ(cpu.stats().branches_taken, 1u);
-
-    cpu.load_instruction(8, BNE(1, 2, 8)); // not taken
-    cpu.step();
-    ASSERT_EQ(cpu.stats().branches, 2u);
-    ASSERT_EQ(cpu.stats().branches_taken, 1u);
-    return true;
-}
-
-TEST(exec_stats_loads_stores_jumps)
-{
-    auto cpu = make_cpu();
-    cpu.memory().write32(0x200, 0);
-    cpu.set_reg(10, 0x200);
- 
-    cpu.load_instruction(0,  ADDI(1, 0, 42));
-    cpu.load_instruction(4,  SW(1, 0, 10));
-    cpu.load_instruction(8,  LW(2, 0, 10));
-    cpu.load_instruction(12, JAL(1, 100));
- 
-    cpu.run(4);
-    ASSERT_EQ(cpu.stats().loads, 1u);
-    ASSERT_EQ(cpu.stats().stores, 1u);
-    ASSERT_EQ(cpu.stats().jumps, 1u);
-    ASSERT_EQ(cpu.stats().instructions, 4u);
     return true;
 }

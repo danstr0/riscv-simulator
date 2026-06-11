@@ -223,7 +223,7 @@ bool run_lr_w_misaligned()
 
          cpu.run_until([&]() { return cpu.halted(); }, 20);
          ASSERT(cpu.halted());
-         ASSERT_EQ(cpu.reg(3), 0);
+         ASSERT_EQ(cpu.reg(3), 0u);
     }
     return true;
 }
@@ -253,7 +253,7 @@ bool run_sc_w_success()
 
     ASSERT_HEX_EQ(cpu.reg(1), 0xAAAA'AAAAu); // LR.W loaded old value
     ASSERT_EQ(cpu.reg(2), 0u);               // SC.W succeeded
-    ASSERT_HEX_EQ(cpu.memory().read32(0x200).value, 0xBBBBBBBBu);
+    ASSERT_HEX_EQ(cpu.memory().read32(0x200).value, 0xBBBB'BBBBu);
     return true;
 }
 
@@ -529,7 +529,7 @@ bool run_amo_misaligned()
 
          cpu.run_until([&]() { return cpu.halted(); }, 20);
          ASSERT(cpu.halted());
-         ASSERT_EQ(cpu.reg(3), 0);
+         ASSERT_EQ(cpu.reg(3), 0u);
     }
     return true;
 }
