@@ -291,6 +291,7 @@ public:
     [[nodiscard]] bool tx_enabled()   const noexcept { return regs_[NicReg::CTRL / 4] & NicCtrl::TXEN; }
     [[nodiscard]] u32  rx_ring_size() const noexcept { return regs_[NicReg::RDLEN / 4] / 16; }
     [[nodiscard]] u32  tx_ring_size() const noexcept { return regs_[NicReg::TDLEN / 4] / 16; }
+    void set_trace(bool enable) { trace_ = enable; }
     /// @}
 
     void reset();
@@ -301,6 +302,8 @@ private:
     CoalesceConfig coalesce_;
     RSSConfig      rss_;
     NicStats       stats_;
+
+    bool trace_ = false;
 
     mutable std::array<u32, NicReg::REG_SIZE / 4> regs_{};
 

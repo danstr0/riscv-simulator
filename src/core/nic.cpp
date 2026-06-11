@@ -6,6 +6,7 @@
 #include "nic.hpp"
 
 #include <algorithm>
+#include <iostream>
 
 namespace riscv {
 
@@ -34,11 +35,22 @@ void NIC::reset()
     current_cycle_  = 0;
     rss_.enabled    = false;
     rss_.num_queues = 1;
+
+    if (trace_)
+        std::cout << "[NIC] RESET\n";
 }
 
 // ── RSS configuration ──────────────────────────────────────────────────
 
-void NIC::set_rss(const RSSConfig& cfg) { rss_ = cfg; }
+void NIC::set_rss(const RSSConfig& cfg)
+{
+    rss_ = cfg;
+    
+    if (trace_)
+        std::cout << std::format("[NIC] RSS {} | queues={}",
+                                 cfg.enabled ? "enabled" : "disabled",
+                                 cfg.num_queues);
+}
 
 void NIC::configure_rx_queue(u32 qid, addr_t base, u32 ring_size, u32 tail)
 {
@@ -49,6 +61,11 @@ void NIC::configure_rx_queue(u32 qid, addr_t base, u32 ring_size, u32 tail)
     r.ring_size = ring_size;
     r.head      = 0;
     r.tail      = tail;
+
+    if (trace_)
+        std::cout << std::format("[NIC] RX ring q={} | base=0x{:08x} | "
+                                 "size={} | tail={}",
+                                 qid, base, ring_size, tail);
 }
 
 void NIC::configure_tx_queue(u32 qid, addr_t base, u32 ring_size)
@@ -60,6 +77,10 @@ void NIC::configure_tx_queue(u32 qid, addr_t base, u32 ring_size)
     r.ring_size = ring_size;
     r.head      = 0;
     r.tail      = 0;
+
+    if (trace_)
+        std::cout << std::format("[NIC] TX ring q={} | base=0x{:08x} | size={}",
+                                 qid, base, ring_size);
 }
 
 // ── RSS hash ────────────────────────────────────────────────────────────
@@ -247,7 +268,6 @@ void NIC::tick(cycle_t current_cycle)
         process_rx_queue();
 
     if (coalesce_.enabled && coalesce_.max_delay_cycles > 0)
-    {
         for (u32 q = 0; q < rss_.num_queues; ++q)
         {
             auto& ring = rx_rings_[q];
@@ -255,12 +275,14 @@ void NIC::tick(cycle_t current_cycle)
             if (ring.coalesce_pending > 0
                 && (current_cycle_ - ring.coalesce_first) >= coalesce_.max_delay_cycles)
             {
+                if (trace_)
+                    std::cout << std::format("[NIC] Coalescing timeout | q={}", q);
+
                 stats_.coalesced_packets += ring.coalesce_pending - 1;
                 ring.coalesce_pending = 0;
                 raise_interrupt(NicInt::TIMER);
             }
         }
-    }
 }
 
 // ── Packet injection / retrieval ───────────────────────────────────────
@@ -270,6 +292,10 @@ void NIC::inject_packet(const Packet& pkt)
     Packet p = pkt;
     p.arrival_cycle = current_cycle_;
     rx_queue_.push_back(std::move(p));
+
+    if (trace_)
+        std::cout << std::format("[NIC] RX packet injected | {} bytes",
+                                 pkt.data.size());
 
     if (rx_enabled())
         process_rx_queue();
@@ -296,6 +322,9 @@ void NIC::raise_interrupt(u32 cause)
         interrupt_pending_ = true;
         stats_.interrupts_raised++;
 
+        if (trace_)
+            std::cout << std::format("[NIC] Interrupt cause=0x{:08x}", cause);
+
         if (interrupt_cb_)
             interrupt_cb_();
     }
@@ -314,10 +343,20 @@ void NIC::check_coalescing(u32 qid, u32 cause)
     }
 
     if (ring.coalesce_pending == 1)
+    {
+        if (trace_)
+            std::cout << std::format("[NIC] Coalescing started | q={}", qid);
+
         ring.coalesce_first = current_cycle_;
+    }
 
     if (ring.coalesce_pending >= coalesce_.max_packets)
     {
+        if (trace_)
+            std::cout << std::format("[NIC] Coalescing threshold reached | "
+                                     "q={} | packets={}",
+                                     qid, ring.coalesce_pending);
+
         stats_.coalesced_packets += ring.coalesce_pending - 1;
         ring.coalesce_pending = 0;
         raise_interrupt(cause);
@@ -338,17 +377,35 @@ void NIC::process_rx_queue()
         u32 qid = select_rx_queue(pkt);
         auto& ring = rx_rings_[qid];
 
-        if (ring.ring_size == 0) { stats_.rx_dropped++; continue; }
+        if (ring.ring_size == 0)
+        {
+            if (trace_)
+                std::cout << std::format("[NIC] RX drop (queue {} disabled)", qid);
+
+            stats_.rx_dropped++;
+            continue; }
 
         u32 pending_rx = 0;
         for (const auto& d : pending_dma_)
             if (d.type == PendingDma::Type::RX && d.queue_id == qid) ++pending_rx;
 
         u32 pending_head = (ring.head + pending_rx) % ring.ring_size;
-        if (pending_head == ring.tail) { stats_.rx_dropped++; continue; }
+        if (pending_head == ring.tail)
+        {
+            if (trace_)
+                std::cout << std::format("[NIC] RX drop (ring full q={})", qid);
+
+            stats_.rx_dropped++;
+            continue;
+        }
 
         pkt.dma_start_cycle = current_cycle_;
         u32 dma_time = timing_.dma_cycles(static_cast<u32>(pkt.data.size()));
+
+        if (trace_)
+            std::cout << std::format("[NIC] RX enqueue | q={} | "
+                                     "desc={} | len={} | dma={} cycles",
+                                     qid, pending_head, pkt.data.size(), dma_time);
 
         PendingDma dma;
         dma.type           = PendingDma::Type::RX;
@@ -375,10 +432,19 @@ void NIC::process_tx_ring(u32 qid)
 
         if (desc.length == 0 || !sys_mem_->valid_address(desc.buffer_addr, desc.length))
         {
+            if (trace_)
+                std::cout << std::format("[NIC] TX drop | q={} | idx={} | "
+                                         "invalid descriptor",
+                                         qid, ring.head);
+
             stats_.tx_dropped++;
             ring.head = (ring.head + 1) % ring.ring_size;
             continue;
         }
+
+        if (trace_)
+            std::cout << std::format("[NIC] TX desc | q={} | idx={} | len={}",
+                                     qid, ring.head, desc.length);
 
         Packet pkt;
         pkt.data.resize(desc.length);
@@ -439,6 +505,12 @@ void NIC::complete_dma()
             stats_.min_rx_latency = std::min(stats_.min_rx_latency, latency);
             stats_.max_rx_latency = std::max(stats_.max_rx_latency, latency);
 
+            if (trace_)
+                std::cout << std::format("[NIC] RX DMA complete | "
+                                         "q={} | desc={} | len={}",
+                                         dma.queue_id, dma.desc_idx,
+                                         dma.packet.data.size());
+
             // Interrupt
             check_coalescing(dma.queue_id, NicInt::RXQ0);
         }
@@ -469,6 +541,11 @@ void NIC::complete_dma()
             stats_.tx_bytes += dma.packet.data.size();
             regs_[NicReg::TXPKT / 4]++;
             regs_[NicReg::TXBYTES / 4] += static_cast<u32>(dma.packet.data.size());
+
+            if (trace_)
+                std::cout << std::format("[NIC] TX DMA complete | "
+                                         "q={} | desc{} | len={}",
+                                         dma.queue_id, dma.desc_idx, desc.length);
 
             tx_complete_[dma.queue_id].push_back(std::move(dma.packet));
             if (desc.cmd & TxDescriptor::CMD_RS)
@@ -502,11 +579,11 @@ void NIC::write_rx_desc(u32 qid, u32 idx, const RxDescriptor& d)
 {
     addr_t addr = rx_rings_[qid].base_addr + idx * 16;
 
-    (void)sys_mem_->write32(addr,      d.buffer_addr);
-    (void)sys_mem_->write32(addr + 4,  d.buffer_addr_hi);
-    (void)sys_mem_->write32(addr + 8,  d.length | (static_cast<u32>(d.checksum) << 16));
-    (void)sys_mem_->write32(addr + 12, d.status | (static_cast<u32>(d.errors) << 8)
-                                                | (static_cast<u32>(d.vlan) << 16));
+    sys_mem_->write32(addr,      d.buffer_addr);
+    sys_mem_->write32(addr + 4,  d.buffer_addr_hi);
+    sys_mem_->write32(addr + 8,  d.length | (static_cast<u32>(d.checksum) << 16));
+    sys_mem_->write32(addr + 12, d.status | (static_cast<u32>(d.errors) << 8)
+                                          | (static_cast<u32>(d.vlan) << 16));
 }
 
 TxDescriptor NIC::read_tx_desc(u32 qid, u32 idx) const
@@ -533,12 +610,12 @@ void NIC::write_tx_desc(u32 qid, u32 idx, const TxDescriptor& d)
 {
     addr_t addr = tx_rings_[qid].base_addr + idx * 16;
 
-    (void)sys_mem_->write32(addr,      d.buffer_addr);
-    (void)sys_mem_->write32(addr + 4,  d.buffer_addr_hi);
-    (void)sys_mem_->write32(addr + 8,  d.length | (static_cast<u32>(d.cso) << 16)
-                                                | (static_cast<u32>(d.cmd) << 24));
-    (void)sys_mem_->write32(addr + 12, d.status | (static_cast<u32>(d.css) << 8)
-                                                | (static_cast<u32>(d.vlan) << 16));
+    sys_mem_->write32(addr,      d.buffer_addr);
+    sys_mem_->write32(addr + 4,  d.buffer_addr_hi);
+    sys_mem_->write32(addr + 8,  d.length | (static_cast<u32>(d.cso) << 16)
+                                          | (static_cast<u32>(d.cmd) << 24));
+    sys_mem_->write32(addr + 12, d.status | (static_cast<u32>(d.css) << 8)
+                                          | (static_cast<u32>(d.vlan) << 16));
 }
 
 // ── Loopback ───────────────────────────────────────────────────────────

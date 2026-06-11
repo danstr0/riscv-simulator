@@ -5,28 +5,34 @@
 
 #include "timer.hpp"
 
-namespace riscv {
+#include <iostream>
 
-void Timer::reset()
-{
-    mtime_    = 0;
-    mtimecmp_ = ~u64{0};
-    pending_  = false;
-}
+namespace riscv {
 
 bool Timer::tick(cycle_t cycle)
 {
     mtime_ = cycle;
     bool was_pending = pending_;
     check();
+
+    if (!was_pending && pending_)
+        std::cout << std::format("[TIMER] Interrupt raised | cycle={}", cycle);
+
     return !was_pending && pending_;
 }
 
 void Timer::check()
 {
     bool new_pending = (mtime_ >= mtimecmp_);
+ 
     if (new_pending != pending_)
     {
+        if (trace_)
+            std::cout << std::format("[TIMER] {} mtime={} | mtimecmp={}",
+                                     new_pending ? "ASSERT" : "CLEAR",
+                                     mtime_,
+                                     mtimecmp_);
+
         pending_ = new_pending;
         if (notify_cb_) notify_cb_(pending_);
     }
@@ -56,15 +62,30 @@ MemoryResult Timer::write32(addr_t addr, u32 value)
             return {value, 1, true};
 
         case MTIMECMP_LO:
+        {
+            auto old = mtimecmp_;
             mtimecmp_ = (mtimecmp_ & 0xFFFF'FFFF'0000'0000ULL) | value;
+            
+            if (trace_)
+                std::cout << std::format("[TIMER] MTIMECMP_LO write value=0x{:08x} | "
+                                         "old=0x{:016x} | new=0x{:016x}",
+                                         value, old, mtimecmp_);
             check();
             return {value, 1, true};
-
+        }
         case MTIMECMP_HI:
+        {
+            auto old = mtimecmp_;
             mtimecmp_ = (mtimecmp_ & 0x0000'0000'FFFF'FFFFULL)
                       | (static_cast<u64>(value) << 32);
+            
+            if (trace_)
+                std::cout << std::format("[TIMER] MTIMECMP_HI write value=0x{:08x} |"
+                                         "old=0x{:016x} | new=0x{:016x}",
+                                         value, old, mtimecmp_);
             check();
             return {value, 1, true};
+        }
 
         default:
             return {0, 1, false};

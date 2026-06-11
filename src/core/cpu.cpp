@@ -40,7 +40,7 @@ bool CPU::step()
 {
     if (halted_) [[unlikely]]
         return false;
-    
+
     // ── 1. Fetch ────────────────────────────────────────
     addr_t current_pc = executor_.pc();
     auto fetch_result = memory_->read32(current_pc);
@@ -51,26 +51,21 @@ bool CPU::step()
         halted_ = true;
         return false;
     }
-    
+
     // Accumulate fetch latency
     executor_.stats().cycles += fetch_result.cycles;
 
     // ── 2. Decode ───────────────────────────────────────
     last_inst_ = Decoder::decode(fetch_result.value, current_pc);
-    
-    if (trace_)
-        std::cout << std::format("[Trace] 0x{:08x}: {:08x}  {}\n",
-                                 current_pc, last_inst_.raw,
-                                 last_inst_.disassemble());
-    
+
     if (last_inst_.op == Op::INVALID)
     {
-        std::cerr << std::format("[CPU] Illegal instruction 0x{:08x} at PC 0x{:08x}\n",
+        std::cerr << std::format("[ERROR] Illegal instruction 0x{:08x} at PC 0x{:08x}\n",
                                  fetch_result.value, current_pc); 
         halted_ = true;
         return false;
     }
-    
+
     // ── 3. Execute ──────────────────────────────────────
     last_result_ = executor_.execute(last_inst_);
 
@@ -80,48 +75,20 @@ bool CPU::step()
         halted_ = true;
         return false;
     }
-    
+
     // Update PC
     executor_.set_pc(last_result_.next_pc);
-    
-    // ── 4. Post-Execution State Update ──────────────────
+
+    // ── 4. Post-execution state update ──────────────────
     if (last_result_.ebreak)
     {
         halted_ = true;
         return false;
     }
-    
+
     // Note: ECALL is handled by the caller checking last_result().ecall
 
     return true;
-}
-
-void CPU::reset()
-{
-    executor_.reset();
-    last_inst_   = DecodedInst{};
-    last_result_ = ExecuteResult{};
-    halted_      = false;
-}
-
-CpuState CPU::save_state() const
-{
-    return {
-        .regs = executor_.regs(),
-        .pc   = executor_.pc(),
-        .cycles = executor_.stats().cycles,
-        .instructions = executor_.stats().instructions
-    };
-}
-
-void CPU::restore_state(const CpuState& state)
-{
-    for (reg_idx_t i = 1; i < 32; ++i)
-        executor_.set_reg(i, state.regs[i]);
-    executor_.set_pc(state.pc);
-
-    // Statistics are cumulative across resets to track total simulation work.
-    halted_ = false;
 }
 
 } // namespace riscv

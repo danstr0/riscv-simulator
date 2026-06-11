@@ -46,8 +46,8 @@ public:
     void set_pc(addr_t pc)                   noexcept { executor_.set_pc(pc); }
     [[nodiscard]] addr_t pc()          const noexcept { return executor_.pc(); }
 
-    [[nodiscard]] u32 reg(reg_idx_t r) const noexcept { return executor_.reg(r); }
     void set_reg(reg_idx_t r, u32 value)     noexcept { executor_.set_reg(r, value); }
+    [[nodiscard]] u32 reg(reg_idx_t r) const noexcept { return executor_.reg(r); }
     /// @}
 
     /// @name Execution
@@ -105,19 +105,12 @@ public:
     [[nodiscard]] u64       instructions() const noexcept { return executor_.stats().instructions; }
     /// @}
 
-    /// @name Lifecycle
-    /// @{
-    void reset();
-    [[nodiscard]] CpuState save_state() const;
-    void restore_state(const CpuState& state);
-    /// @}
-
     /// @name Inspection
     /// @{
     void dump_regs() const { executor_.dump_regs(); }
     [[nodiscard]] const DecodedInst&   last_instruction() const noexcept { return last_inst_; }
     [[nodiscard]] const ExecuteResult& last_result()      const noexcept { return last_result_; }
-    void set_trace(bool enable) noexcept { trace_ = enable; }
+    void set_trace(bool enable) noexcept { executor_.set_trace(enable); }
     [[nodiscard]] Memory&       memory()       noexcept { return *memory_; }
     [[nodiscard]] const Memory& memory() const noexcept { return *memory_; }
     /// @}
@@ -129,7 +122,6 @@ private:
 
     DecodedInst   last_inst_{};
     ExecuteResult last_result_{};
-    bool          trace_ = false;
     bool          halted_ = false;
 };
 

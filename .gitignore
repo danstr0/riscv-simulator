@@ -27,8 +27,6 @@ vgcore.*
 
 # Experimental files
 exp_*
-
-# Stepper files
 src/core/stepper.?pp
 src/stepper_main.cpp
 

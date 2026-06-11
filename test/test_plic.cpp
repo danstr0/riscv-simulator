@@ -6,9 +6,9 @@
  *   1 (line  20) : Basic functions - set/clear pending, enable, priority
  *   2 (line  80) : Claim/complete - claim returns highest-priority, clears pending
  *   3 (line 140) : Threshold - interrupts below are filtered
- *   4 (line 186) : MMIO - register reads/writes match programmatic API
- *   5 (line 270) : Notification callback - fires on state changes
- *   6 (line 311) : Multi-source - priority ordering with multiple pending
+ *   4 (line 185) : MMIO - register reads/writes match programmatic API
+ *   5 (line 269) : Notification callback - fires on state changes
+ *   6 (line 310) : Multi-source - priority ordering with multiple pending
  */
 
 #include "core/plic.hpp"
@@ -171,7 +171,6 @@ TEST(plic_threshold_passes_higher)
 TEST(plic_threshold_zero_passes_all)
 {
     PLIC plic;
-    plic.reset();
 
     plic.set_priority(1, 1); // minimum nonzero priority
     plic.set_enable(1, true);

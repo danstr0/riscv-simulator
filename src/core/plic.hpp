@@ -91,9 +91,11 @@ public:
     /// Callback simulating the physical MEIP wire to the CPU.
     using NotifyCallback = std::function<void(bool pending)>;
     void set_notify(NotifyCallback cb) { notify_cb_ = std::move(cb); }
+    /// @}
 
-    /// Reset all state to power-on defaults.
-    void reset();
+    /// @name Debug
+    /// @{
+    void set_trace(bool enable) noexcept { trace_ = enable; }
     /// @}
 
 private:
@@ -102,6 +104,8 @@ private:
     u32         enable_bits_  = 0;  ///< Bitmask of enabled interrupts for Hart 0.
     u32         threshold_    = 0;  ///< Interrupts with priority ≤ threshold are masked.
     mutable u32 claimed_      = 0;  ///< Currently claimed source (0 = none).
+    
+    bool trace_ = false;
 
     NotifyCallback notify_cb_;
 

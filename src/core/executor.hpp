@@ -39,13 +39,17 @@ struct CpuStats
     /// @return Instructions per cycle.
     [[nodiscard]] double ipc() const noexcept
     {
-        return cycles > 0 ? static_cast<double>(instructions) / static_cast<double>(cycles) : 0.0;
+        return cycles > 0
+            ? static_cast<double>(instructions) / static_cast<double>(cycles) 
+            : 0.0;
     }
 
     /// @return Fraction of branches that changed the PC.
     [[nodiscard]] double branch_taken_rate() const noexcept
     {
-        return branches > 0 ? static_cast<double>(branches_taken) / static_cast<double>(branches) : 0.0;
+        return branches > 0
+            ? static_cast<double>(branches_taken) / static_cast<double>(branches)
+            : 0.0;
     }
 
     void reset() noexcept { *this = CpuStats{}; }
@@ -89,7 +93,7 @@ public:
     /// @name Register access
     /// @{
     [[nodiscard]] u32 reg(reg_idx_t r) const noexcept { return regs_[r]; }
-    
+
     void set_reg(reg_idx_t r, u32 value) noexcept
     {
         if (r != 0) regs_[r] = value;
@@ -118,17 +122,18 @@ public:
     [[nodiscard]]       CSRFile&     csrs()         noexcept { return csrs_; }
     /// @}
 
-    /// Resets all architectural state and statistics.
-    void reset();
-
-    /// Dump register file to stdout.
+    /// @name Debug
+    /// @{
     void dump_regs() const;
+    void set_trace(bool enable) noexcept { trace_ = enable; }
 
 private:
     Memory&             memory_;
     std::array<u32, 32> regs_{};
     addr_t              pc_ = 0;
     CpuStats            stats_;
+
+    bool trace_ = false;
 
     /// LR/SC reservation address. Set by LR.W, cleared by SC.w or overlapping stores.
     std::optional<addr_t> reservation_;
@@ -137,9 +142,9 @@ private:
     CSRFile csrs_;
 
     /// Vector instruction dispatch.
-    ExecuteResult execute_vector(const DecodedInst& inst, u32 rs1_val, u32 rs2_val);
+    ExecuteResult execute_vector(const DecodedInst& inst, u32 rs1, [[maybe_unused]] u32 rs2);
 
-    /// @name ALU operations
+    /// @name RV32I ALU
     /// @{
     static constexpr u32 alu_add(u32 a, u32 b) noexcept { return a + b; }
     static constexpr u32 alu_sub(u32 a, u32 b) noexcept { return a - b; }
@@ -159,16 +164,17 @@ private:
         return shifted; 
     }
 
-    static constexpr u32 alu_slt(u32 a, u32 b) noexcept  { return static_cast<i32>(a) <
-                                                                  static_cast<i32>(b) ? 1u
-                                                                                      : 0u; }
+    static constexpr u32 alu_slt(u32 a, u32 b) noexcept  { return static_cast<i32>(a)
+                                                                < static_cast<i32>(b)
+                                                                ? 1u
+                                                                : 0u; }
     static constexpr u32 alu_sltu(u32 a, u32 b) noexcept { return a < b ? 1u : 0u; }
     /// @}
 
     /// @name RV32M multiply/divide
     /// @{
     static constexpr u32 alu_mul(u32 a, u32 b) noexcept { return a * b; }
-    
+
     static constexpr u32 alu_mulh(u32 a, u32 b) noexcept
     {
         i64 result = static_cast<i64>(static_cast<i32>(a))
@@ -194,7 +200,7 @@ private:
 
     static constexpr u32 alu_div(u32 a, u32 b) noexcept
     {
-        if (b == 0) return ~u32{0};   /* -1 */
+        if (b == 0) return ~u32{0};
         auto sa = static_cast<i32>(a);
         auto sb = static_cast<i32>(b);
 
@@ -231,10 +237,10 @@ private:
     /// @{
     static constexpr bool cond_eq(u32 a, u32 b)  noexcept { return a == b; }
     static constexpr bool cond_ne(u32 a, u32 b)  noexcept { return a != b; }
-    static constexpr bool cond_lt(u32 a, u32 b)  noexcept { return static_cast<i32>(a) <
-                                                                   static_cast<i32>(b); }
-    static constexpr bool cond_ge(u32 a, u32 b)  noexcept { return static_cast<i32>(a) >=
-                                                                   static_cast<i32>(b); }
+    static constexpr bool cond_lt(u32 a, u32 b)  noexcept { return static_cast<i32>(a)
+                                                                 < static_cast<i32>(b); }
+    static constexpr bool cond_ge(u32 a, u32 b)  noexcept { return static_cast<i32>(a)
+                                                                >= static_cast<i32>(b); }
     static constexpr bool cond_ltu(u32 a, u32 b) noexcept { return a < b; }
     static constexpr bool cond_geu(u32 a, u32 b) noexcept { return a >= b; }
     /// @}

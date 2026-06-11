@@ -105,7 +105,7 @@ u32 Cache::find_victim(u32 set_idx) const
     const auto& set = sets_[set_idx];
     u32 N = config_.associativity;
 
-    /* Always prefer an invalid (empty) slot. */
+    // Always prefer an invalid (empty) slot.
     for (u32 w = 0; w < N; ++w)
         if (!set[w].valid) return w;
 
@@ -116,13 +116,11 @@ u32 Cache::find_victim(u32 set_idx) const
             u32 victim = 0;
             u64 oldest = set[0].last_access;
             for (u32 w = 1; w < N; ++w)
-            {
                 if (set[w].last_access < oldest)
                 {
                     oldest = set[w].last_access;
                     victim = w;
                 }
-            }
             return victim;
         }
 
@@ -131,13 +129,11 @@ u32 Cache::find_victim(u32 set_idx) const
             u32 victim = 0;
             u64 newest = set[0].last_access;
             for (u32 w = 1; w < N; ++w)
-	        {
                 if (set[w].last_access > newest)
 		        {
                     newest = set[w].last_access;
                     victim = w;
                 }
-            }
             return victim;
         }
 
@@ -146,14 +142,14 @@ u32 Cache::find_victim(u32 set_idx) const
             const auto& bits = plru_bits_[set_idx];
             u32 node = 0;
             u32 way  = 0;
-            u32 span = N;  /* Number of ways in the current subtree */
+            u32 span = N;  // number of ways in the current subtree
             
             while (span > 1)
-	    {
+	        {
                 u32 half = span / 2;
                 if (bits[node] == 0)
                     node = 2 * node + 1;
-		    /* way stays the same (leftmost of current subtree) */
+		        // way stays the same (leftmost of current subtree)
                 else
 		        {
                     node = 2 * node + 2;
@@ -169,13 +165,11 @@ u32 Cache::find_victim(u32 set_idx) const
             u32 victim = 0;
             u32 earliest = set[0].fifo_order;
             for (u32 w = 1; w < N; ++w)
-            {
                 if (set[w].fifo_order < earliest)
                 {
                     earliest = set[w].fifo_order;
                     victim = w;
                 }
-            }
             return victim;
         }
 
@@ -186,7 +180,7 @@ u32 Cache::find_victim(u32 set_idx) const
         } 
     }
 
-    return 0;  /* unreachable */
+    return 0;  // unreachable
 }
 
 // ── Replacement metadata update ────────────────────────────────────────
@@ -202,20 +196,21 @@ void Cache::touch_way(u32 set_idx, u32 way) const
     auto& bits = plru_bits_[set_idx];
     u32 N    = config_.associativity;
     u32 node = 0;
-    u32 base = 0;  /* leftmost way index of the current subtree */
+    u32 base = 0;  // leftmost way index of the current subtree
     u32 span = N;
 
-    while (span > 1) {
+    while (span > 1)
+    {
         u32 half = span / 2;
         if (way < base + half)
         {
-            /* Accessed way is in the left subtree; point toward right */
+            // Accessed way is in the left subtree; point toward right
             bits[node] = 1;
             node = 2 * node + 1;
         }
         else
         {
-            /* Accessed way is in the right subtree; point toward left */
+            // Accessed way is in the right subtree; point toward left
             bits[node] = 0;
             node = 2 * node + 2;
             base += half;
@@ -230,6 +225,10 @@ void Cache::writeback_line(u32 set_idx, u32 way)
 {
     auto& meta = sets_[set_idx][way];
     if (!meta.valid || !meta.dirty) return;
+
+    if (trace_)
+        std::cout << std::format("[WRITEBACK] line=0x{:08x} | set={} | way={}",
+                                 meta.line_addr, set_idx, way);
 
     const u8* data = line_data(set_idx, way);
     next_level_->write_line(meta.line_addr, data, config_.line_size);
@@ -251,6 +250,10 @@ void Cache::evict_line(u32 set_idx, u32 way)
         writeback_line(set_idx, way);
     }
 
+    if (trace_)
+        std::cout << std::format("[EVICT] line=0x{:08x} | set={} | way={} | dirty={}",
+                                 meta.line_addr, set_idx, way, meta.dirty);
+
     meta.valid = false;
     meta.dirty = false;
 }
@@ -269,6 +272,10 @@ void Cache::fetch_line(addr_t line_addr, u32 set_idx, u32 way)
     meta.line_addr   = line_addr;
     meta.last_access = access_counter_;
     meta.fifo_order  = fifo_counters_[set_idx]++;
+
+    if (trace_)
+        std::cout << std::format("[REFILL] line=0x{:08x} | set={} | way={}",
+                                 line_addr, set_idx, way);
 }
 
 // ── Allocate (evict victim, fetch new line) ────────────────────────────
@@ -280,7 +287,11 @@ Cache::LineRef Cache::allocate_line(addr_t addr)
 
     evict_line(idx, victim);
     fetch_line(line_addr_of(addr), idx, victim);
-    
+
+    if (trace_)
+        std::cout << std::format("[ALLOC] line=0x{:08x} | set={} | way={}",
+                                 line_addr_of(addr), idx, victim);
+
     return {&sets_[idx][victim], line_data(idx, victim)};
 }
 
@@ -288,12 +299,18 @@ Cache::LineRef Cache::allocate_line(addr_t addr)
 
 MemoryResult Cache::read_bytes(addr_t addr, u32 size) const
 {
-    /* Cross-line check: if the access spans two lines, split it */
+    // Cross-line check: if the access spans two lines, split it
     u32 off = offset_of(addr);
     if (off + size > config_.line_size)
     {
-        /* Recursive split - each half is within a single line */
+        // Recursive split - each half is within a single line
         u32 first_part = config_.line_size - off;
+        if (trace_)
+            std::cout << std::format("[READ_SPLIT] addr=0x{:08x} | "
+                                     "size={} -> {}+{} bytes",
+                                     addr, size,
+                                     first_part, size - first_part);
+
         auto r1 = read_bytes(addr, first_part);
         auto r2 = read_bytes(addr + first_part, size - first_part);
 
@@ -324,8 +341,8 @@ MemoryResult Cache::read_bytes(addr_t addr, u32 size) const
         u32 coherence_latency = 0;
 	    if (on_read_miss_)
             coherence_latency = on_read_miss_(line_addr_of(addr));
-	
-	auto& self = const_cast<Cache&>(*this);
+
+	    auto& self = const_cast<Cache&>(*this);
         auto ref = self.allocate_line(addr);
         latency = config_.hit_latency + config_.miss_penalty + coherence_latency;
         u32 alloc_way = static_cast<u32>(ref.meta - sets_[index_of(addr)].data());
@@ -339,16 +356,30 @@ MemoryResult Cache::read_bytes(addr_t addr, u32 size) const
     for (u32 i = 0; i < size; ++i)
         value |= static_cast<u32>(data_ptr[off + i]) << (i * 8);
 
+    
+    if (trace_)
+        std::cout << std::format("[READ] addr=0x{:08x} | set={} | tag=0x{:x} | "
+                                 "{} | latency={}",
+                                 addr, index_of(addr), tag_of(addr),
+                                 found ? "HIT" : "MISS",
+                                 latency);
+    
     return {value, latency, true};
 }
 
 MemoryResult Cache::write_bytes(addr_t addr, const u8* bytes, u32 size)
 {
-    /* Cross-line check */
+    // Cross-line check
     u32 off = offset_of(addr);
     if (off + size > config_.line_size)
     {
         u32 first_part = config_.line_size - off;
+        if (trace_)
+            std::cout << std::format("[WRITE_SPLIT] addr=0x{:08x} | "
+                                     "size={} -> {}+{} bytes",
+                                     addr, size,
+                                     first_part, size - first_part);
+
         auto r1 = write_bytes(addr, bytes, first_part);
         auto r2 = write_bytes(addr + first_part, bytes + first_part, size - first_part);
         return {0, r1.cycles + r2.cycles, r1.ok && r2.ok};
@@ -361,7 +392,16 @@ MemoryResult Cache::write_bytes(addr_t addr, const u8* bytes, u32 size)
     if (on_write_)
         coherence_latency = on_write_(line_addr_of(addr));
 
-    /* Write-no-allocate path */
+    auto log_write = [&](std::string_view hit_or_miss, u32 latency)
+    {
+        if (trace_)
+            std::cout << std::format("[WRITE] addr=0x{:08x} | size={} | "
+                                     "set={} | tag=0x{:x} | {} | latency={}",
+                                     addr, size, index_of(addr), tag_of(addr),
+                                     hit_or_miss, latency);
+    };
+
+    // Write-no-allocate path
     if (config_.write_alloc == WriteAllocate::NO_ALLOCATE)
     {
         auto found = find_line(addr);
@@ -372,9 +412,11 @@ MemoryResult Cache::write_bytes(addr_t addr, const u8* bytes, u32 size)
                 next_level_->write8(addr + i, bytes[i]);
             u32 latency = config_.hit_latency + config_.miss_penalty + coherence_latency;
             stats_.total_latency += latency;
+
+            log_write("MISS", latency);
             return {0, latency, true};
         }
-        
+
         stats_.hits++;
         found->meta->last_access = access_counter_;
         u32 hit_way = static_cast<u32>(found->meta - sets_[index_of(addr)].data());
@@ -382,19 +424,19 @@ MemoryResult Cache::write_bytes(addr_t addr, const u8* bytes, u32 size)
         std::memcpy(found->data + off, bytes, size);
 
         if (config_.write_pol == WritePolicy::WRITE_THROUGH)
-        {
             for (u32 i = 0; i < size; ++i)
                 next_level_->write8(addr + i, bytes[i]);
-        } 
         else
             found->meta->dirty = true;
 
         u32 latency = config_.hit_latency + coherence_latency;
         stats_.total_latency += latency;
+
+        log_write("HIT", latency);
         return {0, latency, true};
     }
 
-    /* Write-allocate path */
+    // Write-allocate path
     auto found = find_line(addr);
     u32 latency;
     u8* dest;
@@ -423,13 +465,13 @@ MemoryResult Cache::write_bytes(addr_t addr, const u8* bytes, u32 size)
     std::memcpy(dest + off, bytes, size);
 
     if (config_.write_pol == WritePolicy::WRITE_THROUGH)
-    {
         for (u32 i = 0; i < size; ++i)
             next_level_->write8(addr + i, bytes[i]);
-    }
 
     latency += coherence_latency;
     stats_.total_latency += latency;
+
+    log_write(found ? "HIT" : "MISS", latency);
     return {0, latency, true};
 }
 
@@ -446,7 +488,8 @@ MemoryResult Cache::write8(addr_t addr, u8 value)
 
 MemoryResult Cache::write16(addr_t addr, u16 value)
 {
-    std::array<u8, 2> buf = {
+    std::array<u8, 2> buf =
+    {
         static_cast<u8>(value),
         static_cast<u8>(value >> 8),
     };
@@ -455,7 +498,8 @@ MemoryResult Cache::write16(addr_t addr, u16 value)
 
 MemoryResult Cache::write32(addr_t addr, u32 value)
 {
-    std::array<u8, 4> buf = {
+    std::array<u8, 4> buf =
+    {
         static_cast<u8>(value),
         static_cast<u8>(value >> 8),
         static_cast<u8>(value >> 16),
@@ -466,10 +510,10 @@ MemoryResult Cache::write32(addr_t addr, u32 value)
 
 void Cache::load(addr_t addr, std::span<const u8> data)
 {
-    /* Bypass cache and write directly to backing memory */
+    // Bypass cache and write directly to backing memory
     next_level_->load(addr, data);
-    
-    /* Invalidate any cached copies that overlap */
+
+    // Invalidate any cached copies that overlap
     addr_t start = line_addr_of(addr);
     addr_t end   = line_addr_of(addr + static_cast<addr_t>(data.size()) - 1);
     for (addr_t la = start; la <= end; la += config_.line_size)
@@ -580,6 +624,7 @@ bool Cache::snoop_share_line(addr_t addr, u8* dest, u32 size)
         next_level_->write_line(found->meta->line_addr, found->data, config_.line_size);
         found->meta->dirty = false;
     }
+
     return true;
 }
 
@@ -618,13 +663,11 @@ void Cache::invalidate(addr_t addr)
 void Cache::invalidate_all()
 {
     for (auto& set : sets_)
-    {
         for (auto& meta : set)
         {
             meta.valid = false;
             meta.dirty = false;
         }
-    }
 }
 
 void Cache::writeback(addr_t addr)
@@ -632,22 +675,18 @@ void Cache::writeback(addr_t addr)
     u32 idx = index_of(addr);
     addr_t tag = tag_of(addr);
     for (u32 w = 0; w < config_.associativity; ++w)
-    {
         if (sets_[idx][w].valid && sets_[idx][w].tag == tag)
         {
             writeback_line(idx, w);
             return;
         }
-    }
 }
 
 void Cache::writeback_all()
 {
     for (u32 s = 0; s < sets_.size(); ++s)
-    {
         for (u32 w = 0; w < config_.associativity; ++w)
             writeback_line(s, w);
-    }
 }
 
 void Cache::flush(addr_t addr)
@@ -667,13 +706,11 @@ void Cache::dump() const
     u32 valid_lines = 0;
     u32 dirty_lines = 0;
     for (const auto& set : sets_)
-    {
         for (const auto& meta : set)
         {
             if (meta.valid) ++valid_lines;
             if (meta.valid && meta.dirty) ++dirty_lines;
         }
-    }
  
     std::cout << std::format(
         "Cache: {} KB, {}-way, {}-byte lines, {} sets\n"
@@ -696,7 +733,7 @@ CacheHierarchy::CacheHierarchy(CacheHierarchyConfig config,
     assert(!config.levels.empty());
 
     /*
-     * Build the chain from outermost → innermost so each level's
+     * Build the chain from outermost -> innermost so each level's
      * next_level is already constructed
      */
     std::shared_ptr<Memory> next = main_memory_;

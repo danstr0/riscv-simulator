@@ -255,17 +255,3 @@ TEST(timer_compare_zero)
     ASSERT(timer.interrupt_pending());
     return true;
 }
-
-TEST(timer_reset_clears_everything)
-{
-    Timer timer;
-    timer.set_compare(10);
-    timer.tick(20);
-    ASSERT(timer.interrupt_pending());
-
-    timer.reset();
-    ASSERT(!timer.interrupt_pending());
-    ASSERT_EQ(timer.current_time(), 0u);
-    ASSERT_EQ(timer.compare(), ~u64{0});
-    return true;
-}

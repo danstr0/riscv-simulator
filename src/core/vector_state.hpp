@@ -149,10 +149,12 @@ public:
         u32 base = vreg * vlenb();
         u32 byte_idx = base + elem / 8;
         u32 bit_idx  = elem % 8;
-        if (val)
-            data_[byte_idx] |=  (1u << bit_idx);
-        else
-            data_[byte_idx] &= ~(1u << bit_idx);
+
+        const u8 mask = static_cast<u8>(1u << bit_idx);
+
+        data_[byte_idx] =
+            val ? (data_[byte_idx] | mask)
+                : (data_[byte_idx] & ~mask);
     }
 
     /// @return Mutable pointer to the raw storage of register @p vreg.

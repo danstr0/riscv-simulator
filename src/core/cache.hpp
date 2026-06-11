@@ -184,7 +184,9 @@ struct CacheStats {
     [[nodiscard]] double avg_latency() const noexcept
     {
         u64 accesses = reads + writes;
-        return accesses > 0 ? static_cast<double>(total_latency) / static_cast<double>(accesses) : 0.0;
+        return accesses > 0 ? static_cast<double>(total_latency)
+                            / static_cast<double>(accesses)
+                            : 0.0;
     }
 
     void reset() noexcept { *this = CacheStats{}; }
@@ -259,14 +261,19 @@ public:
     void set_on_write(WriteCallback cb)    { on_write_ = std::move(cb); }
     /// @}
 
-    /// Debug cache summary to stdout.
+    /// @name Debug
+    /// @{
     void dump() const;
+    void set_trace(bool enable) noexcept { trace_ = enable; }
+    /// @}
 
 private:
     CacheConfig             config_;
     std::shared_ptr<Memory> next_level_;
     MissCallback            on_read_miss_;
     WriteCallback           on_write_;
+    bool                    trace_ = false;
+
 
     /*
      * Flat storage: all line payloads in one contiguous allocation.

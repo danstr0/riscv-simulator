@@ -30,7 +30,8 @@ namespace riscv {
  * 
  * Callers must verify @c ok before consuming @c value.
  */
-struct [[nodiscard]] MemoryResult {
+struct MemoryResult
+{
     u32 value  = 0;     ///< Data retrieved on reads; undefined for writes.
     u32 cycles = 1;     ///< Latency of this transaction.
     bool ok    = true;  ///< False if a fault occurred.
