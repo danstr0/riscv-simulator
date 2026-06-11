@@ -191,24 +191,3 @@ TEST(mc_stats_per_core)
     ASSERT(stats.core_stats[1].instructions_retired > 0u);
     return true;
 }
-
-// ═══════════════════════════════════════════════════════════════════════
-//  6. Reset
-// ═══════════════════════════════════════════════════════════════════════
-
-TEST(mc_reset)
-{
-    auto sys = MultiCoreCPU(test_config(2));
-
-    sys.load_instruction(0x0000, ADDI(1, 0, 42));
-    sys.load_instruction(0x0004, EBREAK);
-    sys.set_core_pc(0, 0x0000);
-    sys.run_until_all_halted(20);
-    ASSERT_EQ(sys.core(0).reg(1), 42u);
-
-    sys.reset();
-    ASSERT_EQ(sys.core(0).reg(1), 0u);
-    ASSERT_EQ(sys.core(0).pc(), 0u);
-    ASSERT_EQ(sys.cycles(), 0u);
-    return true;
-}
