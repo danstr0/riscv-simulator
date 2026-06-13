@@ -180,7 +180,7 @@ static RunResult run_once(const SimConfig& cfg, const std::vector<u8>& code)
     sys.cpu->set_pc(0);
 
     // Apply register initialization from config
-    for (auto& ri : cfg.reg_init) sys.cpu->set_reg(ri.reg_idx, ri.value);
+    for (auto& ri : cfg.reg_init) sys.cpu->set_reg(static_cast<reg_idx_t>(ri.reg_idx), ri.value);
 
     // Run
     sys.cpu->run_cycles(static_cast<cycle_t>(cfg.max_cycles));

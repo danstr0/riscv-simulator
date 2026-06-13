@@ -2,17 +2,19 @@
  * @file test_config.cpp
  * @brief Tests for the configuration file parser.
  *
- * Sections:
- *   1 (line  24) : Basic parsing
- *   2 (line  42) : Memory initialization
- *   3 (line 140) : Registers
- *   4 (line 211) : Caches
- *   5 (line 412) : Pipeline
- *   6 (line 473) : System
- *   7 (line 590) : Sweep
- *   8 (line 734) : Multicore configuration
- *   9 (line 904) : apply_config_param
- *  10 (line 922) : Full config file
+ * @par Sections
+ * @code
+ *   1 (line  26) : Basic parsing
+ *   2 (line  44) : Memory initialization
+ *   3 (line 142) : Registers
+ *   4 (line 213) : Cache
+ *   5 (line 414) : Pipeline
+ *   6 (line 475) : System
+ *   7 (line 592) : Sweep
+ *   8 (line 736) : Multicore configuration
+ *   9 (line 906) : apply_config_param
+ *  10 (line 924) : Full config file
+ * @endcode
  */
 
 #include "core/config.hpp"
@@ -98,7 +100,7 @@ TEST(cfg_mem_init_fill)
     ASSERT_EQ(e.fill_count, 256u);
     return true;
 }
- 
+
 TEST(cfg_mem_init_string)
 {
     auto r = parse_config(R"(
@@ -112,7 +114,7 @@ TEST(cfg_mem_init_string)
     ASSERT(e.str == "hello");
     return true;
 }
- 
+
 TEST(cfg_mem_init_single_value)
 {
     auto r = parse_config(R"(
@@ -161,7 +163,7 @@ TEST(cfg_registers)
     ASSERT_EQ(r.config.reg_init[2].value, 0xFFF0u);
     return true;
 }
- 
+
 TEST(cfg_registers_x_names)
 {
     auto r = parse_config(R"(
@@ -288,7 +290,7 @@ TEST(cfg_cache_error_bad_size)
         size = 6K
     )");
     ASSERT(!r2.ok);
-    
+
     auto r3 = parse_config(R"(
         [cache.l2]
         size = 4K
@@ -921,7 +923,7 @@ TEST(cfg_apply_param)
 // ═══════════════════════════════════════════════════════════════════════════
 //  6. Full config file
 // ═══════════════════════════════════════════════════════════════════════════
- 
+
 TEST(cfg_full_file)
 {
     auto r = parse_config(R"(

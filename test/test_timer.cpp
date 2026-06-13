@@ -2,13 +2,15 @@
  * @file test_timer.cpp
  * @brief Tests for the CLINT-style machine timer.
  *
- * Sections:
- *   1 (line  20) : Basic state
- *   2 (line  40) : Compare match — interrupt fires when mtime >= mtimecmp
- *   3 (line  98) : Clear — writing new mtimecmp clears interrupt
- *   4 (line 133) : MMIO — register reads/writes
- *   5 (line 199) : Notification callback
- *   6 (line 236) : Edge cases — overflow, immediate match
+ * @par Sections
+ * @code
+ *   1 (line  22) : Basic state
+ *   2 (line  42) : Compare match
+ *   3 (line 100) : Clear via new mtimecmp
+ *   4 (line 135) : MMIO register access
+ *   5 (line 201) : Notification callback
+ *   6 (line 238) : Edge cases — overflow, immediate match
+ * @endcode
  */
 
 #include "core/timer.hpp"
@@ -137,11 +139,11 @@ TEST(timer_mmio_read_mtime)
 {
     Timer timer;
     timer.tick(0x12345678);
- 
+
     auto lo = timer.read32(0x00); // MTIME_LO
     ASSERT(lo.ok);
     ASSERT_HEX_EQ(lo.value, 0x12345678u);
- 
+
     auto hi = timer.read32(0x04); // MTIME_HI
     ASSERT(hi.ok);
     ASSERT_EQ(hi.value, 0u); // cycle count fits in 32 bits
@@ -152,8 +154,8 @@ TEST(timer_mmio_write_compare)
 {
     Timer timer;
 
-    (void)timer.write32(0x0C, 0);   // MTIMECMP_HI = 0
-    (void)timer.write32(0x08, 100); // MTIMECMP_LO = 100
+    timer.write32(0x0C, 0);   // MTIMECMP_HI = 0
+    timer.write32(0x08, 100); // MTIMECMP_LO = 100
     ASSERT_EQ(timer.compare(), 100u);
 
     timer.tick(100);
@@ -169,7 +171,7 @@ TEST(timer_mmio_write_compare_clears)
     ASSERT(timer.interrupt_pending());
 
     // Write new compare via MMIO
-    (void)timer.write32(0x08, 200);
+    timer.write32(0x08, 200);
     ASSERT(!timer.interrupt_pending());
     ASSERT_EQ(timer.compare(), 200u);
     return true;
@@ -181,7 +183,7 @@ TEST(timer_mmio_mtime_read_only)
     timer.tick(42);
 
     // Writing to mtime should be ignored
-    (void)timer.write32(0x00, 999);
+    timer.write32(0x00, 999);
     auto r = timer.read32(0x00);
     ASSERT_EQ(r.value, 42u);  // unchanged
     return true;

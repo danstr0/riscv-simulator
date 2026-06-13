@@ -62,7 +62,7 @@ struct CpuStats
  */
 struct [[nodiscard]] ExecuteResult
 {
-    bool   ok           = true;   ///< False if a fault occurred.
+    bool   ok           = true;   ///< @c false if a fault occurred.
     u32    cycles       = 1;      ///< Total latency of this instruction.
     bool   branch_taken = false;  ///< Whether a branch/jump was taken.
     addr_t next_pc      = 0;      ///< Next instruction address.  
@@ -70,7 +70,7 @@ struct [[nodiscard]] ExecuteResult
     bool   ecall        = false;  ///< Environment call trap.
     bool   ebreak       = false;  ///< Breakpoint trap.
 
-    std::optional<u32> rd_value;  ///< Value written to rd, if any.
+    std::optional<u32> rd_value;  ///< Value written to @c rd, if any.
 };
 
 /**
@@ -126,6 +126,7 @@ public:
     /// @{
     void dump_regs() const;
     void set_trace(bool enable) noexcept { trace_ = enable; }
+    /// @}
 
 private:
     Memory&             memory_;
@@ -135,7 +136,7 @@ private:
 
     bool trace_ = false;
 
-    /// LR/SC reservation address. Set by LR.W, cleared by SC.w or overlapping stores.
+    /// LR/SC reservation address. Set by LR.W, cleared by SC.W or overlapping stores.
     std::optional<addr_t> reservation_;
 
     VectorState vstate_;
@@ -187,14 +188,14 @@ private:
     {
         i64 result = static_cast<i64>(static_cast<i32>(a))
                    * static_cast<i64>(static_cast<u64>(b));
-        
+
         return static_cast<u32>(static_cast<u64>(result) >> 32);
     }
 
     static constexpr u32 alu_mulhu(u32 a, u32 b) noexcept
     {
         u64 result = static_cast<u64>(a) * static_cast<u64>(b);
-        
+
         return static_cast<u32>(result >> 32);
     }
 

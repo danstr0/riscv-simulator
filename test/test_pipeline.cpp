@@ -2,13 +2,14 @@
  * @file test_pipeline.cpp
  * @brief Tests for the 5-stage pipelined CPU.
  *
- * Sections:
- *   2 (line 229) : IPC on straight-line code
- *   3 (line 258) : Data hazards and forwarding
- *   4 (line 352) : Forwarding policies
- *   5 (line 402) : Branch prediction strategies
- *   6 (line 514) : Control hazards
- *   7 (line 556) : Pipeline state inspection
+ * @par Sections
+ * @code
+ *   1 (line  21) : IPC on straight-line code
+ *   2 (line  47) : Data hazards and forwarding
+ *   3 (line 128) : Branch prediction
+ *   5 (line 236) : Control hazards
+ *   7 (line 278) : Pipeline state inspection
+ * @endcode
  */
 
 #include "test_framework.hpp"
@@ -17,7 +18,7 @@
 using namespace riscv;
 
 // ═══════════════════════════════════════════════════════════════════════
-//  2. Pipeline timing — straight-line IPC
+//  1. Pipeline timing — straight-line IPC
 // ═══════════════════════════════════════════════════════════════════════
 
 TEST(pipe_straight_line_ipc)
@@ -43,7 +44,7 @@ TEST(pipe_straight_line_ipc)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  3. Data hazards and forwarding
+//  2. Data hazards and forwarding
 // ═══════════════════════════════════════════════════════════════════════
 
 TEST(pipe_raw_hazard_no_forwarding)
@@ -124,7 +125,7 @@ TEST(pipe_no_load_use_with_gap)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  5. Branch prediction
+//  3. Branch prediction
 // ═══════════════════════════════════════════════════════════════════════
 
 TEST(pipe_branch_not_taken_correct)
@@ -232,13 +233,13 @@ TEST(pipe_bimodal_2bit_learns)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  6. Control hazards
+//  4. Control hazards
 // ═══════════════════════════════════════════════════════════════════════
 
 TEST(pipe_jal_flushes)
 {
     auto cpu = make_pipeline();
-    
+
     cpu.load_instruction(0,  ADDI(1, 0, 1));
     cpu.load_instruction(4,  JAL(1, 12));
     cpu.load_instruction(8,  ADDI(1, 0, 2));
@@ -274,7 +275,7 @@ TEST(pipe_jalr_flushes)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  7. Pipeline state inspection
+//  5. Pipeline state inspection
 // ═══════════════════════════════════════════════════════════════════════
 
 TEST(pipe_halted_after_ebreak)

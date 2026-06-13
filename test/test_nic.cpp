@@ -2,16 +2,18 @@
  * @file test_nic.cpp
  * @brief Tests for the NIC device model.
  *
- * Sections:
- *   1 (line  92) : MMIO registers
- *   2 (line 165) : RX path
- *   3 (line 228) : TX path
- *   4 (line 275) : Interrupts
- *   5 (line 352) : Interrupt coalescing
- *   6 (line 429) : Loopback
- *   7 (line 472) : Statistics
- *   8 (line 515) : Edge cases
- *   9 (line 557) : RSS
+ * @par Sections
+ * @code
+ *   1 (line  90) : MMIO registers
+ *   2 (line 163) : RX path
+ *   3 (line 226) : TX path
+ *   4 (line 273) : Interrupts
+ *   5 (line 350) : Interrupt coalescing
+ *   6 (line 427) : Loopback
+ *   7 (line 470) : Statistics
+ *   8 (line 513) : Edge cases
+ *   9 (line 555) : RSS
+ * @endcode
  */
 
 #include "core/nic.hpp"
@@ -21,10 +23,7 @@ using namespace riscv;
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
-/**
- * @brief Set up a NIC with a system memory region and a simple RX descriptor ring.
- * @return {nic, sys_mem}.
- */
+// Set up a NIC with a system memory region and a simple RX descriptor ring.
 struct NicTestSetup
 {
     std::shared_ptr<FlatMemory> mem;
@@ -37,47 +36,46 @@ struct NicTestSetup
         return s;
     }
 
-    /**
-     * @brief Set up a simple RX ring at base_addr with @c count descriptors.
-     *
-     * Each descriptor points to a buffer at buf_base + i * buf_size.
+    /*
+     * Set up a simple RX ring at base_addr with c descriptors
+     * Each descriptor points to a buffer at buf_base + i * buf_size
      */
     void setup_rx_ring(addr_t base_addr, u32 count, addr_t buf_base, u32 buf_size)
     {
         for (u32 i = 0; i < count; ++i)
-  	    {
+        {
             addr_t desc_addr = base_addr + i * 16;
-            (void)mem->write32(desc_addr, static_cast<u32>(buf_base + i * buf_size)); // buffer_addr
-            (void)mem->write32(desc_addr + 4, 0);  // buffer_addr_hi
-            (void)mem->write32(desc_addr + 8, 0);  // length/checksum
-            (void)mem->write32(desc_addr + 12, 0); // status/errors/vlan
+            mem->write32(desc_addr, static_cast<u32>(buf_base + i * buf_size)); // buffer_addr
+            mem->write32(desc_addr + 4, 0);  // buffer_addr_hi
+            mem->write32(desc_addr + 8, 0);  // length/checksum
+            mem->write32(desc_addr + 12, 0); // status/errors/vlan
         }
-        (void)nic.write32(NicReg::RDBAL, static_cast<u32>(base_addr));
-        (void)nic.write32(NicReg::RDLEN, count * 16);
-        (void)nic.write32(NicReg::RDH, 0);
-        (void)nic.write32(NicReg::RDT, count - 1); // all descriptors available
+        nic.write32(NicReg::RDBAL, static_cast<u32>(base_addr));
+        nic.write32(NicReg::RDLEN, count * 16);
+        nic.write32(NicReg::RDH, 0);
+        nic.write32(NicReg::RDT, count - 1); // all descriptors available
     }
 
-    /// Set up a simple TX ring at base_addr with @c count descriptors.
+    // Set up a simple TX ring at base_addr with c descriptors
     void setup_tx_ring(addr_t base_addr, u32 count)
     {
         for (u32 i = 0; i < count; ++i)
-	    {
+        {
             addr_t desc_addr = base_addr + i * 16;
-            (void)mem->write32(desc_addr, 0);
-            (void)mem->write32(desc_addr + 4, 0);
-            (void)mem->write32(desc_addr + 8, 0);
-            (void)mem->write32(desc_addr + 12, 0);
+            mem->write32(desc_addr, 0);
+            mem->write32(desc_addr + 4, 0);
+            mem->write32(desc_addr + 8, 0);
+            mem->write32(desc_addr + 12, 0);
         }
-        (void)nic.write32(NicReg::TDBAL, static_cast<u32>(base_addr));
-        (void)nic.write32(NicReg::TDLEN, count * 16);
-        (void)nic.write32(NicReg::TDH, 0);
-        (void)nic.write32(NicReg::TDT, 0); // no pending TX
+        nic.write32(NicReg::TDBAL, static_cast<u32>(base_addr));
+        nic.write32(NicReg::TDLEN, count * 16);
+        nic.write32(NicReg::TDH, 0);
+        nic.write32(NicReg::TDT, 0); // no pending TX
     }
 
     void enable_rxtx()
     {
-        (void)nic.write32(NicReg::CTRL, NicCtrl::RXEN | NicCtrl::TXEN);
+        nic.write32(NicReg::CTRL, NicCtrl::RXEN | NicCtrl::TXEN);
     }
 };
 
@@ -104,7 +102,7 @@ TEST(nic_status_link_up)
 TEST(nic_ctrl_write_read)
 {
     auto s = NicTestSetup::create();
-    (void)s.nic.write32(NicReg::CTRL, NicCtrl::RXEN | NicCtrl::TXEN);
+    s.nic.write32(NicReg::CTRL, NicCtrl::RXEN | NicCtrl::TXEN);
     ASSERT(s.nic.rx_enabled());
     ASSERT(s.nic.tx_enabled());
     return true;
@@ -114,8 +112,8 @@ TEST(nic_icr_read_clear)
 {
     auto s = NicTestSetup::create();
     // Manually poke ICR to simulate a cause
-    (void)s.nic.write32(NicReg::IMS, NicInt::RXQ0);
-    
+    s.nic.write32(NicReg::IMS, NicInt::RXQ0);
+
     auto r = s.nic.read32(NicReg::ICR);
     ASSERT_EQ(r.value, 0u);
     return true;
@@ -140,7 +138,7 @@ TEST(nic_invalid_addr)
 {
     auto s = NicTestSetup::create();
 
-    auto r = s.nic.read32(0xFF);  // misaligned
+    auto r = s.nic.read32(0xFF); // misaligned
     ASSERT(!r.ok);
 
     r = s.nic.read32(NicReg::REG_SIZE); // out of range
@@ -152,10 +150,10 @@ TEST(nic_reset_via_ctrl)
 {
     auto s = NicTestSetup::create();
 
-    (void)s.nic.write32(NicReg::CTRL, NicCtrl::RXEN | NicCtrl::TXEN);
+    s.nic.write32(NicReg::CTRL, NicCtrl::RXEN | NicCtrl::TXEN);
     ASSERT(s.nic.rx_enabled());
 
-    (void)s.nic.write32(NicReg::CTRL, NicCtrl::RST);
+    s.nic.write32(NicReg::CTRL, NicCtrl::RST);
     ASSERT(!s.nic.rx_enabled());
     ASSERT(!s.nic.tx_enabled());
     return true;
@@ -238,20 +236,20 @@ TEST(nic_tx_basic)
     s.enable_rxtx();
 
     // Write packet data at 0x4000
-    (void)s.mem->write8(0x4000, 0x11);
-    (void)s.mem->write8(0x4001, 0x22);
-    (void)s.mem->write8(0x4002, 0x33);
-    (void)s.mem->write8(0x4003, 0x44);
+    s.mem->write8(0x4000, 0x11);
+    s.mem->write8(0x4001, 0x22);
+    s.mem->write8(0x4002, 0x33);
+    s.mem->write8(0x4003, 0x44);
 
     // Write TX descriptor: buffer_addr=0x4000, length=4, cmd=EOP|RS
     addr_t desc0 = 0x3000;
-    (void)s.mem->write32(desc0, 0x4000);  // buffer_addr
-    (void)s.mem->write32(desc0 + 4, 0);   // buffer_addr_hi
-    (void)s.mem->write32(desc0 + 8, 4 | (static_cast<u32>(TxDescriptor::CMD_EOP 
+    s.mem->write32(desc0, 0x4000); // buffer_addr
+    s.mem->write32(desc0 + 4, 0);  // buffer_addr_hi
+    s.mem->write32(desc0 + 8, 4 | (static_cast<u32>(TxDescriptor::CMD_EOP 
                                 | TxDescriptor::CMD_RS) << 24));
-    (void)s.mem->write32(desc0 + 12, 0);
+    s.mem->write32(desc0 + 12, 0);
 
-    (void)s.nic.write32(NicReg::TDT, 1);
+    s.nic.write32(NicReg::TDT, 1);
 
     for (cycle_t c = 1; c <= 200; ++c)
         s.nic.tick(c);
@@ -305,7 +303,7 @@ TEST(nic_interrupt_fires)
     s.enable_rxtx();
 
     // Enable RX interrupt
-    (void)s.nic.write32(NicReg::IMS, NicInt::RXQ0);
+    s.nic.write32(NicReg::IMS, NicInt::RXQ0);
 
     bool callback_fired = false;
     s.nic.set_interrupt_callback([&]() { callback_fired = true; });
@@ -337,8 +335,8 @@ TEST(nic_interrupt_mask_clear)
     s.enable_rxtx();
 
     // Enable, then disable RX interrupt
-    (void)s.nic.write32(NicReg::IMS, NicInt::RXQ0);
-    (void)s.nic.write32(NicReg::IMC, NicInt::RXQ0);
+    s.nic.write32(NicReg::IMS, NicInt::RXQ0);
+    s.nic.write32(NicReg::IMC, NicInt::RXQ0);
 
     s.nic.inject_packet(make_packet({0xAA}));
     for (cycle_t c = 1; c <= 200; ++c)
@@ -360,7 +358,7 @@ TEST(nic_coalesce_by_packet_count)
     auto s = NicTestSetup::create(timing);
     s.setup_rx_ring(0x1000, 16, 0x2000, 256);
     s.enable_rxtx();
-    (void)s.nic.write32(NicReg::IMS, NicInt::RXQ0);
+    s.nic.write32(NicReg::IMS, NicInt::RXQ0);
 
     CoalesceConfig coal;
     coal.enabled = true;
@@ -397,7 +395,7 @@ TEST(nic_coalesce_by_timer)
     auto s = NicTestSetup::create(timing);
     s.setup_rx_ring(0x1000, 16, 0x2000, 256);
     s.enable_rxtx();
-    (void)s.nic.write32(NicReg::IMS, NicInt::RXQ0 | NicInt::TIMER);
+    s.nic.write32(NicReg::IMS, NicInt::RXQ0 | NicInt::TIMER);
 
     CoalesceConfig coal;
     coal.enabled = true;
@@ -438,19 +436,19 @@ TEST(nic_loopback)
     s.setup_rx_ring(0x1000, 8, 0x2000, 256);
     s.setup_tx_ring(0x3000, 8);
     s.enable_rxtx();
- 
+
     NicLoopback loopback(s.nic, 10);
 
     // Write packet at 0x4000 and set up TX descriptor
-    (void)s.mem->write8(0x4000, 0xDE);
-    (void)s.mem->write8(0x4001, 0xAD);
+    s.mem->write8(0x4000, 0xDE);
+    s.mem->write8(0x4001, 0xAD);
 
     addr_t desc0 = 0x3000;
-    (void)s.mem->write32(desc0, 0x4000);
-    (void)s.mem->write32(desc0 + 4, 0);
-    (void)s.mem->write32(desc0 + 8, 2 | (static_cast<u32>(TxDescriptor::CMD_EOP) << 24));
-    (void)s.mem->write32(desc0 + 12, 0);
-    (void)s.nic.write32(NicReg::TDT, 1);
+    s.mem->write32(desc0, 0x4000);
+    s.mem->write32(desc0 + 4, 0);
+    s.mem->write32(desc0 + 8, 2 | (static_cast<u32>(TxDescriptor::CMD_EOP) << 24));
+    s.mem->write32(desc0 + 12, 0);
+    s.nic.write32(NicReg::TDT, 1);
 
     for (cycle_t c = 1; c <= 500; ++c)
     {
@@ -606,10 +604,10 @@ TEST(nic_rss_distributes_to_queues)
     {
         addr_t da = 0x1000 + i * 16;
 
-        (void)s.mem->write32(da, static_cast<u32>(0x2000 + i * 256));
-        (void)s.mem->write32(da + 4, 0);
-        (void)s.mem->write32(da + 8, 0);
-        (void)s.mem->write32(da + 12, 0);
+        s.mem->write32(da, static_cast<u32>(0x2000 + i * 256));
+        s.mem->write32(da + 4, 0);
+        s.mem->write32(da + 8, 0);
+        s.mem->write32(da + 12, 0);
     }
 
     // Queue 1: descriptors at 0x3000, buffers at 0x4000
@@ -617,10 +615,10 @@ TEST(nic_rss_distributes_to_queues)
     for (u32 i = 0; i < 8; ++i)
     {
         addr_t da = 0x3000 + i * 16;
-        (void)s.mem->write32(da, static_cast<u32>(0x4000 + i * 256));
-        (void)s.mem->write32(da + 4, 0);
-        (void)s.mem->write32(da + 8, 0);
-        (void)s.mem->write32(da + 12, 0);
+        s.mem->write32(da, static_cast<u32>(0x4000 + i * 256));
+        s.mem->write32(da + 4, 0);
+        s.mem->write32(da + 8, 0);
+        s.mem->write32(da + 12, 0);
     }
 
     s.enable_rxtx();
@@ -662,10 +660,10 @@ TEST(nic_rss_same_flow_same_queue)
         {
             addr_t da = desc_base + i * 16;
 
-            (void)s.mem->write32(da, static_cast<u32>(buf_base + i * 256));
-            (void)s.mem->write32(da + 4, 0);
-            (void)s.mem->write32(da + 8, 0);
-            (void)s.mem->write32(da + 12, 0);
+            s.mem->write32(da, static_cast<u32>(buf_base + i * 256));
+            s.mem->write32(da + 4, 0);
+            s.mem->write32(da + 8, 0);
+            s.mem->write32(da + 12, 0);
         }
     }
 
@@ -691,7 +689,7 @@ TEST(nic_rss_same_flow_same_queue)
         for (u32 i = 0; i < 8; ++i)
         {
             u32 status_word = s.mem->read32(desc_base + i * 16 + 12).value;
-            
+
             if (status_word & RxDescriptor::STATUS_DD) has_packet = true;
         }
         if (has_packet) queues_with_packets++;
@@ -730,16 +728,16 @@ TEST(nic_multiqueue_tx_queue0_regression)
     s.enable_rxtx();
 
     // Write packet data at 0x4000 and set up a TX descriptor on queue 0
-    (void)s.mem->write8(0x4000, 0x11);
+    s.mem->write8(0x4000, 0x11);
 
     addr_t desc0 = 0x3000;
-    (void)s.mem->write32(desc0, 0x4000);
-    (void)s.mem->write32(desc0 + 4, 0);
-    (void)s.mem->write32(desc0 + 8, 1 | (u32(TxDescriptor::CMD_EOP) << 24));
-    (void)s.mem->write32(desc0 + 12, 0);
+    s.mem->write32(desc0, 0x4000);
+    s.mem->write32(desc0 + 4, 0);
+    s.mem->write32(desc0 + 8, 1 | (u32(TxDescriptor::CMD_EOP) << 24));
+    s.mem->write32(desc0 + 12, 0);
 
     // Advance TDT via legacy MMIO — triggers queue 0 processing
-    (void)s.nic.write32(NicReg::TDT, 1);
+    s.nic.write32(NicReg::TDT, 1);
     for (cycle_t c = 1; c <= 200; ++c)
         s.nic.tick(c);
 

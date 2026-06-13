@@ -2,9 +2,11 @@
  * @file test_main.cpp
  * @brief Test runner for the RISC-V microarchitecture engine.
  *
- * Usage:
- *   ./tests         - run all tests
- *   ./tests [str]   - run only tests whose name containts "str"
+ * @par Usage
+ * @code
+ *   ./rvsim_tests         - run all tests
+ *   ./rvsim_tests [str]   - run only tests whose name containts "str"
+ * @endcode
  */
 
 #include "test_framework.hpp"

@@ -78,7 +78,7 @@ MemoryResult PLIC::write32(addr_t addr, u32 value)
         threshold_ = value & 0x7;
 
         if (trace_)
-            std::cout << std::format("[PLIC] threshold={}", threshold_);
+            std::cout << std::format("[PLIC] threshold={}\n", threshold_);
 
         notify();
         return {value, 1, true};
@@ -92,7 +92,7 @@ MemoryResult PLIC::write32(addr_t addr, u32 value)
          && value == claimed_)
         {
             if (trace_)
-                std::cout << std::format("[PLIC] Complete IRQ{}", value);
+                std::cout << std::format("[PLIC] Complete IRQ{}\n", value);
 
             claimed_ = 0;
             notify();
@@ -113,7 +113,7 @@ void PLIC::set_pending(u32 source)
     pending_bits_ |= (1u << source);
 
     if (trace_)
-        std::cout << std::format("[PLIC] IRQ{} pending", source);
+        std::cout << std::format("[PLIC] IRQ{} pending\n", source);
 
     notify();
 }
@@ -126,7 +126,7 @@ void PLIC::clear_pending(u32 source)
     pending_bits_ &= ~(1u << source);
 
     if (trace_)
-        std::cout << std::format("[PLIC] IRQ{} cleared", source);
+        std::cout << std::format("[PLIC] IRQ{} cleared\n", source);
 
     notify();
 }
@@ -158,9 +158,8 @@ u32 PLIC::claim()
 
     if (best != 0)
     {
-
         if (trace_)
-            std::cout << std::format("[PLIC] Claim IRQ{} | prio={}",
+            std::cout << std::format("[PLIC] Claim IRQ{} | prio={}\n",
                                      best, priorities_[best]);
 
         pending_bits_ &= ~(1u << best);
@@ -177,7 +176,7 @@ void PLIC::complete(u32 source)
      && source == claimed_)
     {
         if (trace_)
-            std::cout << std::format("[PLIC] Complete IRQ{}", source);
+            std::cout << std::format("[PLIC] Complete IRQ{}\n", source);
 
         claimed_ = 0;
         notify();
@@ -190,7 +189,7 @@ void PLIC::set_priority(u32 source, u32 prio)
      && source < PLICConfig::MAX_SOURCES)
     {
         if (trace_)
-            std::cout << std::format("[PLIC] IRQ{} -> priority={}",
+            std::cout << std::format("[PLIC] IRQ{} -> priority={}\n",
                                      source, priorities_[source]);
 
         priorities_[source] = prio & 0x7;
@@ -204,7 +203,7 @@ void PLIC::set_enable(u32 source, bool enable)
      && source < PLICConfig::MAX_SOURCES)
     {
         if (trace_)
-            std::cout << std::format("[PLIC] IRQ{} {}",
+            std::cout << std::format("[PLIC] IRQ{} {}\n",
                                      source,
                                      enable ? "enabled" : "disabled");
 

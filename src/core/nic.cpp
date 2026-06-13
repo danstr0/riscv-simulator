@@ -45,9 +45,9 @@ void NIC::reset()
 void NIC::set_rss(const RSSConfig& cfg)
 {
     rss_ = cfg;
-    
+
     if (trace_)
-        std::cout << std::format("[NIC] RSS {} | queues={}",
+        std::cout << std::format("[NIC] RSS {} | queues={}\n",
                                  cfg.enabled ? "enabled" : "disabled",
                                  cfg.num_queues);
 }
@@ -55,7 +55,7 @@ void NIC::set_rss(const RSSConfig& cfg)
 void NIC::configure_rx_queue(u32 qid, addr_t base, u32 ring_size, u32 tail)
 {
     if (qid >= MAX_QUEUES) return;
-    
+
     auto& r = rx_rings_[qid];
     r.base_addr = base;
     r.ring_size = ring_size;
@@ -64,7 +64,7 @@ void NIC::configure_rx_queue(u32 qid, addr_t base, u32 ring_size, u32 tail)
 
     if (trace_)
         std::cout << std::format("[NIC] RX ring q={} | base=0x{:08x} | "
-                                 "size={} | tail={}",
+                                 "size={} | tail={}\n",
                                  qid, base, ring_size, tail);
 }
 
@@ -79,7 +79,7 @@ void NIC::configure_tx_queue(u32 qid, addr_t base, u32 ring_size)
     r.tail      = 0;
 
     if (trace_)
-        std::cout << std::format("[NIC] TX ring q={} | base=0x{:08x} | size={}",
+        std::cout << std::format("[NIC] TX ring q={} | base=0x{:08x} | size={}\n",
                                  qid, base, ring_size);
 }
 
@@ -104,7 +104,7 @@ u32 NIC::compute_rss_hash(const Packet& pkt) const
     {
         u16 src_port = (static_cast<u16>(pkt.data[20]) << 8) | pkt.data[21];
         u16 dst_port = (static_cast<u16>(pkt.data[22]) << 8) | pkt.data[23];
-        
+
         hash ^= (static_cast<u32>(src_port) << 16) | dst_port;
     }
     hash ^= hash >> 16;
@@ -118,7 +118,7 @@ u32 NIC::select_rx_queue(const Packet& pkt) const
     if (!rss_.enabled || rss_.num_queues <= 1) return 0;
     u32 hash = compute_rss_hash(pkt);
     u32 idx  = hash & (static_cast<u32>(rss_.indirection_table.size()) - 1);
-    
+
     return rss_.indirection_table[idx] % rss_.num_queues;
 }
 
@@ -271,12 +271,12 @@ void NIC::tick(cycle_t current_cycle)
         for (u32 q = 0; q < rss_.num_queues; ++q)
         {
             auto& ring = rx_rings_[q];
-            
+
             if (ring.coalesce_pending > 0
                 && (current_cycle_ - ring.coalesce_first) >= coalesce_.max_delay_cycles)
             {
                 if (trace_)
-                    std::cout << std::format("[NIC] Coalescing timeout | q={}", q);
+                    std::cout << std::format("[NIC] Coalescing timeout | q={}\n", q);
 
                 stats_.coalesced_packets += ring.coalesce_pending - 1;
                 ring.coalesce_pending = 0;
@@ -294,7 +294,7 @@ void NIC::inject_packet(const Packet& pkt)
     rx_queue_.push_back(std::move(p));
 
     if (trace_)
-        std::cout << std::format("[NIC] RX packet injected | {} bytes",
+        std::cout << std::format("[NIC] RX packet injected | {} bytes\n",
                                  pkt.data.size());
 
     if (rx_enabled())
@@ -323,7 +323,7 @@ void NIC::raise_interrupt(u32 cause)
         stats_.interrupts_raised++;
 
         if (trace_)
-            std::cout << std::format("[NIC] Interrupt cause=0x{:08x}", cause);
+            std::cout << std::format("[NIC] Interrupt cause=0x{:08x}\n", cause);
 
         if (interrupt_cb_)
             interrupt_cb_();
@@ -345,7 +345,7 @@ void NIC::check_coalescing(u32 qid, u32 cause)
     if (ring.coalesce_pending == 1)
     {
         if (trace_)
-            std::cout << std::format("[NIC] Coalescing started | q={}", qid);
+            std::cout << std::format("[NIC] Coalescing started | q={}\n", qid);
 
         ring.coalesce_first = current_cycle_;
     }
@@ -354,7 +354,7 @@ void NIC::check_coalescing(u32 qid, u32 cause)
     {
         if (trace_)
             std::cout << std::format("[NIC] Coalescing threshold reached | "
-                                     "q={} | packets={}",
+                                     "q={} | packets={}\n",
                                      qid, ring.coalesce_pending);
 
         stats_.coalesced_packets += ring.coalesce_pending - 1;
@@ -380,10 +380,11 @@ void NIC::process_rx_queue()
         if (ring.ring_size == 0)
         {
             if (trace_)
-                std::cout << std::format("[NIC] RX drop (queue {} disabled)", qid);
+                std::cout << std::format("[NIC] RX drop (queue {} disabled)\n", qid);
 
             stats_.rx_dropped++;
-            continue; }
+            continue;
+        }
 
         u32 pending_rx = 0;
         for (const auto& d : pending_dma_)
@@ -393,7 +394,7 @@ void NIC::process_rx_queue()
         if (pending_head == ring.tail)
         {
             if (trace_)
-                std::cout << std::format("[NIC] RX drop (ring full q={})", qid);
+                std::cout << std::format("[NIC] RX drop (ring full q={})\n", qid);
 
             stats_.rx_dropped++;
             continue;
@@ -404,7 +405,7 @@ void NIC::process_rx_queue()
 
         if (trace_)
             std::cout << std::format("[NIC] RX enqueue | q={} | "
-                                     "desc={} | len={} | dma={} cycles",
+                                     "desc={} | len={} | dma={} cycles\n",
                                      qid, pending_head, pkt.data.size(), dma_time);
 
         PendingDma dma;
@@ -434,7 +435,7 @@ void NIC::process_tx_ring(u32 qid)
         {
             if (trace_)
                 std::cout << std::format("[NIC] TX drop | q={} | idx={} | "
-                                         "invalid descriptor",
+                                         "invalid descriptor\n",
                                          qid, ring.head);
 
             stats_.tx_dropped++;
@@ -443,7 +444,7 @@ void NIC::process_tx_ring(u32 qid)
         }
 
         if (trace_)
-            std::cout << std::format("[NIC] TX desc | q={} | idx={} | len={}",
+            std::cout << std::format("[NIC] TX desc | q={} | idx={} | len={}\n",
                                      qid, ring.head, desc.length);
 
         Packet pkt;
@@ -507,7 +508,7 @@ void NIC::complete_dma()
 
             if (trace_)
                 std::cout << std::format("[NIC] RX DMA complete | "
-                                         "q={} | desc={} | len={}",
+                                         "q={} | desc={} | len={}\n",
                                          dma.queue_id, dma.desc_idx,
                                          dma.packet.data.size());
 
@@ -544,7 +545,7 @@ void NIC::complete_dma()
 
             if (trace_)
                 std::cout << std::format("[NIC] TX DMA complete | "
-                                         "q={} | desc{} | len={}",
+                                         "q={} | desc{} | len={}\n",
                                          dma.queue_id, dma.desc_idx, desc.length);
 
             tx_complete_[dma.queue_id].push_back(std::move(dma.packet));

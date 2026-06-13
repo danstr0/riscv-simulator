@@ -2,17 +2,19 @@
  * @file test_coherence.cpp
  * @brief Tests for the MESI cache coherence controller.
  *
- * Sections:
- *   1 (line 106) : Read miss — no other copy → Exclusive
- *   2 (line 123) : Read miss — another core has Exclusive → both Shared
- *   3 (line 142) : Read miss — another core has Modified → writeback + both Shared
- *   4 (line 172) : Write miss — no other copy → Modified
- *   5 (line 185) : Write to Exclusive — silent upgrade to Modified
- *   6 (line 204) : Write to Shared — invalidate others → Modified
- *   7 (line 229) : Write miss — another core Modified → writeback + invalidate → Modified
- *   8 (line 254) : Eviction — removes directory entry
- *   9 (line 287) : Statistics — coherence traffic counters
- *  10 (line 316) : Data integrity — writes visible across cores after coherence
+ * @par Sections
+ * @code
+ *   1 (line  67) : Read miss — no other copy → Exclusive
+ *   2 (line  85) : Read miss — another core has Exclusive → both Shared
+ *   3 (line 105) : Read miss — another core has Modified → writeback + both Shared
+ *   4 (line 136) : Write miss — no other copy → Modified
+ *   5 (line 150) : Write to Exclusive — silent upgrade to Modified
+ *   6 (line 170) : Write to Shared — invalidate others → Modified
+ *   7 (line 196) : Write miss — another core Modified → writeback + invalidate → Modified
+ *   8 (line 222) : Eviction — removes directory entry
+ *   9 (line 257) : Statistics — coherence traffic counters
+ *  10 (line 287) : Data integrity — writes visible across cores after coherence
+ * @endcode
  */
 
 #include "core/cache.hpp"
@@ -31,11 +33,12 @@ struct CoherenceSetup
     std::shared_ptr<Cache>      l1_1; // Core 1 L1
     CoherenceController         ctrl;
 
-    static CoherenceSetup create(u32 num_cores = 2)
+    static CoherenceSetup create()
     {
         auto mem = std::make_shared<FlatMemory>(0, 0x10000);
 
-        CacheConfig l1_cfg = {
+        CacheConfig l1_cfg =
+        {
             .size_bytes    = 1024,
             .line_size     = 64,
             .associativity = 4,
@@ -61,10 +64,11 @@ struct CoherenceSetup
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-//  1. Read miss — no other copy → Exclusive
+//  1. Read miss — no other copy -> Exclusive
 // ═══════════════════════════════════════════════════════════════════════
 
-TEST(mesi_read_miss_exclusive) {
+TEST(mesi_read_miss_exclusive)
+{
     auto s = CoherenceSetup::create();
     s.main_mem->write32(0x100u, 0xDEAD'BEEFu);
 
@@ -78,18 +82,19 @@ TEST(mesi_read_miss_exclusive) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  2. Read miss — another core has Exclusive → both Shared
+//  2. Read miss — another core has Exclusive -> both Shared
 // ═══════════════════════════════════════════════════════════════════════
 
-TEST(mesi_read_shared_from_exclusive) {
+TEST(mesi_read_shared_from_exclusive)
+{
     auto s = CoherenceSetup::create();
     s.main_mem->write32(0x100u, 42);
 
-    // Core 0 reads → Exclusive
+    // Core 0 reads -> Exclusive
     s.ctrl.handle_read_miss(0, 0x100u);
     ASSERT_EQ(s.ctrl.line_state(0, 0x100u), MESIState::Exclusive);
 
-    // Core 1 reads the same line → both become Shared
+    // Core 1 reads the same line -> both become Shared
     s.ctrl.handle_read_miss(1, 0x100u);
     ASSERT_EQ(s.ctrl.line_state(0, 0x100u), MESIState::Shared);
     ASSERT_EQ(s.ctrl.line_state(1, 0x100u), MESIState::Shared);
@@ -97,28 +102,29 @@ TEST(mesi_read_shared_from_exclusive) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  3. Read miss — another core has Modified → writeback + Shared
+//  3. Read miss — another core has Modified -> writeback + Shared
 // ═══════════════════════════════════════════════════════════════════════
 
-TEST(mesi_read_from_modified) {
+TEST(mesi_read_from_modified)
+{
     auto s = CoherenceSetup::create();
     s.main_mem->write32(0x100u, 0);
 
-    // Core 0 gets Exclusive, then writes → Modified
+    // Core 0 gets Exclusive, then writes -> Modified
     s.ctrl.handle_read_miss(0, 0x100u);
     // Trigger the actual L1 fetch so the line is present
     s.l1_0->read32(0x100u);
     // Write to it (makes it dirty in L1 and Modified in directory)
     s.l1_0->write32(0x100u, 0xCAFE'BABEu);
-    s.ctrl.handle_write_miss(0, 0x100u);  // E→M
+    s.ctrl.handle_write_miss(0, 0x100u);  // E->M
     ASSERT_EQ(s.ctrl.line_state(0, 0x100u), MESIState::Modified);
 
-    // Core 1 reads → core 0 writes back, both become Shared
+    // Core 1 reads -> core 0 writes back, both become Shared
     s.ctrl.handle_read_miss(1, 0x100u);
     ASSERT_EQ(s.ctrl.line_state(0, 0x100u), MESIState::Shared);
     ASSERT_EQ(s.ctrl.line_state(1, 0x100u), MESIState::Shared);
 
-    // The writeback should have pushed 0xCAFEBABE to main memory
+    // The writeback should have pushed 0xCAFE'BABE to main memory
     ASSERT_EQ(s.main_mem->read32(0x100u).value, 0xCAFE'BABEu);
 
     ASSERT(s.ctrl.stats().writebacks_forced > 0);
@@ -127,10 +133,11 @@ TEST(mesi_read_from_modified) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  4. Write miss — no other copy → Modified
+//  4. Write miss — no other copy -> Modified
 // ═══════════════════════════════════════════════════════════════════════
 
-TEST(mesi_write_miss_modified) {
+TEST(mesi_write_miss_modified)
+{
     auto s = CoherenceSetup::create();
 
     s.ctrl.handle_write_miss(0, 0x200u);
@@ -143,14 +150,15 @@ TEST(mesi_write_miss_modified) {
 //  5. Write to Exclusive — silent upgrade
 // ═══════════════════════════════════════════════════════════════════════
 
-TEST(mesi_exclusive_to_modified) {
+TEST(mesi_exclusive_to_modified)
+{
     auto s = CoherenceSetup::create();
 
-    // Core 0 reads → Exclusive
+    // Core 0 reads -> Exclusive
     s.ctrl.handle_read_miss(0, 0x300u);
     ASSERT_EQ(s.ctrl.line_state(0, 0x300u), MESIState::Exclusive);
 
-    // Core 0 writes → Modified (silent, no invalidations needed)
+    // Core 0 writes -> Modified (silent, no invalidations needed)
     u32 lat = s.ctrl.handle_write_miss(0, 0x300u);
     ASSERT_EQ(s.ctrl.line_state(0, 0x300u), MESIState::Modified);
     ASSERT_EQ(lat, 0u);  // silent upgrade has zero additional latency
@@ -162,10 +170,11 @@ TEST(mesi_exclusive_to_modified) {
 //  6. Write to Shared — invalidate others
 // ═══════════════════════════════════════════════════════════════════════
 
-TEST(mesi_shared_to_modified_invalidates) {
+TEST(mesi_shared_to_modified_invalidates)
+{
     auto s = CoherenceSetup::create();
 
-    // Both cores read → Shared
+    // Both cores read -> Shared
     s.ctrl.handle_read_miss(0, 0x400u);
     s.ctrl.handle_read_miss(1, 0x400u);
     ASSERT_EQ(s.ctrl.line_state(0, 0x400u), MESIState::Shared);
@@ -175,7 +184,7 @@ TEST(mesi_shared_to_modified_invalidates) {
     s.l1_0->read32(0x400u);
     s.l1_1->read32(0x400u);
 
-    // Core 0 writes → invalidates core 1, core 0 becomes Modified
+    // Core 0 writes -> invalidates core 1, core 0 becomes Modified
     s.ctrl.handle_write_miss(0, 0x400u);
     ASSERT_EQ(s.ctrl.line_state(0, 0x400u), MESIState::Modified);
     ASSERT_EQ(s.ctrl.line_state(1, 0x400u), MESIState::Invalid);
@@ -184,21 +193,22 @@ TEST(mesi_shared_to_modified_invalidates) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  7. Write miss — another core Modified → writeback + invalidate
+//  7. Write miss — another core Modified -> writeback + invalidate
 // ═══════════════════════════════════════════════════════════════════════
 
-TEST(mesi_write_steals_modified) {
+TEST(mesi_write_steals_modified)
+{
     auto s = CoherenceSetup::create();
     s.main_mem->write32(0x500u, 100);
 
-    // Core 0 gets line, writes → Modified
+    // Core 0 gets line, writes -> Modified
     s.ctrl.handle_read_miss(0, 0x500u);
     s.l1_0->read32(0x500u);
     s.l1_0->write32(0x500u, 999);
     s.ctrl.handle_write_miss(0, 0x500u);
     ASSERT_EQ(s.ctrl.line_state(0, 0x500u), MESIState::Modified);
 
-    // Core 1 writes to same line → core 0 writes back and is invalidated
+    // Core 1 writes to same line -> core 0 writes back and is invalidated
     s.ctrl.handle_write_miss(1, 0x500u);
     ASSERT_EQ(s.ctrl.line_state(0, 0x500u), MESIState::Invalid);
     ASSERT_EQ(s.ctrl.line_state(1, 0x500u), MESIState::Modified);
@@ -212,7 +222,8 @@ TEST(mesi_write_steals_modified) {
 //  8. Eviction — removes directory entry
 // ═══════════════════════════════════════════════════════════════════════
 
-TEST(mesi_eviction_cleans_directory) {
+TEST(mesi_eviction_cleans_directory)
+{
     auto s = CoherenceSetup::create();
 
     s.ctrl.handle_read_miss(0, 0x600u);
@@ -225,7 +236,8 @@ TEST(mesi_eviction_cleans_directory) {
     return true;
 }
 
-TEST(mesi_eviction_partial) {
+TEST(mesi_eviction_partial)
+{
     auto s = CoherenceSetup::create();
 
     // Both cores have the line
@@ -245,19 +257,20 @@ TEST(mesi_eviction_partial) {
 //  9. Statistics
 // ═══════════════════════════════════════════════════════════════════════
 
-TEST(mesi_stats_tracking) {
+TEST(mesi_stats_tracking)
+{
     auto s = CoherenceSetup::create();
 
-    // Read miss from core 0 → l2_fetch
+    // Read miss from core 0 -> l2_fetch
     s.ctrl.handle_read_miss(0, 0x800u);
     ASSERT_EQ(s.ctrl.stats().read_misses, 1u);
     ASSERT_EQ(s.ctrl.stats().l2_fetches, 1u);
 
-    // Read from core 1 (E→S in core 0) → another l2_fetch
+    // Read from core 1 (E->S in core 0) -> another l2_fetch
     s.ctrl.handle_read_miss(1, 0x800u);
     ASSERT_EQ(s.ctrl.stats().read_misses, 2u);
 
-    // Write from core 0 (S→M, invalidates core 1)
+    // Write from core 0 (S->M, invalidates core 1)
     s.l1_0->read32(0x800u);
     s.l1_1->read32(0x800u);
     s.ctrl.handle_write_miss(0, 0x800u);
@@ -274,7 +287,8 @@ TEST(mesi_stats_tracking) {
 //  10. Data integrity across cores
 // ═══════════════════════════════════════════════════════════════════════
 
-TEST(mesi_data_visible_after_coherence) {
+TEST(mesi_data_visible_after_coherence)
+{
     auto s = CoherenceSetup::create();
     s.main_mem->write32(0x900u, 0);
 

@@ -3,7 +3,7 @@
  * @brief Architectural state for a simplified RISC-V Vector (RVV) 1.0 implementation.
  *
  * @par Subset limitations
- * SEW is fixed at 32-bit, LMUL at 1 (no register grouping), and vstart
+ * SEW is fixed at 32-bit, LMUL at 1 (no register grouping), and @c vstart
  * is hardwired to 0. VLEN must be a power of 2, minimum 64 bits.
  *
  * @see RISC-V Unprivileged ISA Specification, Chapter 31.
@@ -31,7 +31,7 @@ struct VectorConfig
     /// @return Maximum elements at SEW=32 per register.
     [[nodiscard]] constexpr u32 vlmax_sew32() const noexcept { return vlen / 32; }
 
-    /// @return True if VLEN satisfies hardware constraints (power of 2, >= 64).
+    /// @return @c true if VLEN satisfies hardware constraints (power of 2, ≥ 64).
     [[nodiscard]] constexpr bool valid() const noexcept
     {
         return vlen >= 64 && std::has_single_bit(vlen);
@@ -42,7 +42,7 @@ struct VectorConfig
  * @brief Represents the vtype CSR.
  *
  * Encodes how vector registers are interpreted. Fields map to 
- * bits [0:7] and bit [31] of the vtype CSR.
+ * bits [0:7] and bit [31] of the @c vtype CSR.
  */
 struct VType
 {
@@ -53,7 +53,7 @@ struct VType
     bool vill = false;  ///< Illegal: any vector instruction using this state traps.
 
     /**
-     * @brief Encodes the struct into the 32-bit vtype CSR format.
+     * @brief Encodes the struct into the 32-bit @c vtype CSR format.
      * @return Encoded value (bit 31 = vill, bits [5:3] = vsew).
      */
     [[nodiscard]] constexpr u32 encode() const noexcept
@@ -67,7 +67,7 @@ struct VType
             case 16: vsew_field = 0b001; break;
             case 32: vsew_field = 0b010; break;
             case 64: vsew_field = 0b011; break;
-            default: return 1u << 31; // invalid sew → vill
+            default: return 1u << 31; // invalid sew -> vill
         }
         return (static_cast<u32>(vma) << 7)
              | (static_cast<u32>(vta) << 6)
@@ -75,7 +75,7 @@ struct VType
     }
 
     /**
-     * @brief Decodes a vsetvli immediate into a VType struct. 
+     * @brief Decodes a @c vsetvli immediate into a VType struct. 
      * @note Sets @c vill if SEW is not 32-bit.
      */
     static VType decode(u32 zimm)
@@ -173,11 +173,12 @@ public:
 
 private:
     VectorConfig    config_;
-    std::vector<u8> data_; ///< Flat storage: 32 registers, vlenb bytes each.
+    std::vector<u8> data_; ///< Flat storage: 32 registers, @c vlenb bytes each.
 };
 
-/// Complete vector extension state: registers, vtype CSR, and vector length.
-struct VectorState {
+/// Complete vector extension state: registers, @c vtype CSR, and vector length.
+struct VectorState
+{
     VectorRegFile regs;
     VType         vtype{};
     u32           vl     = 0;  ///< Current vector length. Elements i < vl are active.
@@ -188,7 +189,7 @@ struct VectorState {
 
     /**
      * @brief Computes VLMAX for the current VLEN and vtype.SEW.
-     * @return Elements per register, or 0 if vtype is illegal.
+     * @return Elements per register, or 0 if @c vtype is illegal.
      */
     [[nodiscard]] u32 vlmax() const noexcept
     {
@@ -197,20 +198,20 @@ struct VectorState {
     }
 
     /**
-     * @brief Implements the vsetvli instruction.
+     * @brief Implements the @c vsetvli instruction.
      *
      * Sets vector configuration from @p zimm and calculates vl as
-     * min(avl, VLMAX).
+     * @c min(avl,VLMAX).
      *
-     * @param avl  Application vector length requested.
-     * @param zimm Immediate encoding for the new vtype.
-     * @return The resulting vl.
+     * @param avl   Application vector length requested.
+     * @param zimm  Immediate encoding for the new @c vtype.
+     * @return The resulting @c vl.
      */
     u32 vsetvli(u32 avl, u32 zimm)
     {
         vtype = VType::decode(zimm);
         if (vtype.vill)
-	{
+        {
             vl = 0;
             return 0;
         }

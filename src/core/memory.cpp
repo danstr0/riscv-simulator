@@ -117,14 +117,13 @@ void MMIOBus::unmap(addr_t base)
 
 Memory* MMIOBus::find_region(addr_t addr, addr_t* offset) const
 {
-    for (auto& r : regions_) {
+    for (auto& r : regions_)
         // Check if addr falls within [base, base + size)
         if (addr >= r.base && addr < r.base + r.size)
         {
             if (offset) *offset = addr - r.base;
             return r.device.get();
         }
-    }
 
     // Fallback: route absolute address to default memory if it exists
     if (offset) *offset = addr;
@@ -190,10 +189,9 @@ bool MMIOBus::valid_address(addr_t addr, size_t size) const
 
     // Single-region check; does not validate ranges spanning multiple regions.
     for (const auto& r : regions_)
-    {
         if (addr >= r.base && end <= r.base + r.size)
             return true;
-    }
+
     return default_mem_ && default_mem_->valid_address(addr, size);
 }
 

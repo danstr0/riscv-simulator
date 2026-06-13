@@ -13,12 +13,10 @@
  * parameterized misprediction penalty.
  *
  * @par Parameterization
- * @code
- *   - Fowarding:           none, partial.
- *   - Branch Prediction:   not taken, always taken, backward-taken,
- *                          1 bit bimodal, 2 bit bimodal.
- *   - Mispredict Penalty:  configurable cycle count.
- * @endcode
+ * - Fowarding:          none, partial.
+ * - Branch Prediction:  not taken, always taken, backward-taken,
+ *                       1 bit bimodal, 2 bit bimodal.
+ * - Mispredict Penalty: configurable cycle count.
  *
  * @see Patterson & Hennessy, "Computer Organization and Design (RISC-V Edition)",
  *      Sections 4.5-4.8. 
@@ -175,7 +173,7 @@ public:
     /// @name Execution
     /// @{
 
-    /// Advance the pipeline by one clock cycle. Returns false if halted and drained.
+    /// Advance the pipeline by one clock cycle. Returns @c false if halted and drained.
     bool tick();
 
     cycle_t run_cycles(cycle_t n);

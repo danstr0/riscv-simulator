@@ -3,12 +3,12 @@
  * @brief Instruction decoder for the RISC-V simulator.
  *
  * Decodes 32-bit instruction words into a structured representation
- * covering RV32I, M, A, and (a subset of) V extensions.
+ * covering RV32IMA and a subset of RVV.
  *
  * @par Decode Process
  * Bits [6:0] select the major opcode, which dispatches to a format-aware
  * helper that extracts register fields, reconstructs the sign-extended
- * immediate, and maps funct3/funct7 to a concrete Op tag.
+ * immediate, and maps @c funct3 / @c funct7 to a concrete @c Op tag.
  *
  * @see RISC-V Unprivileged ISA Specification, Sections 2.1, 6.1.1, 12.1, 13.1, 30.1.
  */
@@ -22,7 +22,8 @@
 namespace riscv {
 
 /// Primary Opcodes (bits [6:0] of the instruction word).
-enum class Opcode : u8 {
+enum class Opcode : u8
+{
     LOAD      = 0b0000011,  ///< LB, LH, LW, LBU, LHU
     MISC_MEM  = 0b0001111,  ///< FENCE
     OP_IMM    = 0b0010011,  ///< ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI
@@ -35,13 +36,14 @@ enum class Opcode : u8 {
     JALR      = 0b1100111,  ///< JALR
     JAL       = 0b1101111,  ///< JAL
     SYSTEM    = 0b1110011,  ///< ECALL, EBREAK, CSR*, MRET
-    VL        = 0b0000111,  ///< Vector loads (VLE32)	
+    VL        = 0b0000111,  ///< Vector loads (VLE32)
     VS        = 0b0100111,  ///< Vector stores (VSE32)
     OP_V      = 0b1010111,  ///< Vector ALU, VSETVLI
 };
 
 /// Decoded operation tag identifying the specific architectural operation.
-enum class Op : u8 {
+enum class Op : u8
+{
     // ── Loads (I-type) ──────────────────────────────────
     LB, LH, LW, LBU, LHU,
 
@@ -52,8 +54,8 @@ enum class Op : u8 {
     BEQ, BNE, BLT, BGE, BLTU, BGEU,
 
     // ── Jumps ───────────────────────────────────────────
-    JAL,   ///< J-type.
-    JALR,  ///< I-type.
+    JAL,   // J-type
+    JALR,  // I-type
 
     // ── Upper immediate (U-type) ────────────────────────
     LUI, AUIPC,
@@ -95,7 +97,8 @@ enum class Op : u8 {
 };
 
 /// Instruction format, determining how the 32-bit word is partitioned.
-enum class Format : u8 {
+enum class Format : u8
+{
     R,  ///< Register-register.
     I,  ///< Immediate.
     S,  ///< Store.
@@ -112,21 +115,21 @@ enum class Format : u8 {
  * - For U-type, @c imm contains the full value (already shifted left by 12).
  * - For shift-immediates, @c imm contains only the 5-bit shamt.
  */
-struct DecodedInst {
+struct DecodedInst
+{
     Op     op     = Op::INVALID;
     Format format = Format::R;
-    
+
     reg_idx_t rd  = 0;  ///< Destination register [11:7].
     reg_idx_t rs1 = 0;  ///< Source register 1 [19:15].
     reg_idx_t rs2 = 0;  ///< Source register 2 [24:20].
     i32       imm = 0;  ///< Sign-extended immediate.
-    
+
     u32    raw = 0;  ///< Original instruction word.
     addr_t pc  = 0;  ///< Address of this instruction.
-    
+
     /// @name Classification helpers
     /// @{
-
     [[nodiscard]] constexpr bool writes_rd() const noexcept
     {
         switch (op)
@@ -141,7 +144,7 @@ struct DecodedInst {
                 return rd != 0;
         }
     }
-    
+
     [[nodiscard]] constexpr bool reads_rs1() const noexcept
     {
         switch (op)
@@ -154,19 +157,18 @@ struct DecodedInst {
                 return true;
         }
     }
-    
+
     [[nodiscard]] constexpr bool reads_rs2() const noexcept
     {
         return format == Format::R || format == Format::S || format == Format::B;
     }
-    
+
     [[nodiscard]] constexpr bool is_load()   const noexcept { return op >= Op::LB && op <= Op::LHU; }
     [[nodiscard]] constexpr bool is_store()  const noexcept { return op >= Op::SB && op <= Op::SW; }
     [[nodiscard]] constexpr bool is_branch() const noexcept { return op >= Op::BEQ && op <= Op::BGEU; }
     [[nodiscard]] constexpr bool is_jump()   const noexcept { return op == Op::JAL || op == Op::JALR; }
     [[nodiscard]] constexpr bool is_atomic() const noexcept { return op >= Op::LR_W && op <= Op::AMOMAXU_W; }
     [[nodiscard]] constexpr bool is_vector() const noexcept { return op >= Op::VSETVLI && op <= Op::VMV_X_S; }
-
     /// @}
 
     /// Generate a standard RISC-V assembly string (e.g., "addi a0, sp, 16").
@@ -189,7 +191,7 @@ public:
      * @return Decoded result. Check @c .op == Op::INVALID for decode failures.
      */
     [[nodiscard]] static DecodedInst decode(u32 instruction, addr_t pc = 0);
-    
+
 private:
     static DecodedInst decode_load(u32 inst, addr_t pc);
     static DecodedInst decode_store(u32 inst, addr_t pc);
@@ -199,7 +201,7 @@ private:
     static DecodedInst decode_amo(u32 inst, addr_t pc);
     static DecodedInst decode_vector(u32 inst, addr_t pc);
     static DecodedInst decode_system(u32 inst, addr_t pc);
-    
+
     /// @name Immediate extraction (see Spec Section 2.1.3)
     /// @{
     [[nodiscard]] static i32 extract_i_imm(u32 inst);
@@ -210,7 +212,7 @@ private:
     /// @}
 };
 
-/// Returns the lowercase mnemonic string for an Op tag (e.g., Op::LUI → "lui").
+/// Returns the lowercase mnemonic string for an @c Op tag (e.g., Op::LUI → "lui").
 [[nodiscard]] const char* op_name(Op op);
 
 } // namespace riscv

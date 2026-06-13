@@ -53,7 +53,7 @@ public:
     /// @name Execution
     /// @{
 
-    /// Executes a single instruction. Returns false if halted.
+    /// Executes a single instruction. Returns @c false if halted.
     bool step();
 
     /**

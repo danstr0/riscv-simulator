@@ -17,13 +17,13 @@
  * tag = A / (LineSize * NumSets).
  *
  * @par Parameterization
- * Geometry (size, line size, associativity), replacement policy
- * (LRU, PLRU, MRU, FIFO, Random), write policy (write-back,
- * write-through), and allocation policy (write-allocate,
- * no-write-allocate).
+ * - Geometry: size, line size, associativity.
+ * - Replacement policy: LRU, PLRU, MRU, FIFO, Random.
+ * - Write policy: write-back, write-through.
+ * - Allocation policy: write-allocate, no-write-allocate.
  *
  * @see Patterson & Hennessy "Computer Organization and Design (RISC-V Edition)",
- * 	Sections 5.3-5.4.
+ * Sections 5.3-5.4.
  */
 
 #pragma once
@@ -40,7 +40,8 @@
 namespace riscv {
 
 /// Replacement policy for cache eviction.
-enum class ReplacementPolicy : u8 {
+enum class ReplacementPolicy : u8
+{
     LRU,     ///< Least recently used.
     MRU,     ///< Most recently used.
     PLRU,    ///< Pseudo-LRU (tree-based).
@@ -49,26 +50,30 @@ enum class ReplacementPolicy : u8 {
 };
 
 /// Write policy controlling when data propagates to the next level.
-enum class WritePolicy: u8 {
+enum class WritePolicy: u8
+{
     WRITE_BACK,     ///< Write to cache only; writeback on eviction.
     WRITE_THROUGH,  ///< Write to cache and next level on every write.
 };
 
 /// Allocation policy on write misses.
-enum class WriteAllocate : u8 {
+enum class WriteAllocate : u8
+{
     ALLOCATE,     ///< Fetch line into cache, then write.
     NO_ALLOCATE,  ///< Write directly to next level.
 };
 
 /// Cache role in a split-cache architecture.
-enum class CacheType : u8 {
+enum class CacheType : u8
+{
     UNIFIED,      ///< Serves both instructions and data.
     INSTRUCTION,  ///< I-cache (reads only).
     DATA,         ///< D-cache (reads and writes).
 };
 
 /// Configuration for a single cache level.
-struct CacheConfig {
+struct CacheConfig
+{
     u32 size_bytes;          ///< Total cache size.
     u32 line_size     = 64;  ///< Cache line size in bytes.
     u32 associativity = 8;   ///< N-way set associative.
@@ -86,7 +91,7 @@ struct CacheConfig {
     {
         return size_bytes / (line_size * associativity);
     }
-    
+
     [[nodiscard]] constexpr u32 num_lines() const noexcept
     {
         return size_bytes / line_size;
@@ -149,9 +154,10 @@ struct CacheConfig {
 /**
  * @brief Metadata for a single cache line.
  *
- * Payload data lives in Cache::storage_, not here.
+ * Payload data lives in @c Cache::storage_, not here.
  */
-struct CacheLine {
+struct CacheLine
+{
     bool        valid       = false;
     bool        dirty       = false;
     addr_t      tag         = 0;
@@ -161,7 +167,8 @@ struct CacheLine {
 };
 
 /// Per-level cache performance counters.
-struct CacheStats {
+struct CacheStats
+{
     u64 reads           = 0;
     u64 writes          = 0;
     u64 hits            = 0;
@@ -173,7 +180,9 @@ struct CacheStats {
     [[nodiscard]] double hit_rate() const noexcept
     {
         u64 total = hits + misses;
-        return total > 0 ? static_cast<double>(hits) / static_cast<double>(total) : 0.0;
+        return total > 0
+            ? static_cast<double>(hits) / static_cast<double>(total)
+            : 0.0;
     }
 
     [[nodiscard]] double miss_rate() const noexcept
@@ -184,9 +193,9 @@ struct CacheStats {
     [[nodiscard]] double avg_latency() const noexcept
     {
         u64 accesses = reads + writes;
-        return accesses > 0 ? static_cast<double>(total_latency)
-                            / static_cast<double>(accesses)
-                            : 0.0;
+        return accesses > 0
+            ? static_cast<double>(total_latency) / static_cast<double>(accesses)
+            : 0.0;
     }
 
     void reset() noexcept { *this = CacheStats{}; }
@@ -237,7 +246,7 @@ public:
      * @brief Supply line data to another cache (Modified/Exclusive → Shared).
      *
      * Copies line data to @p dest and marks the local copy clean.
-     * @return False if the line is not present.
+     * @return @c false if the line is not present.
      */
     bool snoop_share_line(addr_t addr, u8* dest, u32 size);
 
@@ -274,7 +283,6 @@ private:
     WriteCallback           on_write_;
     bool                    trace_ = false;
 
-
     /*
      * Flat storage: all line payloads in one contiguous allocation.
      * Line i's data starts at storage_[i * config_.line_size].
@@ -294,7 +302,6 @@ private:
     [[nodiscard]] addr_t line_addr_of(addr_t addr) const noexcept;
     /// @}
 
-
     /// @name Internal helpers
     /// @{
     [[nodiscard]] u8*       line_data(u32 set_idx, u32 way) noexcept;
@@ -306,10 +313,10 @@ private:
     [[nodiscard]] std::optional<LineRef>      find_line(addr_t addr);
     [[nodiscard]] std::optional<ConstLineRef> find_line(addr_t addr) const;
 
-    LineRef  allocate_line(addr_t addr);
-    void     evict_line(u32 set_idx, u32 way);
-    void     writeback_line(u32 set_idx, u32 way);
-    void     fetch_line(addr_t line_addr, u32 set_idx, u32 way);
+    LineRef allocate_line(addr_t addr);
+    void    evict_line(u32 set_idx, u32 way);
+    void    writeback_line(u32 set_idx, u32 way);
+    void    fetch_line(addr_t line_addr, u32 set_idx, u32 way);
     [[nodiscard]] u32 find_victim(u32 set_idx) const;
 
     /// Update replacement metadata after accessing @p way in @p set_idx.
@@ -327,7 +334,8 @@ private:
 };
 
 /// Configuration for a multi-level cache hierarchy.
-struct CacheHierarchyConfig {
+struct CacheHierarchyConfig
+{
     std::vector<CacheConfig> levels;
 
     static CacheHierarchyConfig typical_2level()
@@ -350,8 +358,8 @@ struct CacheHierarchyConfig {
  * drop-in use. 
  *
  * @par Latency model
- * Returned latency is the sum of hit_latency at every level hit,
- * plus miss_penalty at every level that missed.
+ * Returned latency is the sum of @c hit_latency at every level hit,
+ * plus @c miss_penalty at every level that missed.
  */
 class CacheHierarchy : public Memory {
 public:
@@ -382,7 +390,8 @@ public:
     [[nodiscard]] const Cache& level(size_t n) const { return *caches_.at(n); }
 
     /// Aggregated statistics across all cache levels.
-    struct HierarchyStats {
+    struct HierarchyStats
+    {
         std::vector<CacheStats> level_stats;
         u64 total_accesses = 0;
         u64 total_latency  = 0;

@@ -19,7 +19,7 @@
 
 #include "memory.hpp"
 #include "types.hpp"
- 
+
 #include <array>
 #include <deque>
 #include <functional>
@@ -29,7 +29,8 @@
 namespace riscv {
 
 /// NIC MMIO register offsets - all 32-bit aligned.
-namespace NicReg {
+namespace NicReg
+{
     /// @name Control and status
     /// @{
     constexpr addr_t CTRL     = 0x00;  ///< Device control (bit 0: RST, 1: RXEN, 2: TXEN).
@@ -43,7 +44,7 @@ namespace NicReg {
     constexpr addr_t ICR      = 0x10;  ///< Interrupt cause read (read-clear).
     constexpr addr_t ITR      = 0x14;  ///< Interrupt throttling rate.
     /// @}
-    
+
     /// @name RX descriptor ring
     /// @{
     constexpr addr_t RDBAL    = 0x20;  ///< RX descriptor base address (low 32).
@@ -51,7 +52,7 @@ namespace NicReg {
     constexpr addr_t RDH      = 0x2C;  ///< RX descriptor head (hardware-owned)
     constexpr addr_t RDT      = 0x30;  ///< RX descriptor tail (software-owned)
     /// @}
-    
+
     /// @name TX descriptor ring
     /// @{
     constexpr addr_t TDBAL    = 0x40;  ///< TX descriptor base address.
@@ -72,14 +73,16 @@ namespace NicReg {
 }
 
 /// Device control register bits.
-namespace NicCtrl {
+namespace NicCtrl
+{
     constexpr u32 RST     = 1u << 0;  ///< Software reset (self-clearing).
     constexpr u32 RXEN    = 1u << 1;  ///< Receive enable.
     constexpr u32 TXEN    = 1u << 2;  ///< Transmit enable.
     constexpr u32 LINK_UP = 1u << 3;  ///< Physical link status (read-only).
 }
 
-namespace NicInt {
+namespace NicInt
+{
     constexpr u32 RXQ0  = 1u << 0;  ///< RX packet received.
     constexpr u32 TXQ0  = 1u << 1;  ///< TX completed.
     constexpr u32 TIMER = 1u << 2;  ///< Coalescing timer expired.
@@ -130,7 +133,8 @@ struct Packet
 };
 
 /// DMA and bus timing parameters.
-struct NicTiming {
+struct NicTiming
+{
     u32 dma_latency_cycles       = 100;  ///< Fixed DMA arbitration overhead.
     u32 dma_cycles_per_cacheline = 10;   ///< Per-cacheline transfer cost.
     u32 cacheline_size           = 64;
@@ -269,10 +273,10 @@ public:
 
     void set_coalescing(const CoalesceConfig& cfg) noexcept { coalesce_ = cfg; }
     [[nodiscard]] const CoalesceConfig& coalescing() const noexcept { return coalesce_; }
-    
+
     void set_rss(const RSSConfig& cfg);
     [[nodiscard]] const RSSConfig& rss() const noexcept { return rss_; }
-    
+
     void configure_rx_queue(u32 qid, addr_t base, u32 ring_size, u32 tail);
     void configure_tx_queue(u32 qid, addr_t base, u32 ring_size);
 

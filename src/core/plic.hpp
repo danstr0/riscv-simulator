@@ -51,7 +51,7 @@ public:
     MemoryResult write32(addr_t addr, u32 value) override;
     MemoryResult write16(addr_t, u16) override { return {0, 1, false}; }
     MemoryResult write8(addr_t, u8)   override { return {0, 1, false}; }
-    
+
     void load(addr_t, std::span<const u8>) override {}
     [[nodiscard]] bool valid_address(addr_t addr, size_t size = 1) const override;
     /// @}
@@ -104,7 +104,7 @@ private:
     u32         enable_bits_  = 0;  ///< Bitmask of enabled interrupts for Hart 0.
     u32         threshold_    = 0;  ///< Interrupts with priority ≤ threshold are masked.
     mutable u32 claimed_      = 0;  ///< Currently claimed source (0 = none).
-    
+
     bool trace_ = false;
 
     NotifyCallback notify_cb_;

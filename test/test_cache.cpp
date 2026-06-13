@@ -2,15 +2,17 @@
  * @file test_cache.cpp
  * @brief Tests for the parameterised cache and cache hierarchy.
  *
- * Sections:
- *   1 (line 117) : Basic cache operations
- *   2 (line 189) : Set associativity and eviction
- *   3 (line 241) : Replacement policies
- *   4 (line 387) : Write policies
- *   5 (line 446) : Cache control
- *   6 (line 560) : Cache hierarchy
- *   7 (line 744) : Edge cases
- *   8 (line 844) : Statistics
+ * @par Sections
+ * @code
+ *   1 (line  63) : Basic cache operations
+ *   2 (line 139) : Set associativity and eviction
+ *   3 (line 193) : Replacement policies
+ *   4 (line 343) : Write policies
+ *   5 (line 405) : Cache control
+ *   6 (line 526) : Cache hierarchy
+ *   7 (line 747) : Edge cases
+ *   8 (line 848) : Statistics
+ * @endcode
  */
 
 #include "core/cache.hpp"
@@ -58,7 +60,7 @@ static CacheConfig no_allocate_config()
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  1. Basic cache operations - hit, miss, line fill
+//  1. Basic cache operations
 // ═══════════════════════════════════════════════════════════════════════
 
 TEST(cache_read_miss_then_hit)
@@ -227,7 +229,8 @@ TEST(cache_random_replacement)
     return true;
 }
 
-TEST(cache_mru_replacement) {
+TEST(cache_mru_replacement)
+{
     // After accessing a, b, then c, the MRU victim is b
     auto mem = std::make_shared<FlatMemory>(0, 0x10000);
     auto cfg = config_with_replacement(ReplacementPolicy::MRU);
@@ -263,7 +266,7 @@ TEST(cache_mru_for_scanning)
     u32 range = cfg_lru.size_bytes * 2;
     for (int pass = 0; pass < 3; ++pass)
         for (u32 addr = 0; addr < range; addr += 64)
-    	{
+        {
             (void)lru.read32(addr);
             (void)mru.read32(addr);
         }
@@ -285,7 +288,7 @@ TEST(cache_plru_replacement)
     (void)cache.read32(a);
     (void)cache.read32(b);
     (void)cache.read32(a); // tree should point toward b
-    
+
     (void)cache.read32(c); // evicts b 
 
     ASSERT_EQ(cache.read32(a).cycles, cfg.hit_latency);
@@ -306,32 +309,32 @@ TEST(cache_plru_4way)
         .replacement   = ReplacementPolicy::PLRU,
     };
     Cache cache(cfg, mem);
- 
+
     u32 stride = cfg.num_sets() * cfg.line_size;
     addr_t a = 0, b = a + stride, c = b + stride, d = c + stride, e = d + stride;
- 
+
     // Fill all 4 ways
     (void)cache.read32(a);
     (void)cache.read32(b);
     (void)cache.read32(c);
     (void)cache.read32(d);
- 
+
     // Touch a and c to mark them as recently used
     (void)cache.read32(a);
     (void)cache.read32(c);
- 
+
     // e should evict one of {b, d}
     (void)cache.read32(e);
- 
+
     // a and c should still hit
     ASSERT_EQ(cache.read32(a).cycles, cfg.hit_latency);
     ASSERT_EQ(cache.read32(c).cycles, cfg.hit_latency);
- 
+
     // At least one of {b, d} should miss
     auto rb = cache.read32(b);
     auto rd = cache.read32(d);
     bool one_evicted = (rb.cycles > cfg.hit_latency)
-	                || (rd.cycles > cfg.hit_latency);
+                    || (rd.cycles > cfg.hit_latency);
     ASSERT(one_evicted);
     return true;
 }
@@ -538,7 +541,7 @@ TEST(cache_hierarchy_basic)
     };
 
     CacheHierarchy hierarchy(config, mem);
- 
+
     auto r1 = hierarchy.read32(0x1000);
     ASSERT_HEX_EQ(r1.value, 0xDEAD'C0DEu);
     ASSERT_EQ(hierarchy.level(0).stats().misses, 1u);
@@ -760,7 +763,8 @@ TEST(cache_byte_access)
     return true;
 }
 
-TEST(cache_half_access) {
+TEST(cache_half_access)
+{
     auto mem = std::make_shared<FlatMemory>(0, 0x10000);
     mem->write32(0x100, 0xBBBB'AAAA);
     Cache cache(simple_config(), mem);

@@ -4,12 +4,12 @@
  *
  * Fixed-width integer aliases, address/cycle types, exception hierarchy,
  * and bit-manipulation utilities used throughout the simulator. All 
- * bit-manipulation helpers are constexpr and noexcept for use in hot 
+ * bit-manipulation helpers are @c constexpr and @c noexcept for use in hot 
  * decode/execute paths.
  *
  * @par Host requirement
  * A little-endian host is required to match the RISC-V base ISA.
- * This is enforced at compile time via static_assert.
+ * This is enforced at compile time via @c static_assert.
  *
  * @see Waterman, A. S. (2016). "Design of the RISC-V Instruction Set Architecture."
  * UC Berkeley Technical Report.
@@ -33,7 +33,6 @@ namespace riscv {
 
 /// @name Fixed-width integer aliases
 /// @{
-
 using u8  = std::uint8_t;
 using u16 = std::uint16_t;
 using u32 = std::uint32_t;
@@ -46,7 +45,6 @@ using i64 = std::int64_t;
 using addr_t    = u32;  ///< 32-bit address for RV32.
 using cycle_t   = u64;  ///< 64-bit cycle counter.
 using reg_idx_t = u8;   ///< Register index (0-31).
-
 /// @}
 
 /// Compile-time check that the host is little-endian.
@@ -60,7 +58,8 @@ static_assert(std::endian::native == std::endian::little,
  * @brief ABI register name table, indexed by hardware register number.
  * @see RISC-V ABIs Specification, Chapter 1.1 (Integer Register Convention).
  */
-inline constexpr std::array<const char*, 32> kRegNames = {
+inline constexpr std::array<const char*, 32> kRegNames =
+{
     "zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2",
     "s0",   "s1", "a0", "a1", "a2", "a3", "a4", "a5",
     "a6",   "a7", "s2", "s3", "s4", "s5", "s6", "s7",
@@ -78,7 +77,6 @@ inline constexpr std::array<const char*, 32> kRegNames = {
 {
     return r < 32 ? std::format("v{}", r) : "???";
 }
-
 /// @}
 
 /// @name Exception hierarchy
@@ -144,14 +142,13 @@ private:
     addr_t address_;
     size_t alignment_;
 };
-
 /// @}
 
 /// @name Bit-manipulation utilities
 /// @{
 
 /**
- * @brief Sign-extend a B-bit value to a full i32.
+ * @brief Sign-extend a B-bit value to a full @c i32.
  *
  * Masks to B bits, then replicates the sign bit (bit B-1) into the
  * upper 32-B bits. Used extensively in immediate extraction during
@@ -192,7 +189,6 @@ template<unsigned B>
 {
     return (value >> pos) & 1;
 }
-
 /// @}
 
 } // namespace riscv
