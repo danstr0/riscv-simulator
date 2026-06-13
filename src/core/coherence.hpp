@@ -6,14 +6,16 @@
  * point for all L1 cache misses in a multi-core configuration.
  *
  * @par MESI states
- * Modified: sole dirty owner. Exclusive: sole clean owner.
- * Shared: clean, possibly held by multiple cores. Invalid: not cached.
+ * - Modified: sole dirty owner.
+ * - Exclusive: sole clean owner.
+ * - Shared: clean, possibly held by multiple cores.
+ * - Invalid: not cached.
  *
  * @par Directory architecture
  * Uses per-line shadow tags rather than bus-based snooping, sending
  * invalidation/snoop messages only to cores known to hold a copy.
  *
- * @see Henessy & Patterson, "Computer Organization and Design (RISC-V Edition)",
+ * @see Hennessy & Patterson, "Computer Organization and Design (RISC-V Edition)",
  *      Section 5.12.
  */
 
@@ -29,7 +31,8 @@
 namespace riscv {
 
 /// MESI coherence states.
-enum class MESIState : u8 {
+enum class MESIState : u8
+{
     Invalid   = 0,  ///< Line is not cached.
     Shared    = 1,  ///< Clean; other cores may also hold it.
     Exclusive = 2,  ///< Clean; this core is the sole owner.
@@ -37,7 +40,8 @@ enum class MESIState : u8 {
 };
 
 /// Coherence transaction counters.
-struct CoherenceStats {
+struct CoherenceStats
+{
     u64 read_misses        = 0;
     u64 write_misses       = 0;
     u64 upgrades           = 0;  ///< S → M transitions.
@@ -50,7 +54,8 @@ struct CoherenceStats {
 };
 
 /// Per-line directory entry tracking coherence state across all cores.
-struct DirectoryEntry {
+struct DirectoryEntry
+{
     std::vector<MESIState> core_states;
 
     explicit DirectoryEntry(u32 num_cores)
@@ -117,7 +122,7 @@ private:
     /// Get or create the directory entry for the line containing @p addr.
     DirectoryEntry& get_entry(addr_t addr);
 
-    /// Align address down to cache line boundary
+    /// Align address down to cache line boundary.
     [[nodiscard]] addr_t line_align(addr_t addr) const noexcept
     {
         return addr & ~static_cast<addr_t>(line_size_ - 1);

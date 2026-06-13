@@ -2,15 +2,17 @@
  * @file test_rv32a.cpp
  * @brief Tests for the RV32A extension.
  *
- * Sections:
- *   1 (line  22) : Decoder
- *   2 (line 169) : LR.W
- *   3 (line 235) : SC.W
- *   4 (line 420) : AMO* shared execution logic
- *   5 (line 541) : AMO(SWAP|ADD)
- *   6 (line 608) : AMO(XOR|AND|OR)
- *   7 (line 675) : AMO(MIN|MAX)U?
- *   8 (line 764) : CAS program
+ * @par Sections
+ * @code
+ *   1 (line  24) : Instruction decoding
+ *   2 (line 171) : LR.W
+ *   3 (line 237) : SC.W
+ *   4 (line 422) : AMO* shared execution logic
+ *   5 (line 543) : AMO(SWAP|ADD)
+ *   6 (line 610) : AMO(XOR|AND|OR)
+ *   7 (line 677) : AMO(MIN|MAX)U?
+ *   8 (line 766) : CAS program
+ * @endcode
  */
 
 #include "test_framework.hpp"
@@ -19,7 +21,7 @@
 using namespace riscv;
 
 // ═══════════════════════════════════════════════════════════════════════
-//  1. Decoder - all instructions decode correctly
+//  1. Instruction decoding
 // ═══════════════════════════════════════════════════════════════════════
 
 TEST(a_decode_lr_w)
@@ -297,7 +299,7 @@ bool run_sc_w_wrong_address()
 
     cpu.load_instruction(0, LR_W(1, 10));     // reserve 0x200
     cpu.load_instruction(4, SC_W(2, 11, 12)); // SC to 0x300 -> fail
-    
+
     h.step();
     h.step();
     ASSERT(cpu.reg(2) != 0u);
@@ -405,7 +407,7 @@ bool run_sc_w_x0()
 
     cpu.load_instruction(0, LR_W(3, 1));
     cpu.load_instruction(4, SC_W(0, 1, 2));
-    
+
     h.step();
     h.step();
     ASSERT_EQ(cpu.reg(0), 0u);
@@ -425,13 +427,13 @@ bool run_amo_x0()
 {
     Harness h;
     auto& cpu = h.get();
-    
+
     cpu.memory().write32(0x100, 5);
     cpu.set_reg(1, 0x100);
     cpu.set_reg(2, 99);
 
     cpu.load_instruction(0, AMOSWAP(0, 1, 2));
-    
+
     h.step();
     ASSERT_EQ(cpu.reg(0), 0u);
     ASSERT_EQ(cpu.memory().read32(0x100).value, 99u);

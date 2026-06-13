@@ -199,7 +199,7 @@ ConfigResult parse_config(std::string_view source)
             result.ok = false;
             continue;
         }
-    
+
         auto key = to_lower(sv_trim(sv.substr(0, eq)));
         auto val_sv = sv_trim(sv.substr(eq + 1));
         auto val = std::string(val_sv);

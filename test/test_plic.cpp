@@ -1,14 +1,16 @@
 /**
  * @file test_plic.cpp
- * @brief Tests for the simplified PLIC interrupt controller.
+ * @brief Tests for the PLIC model.
  *
- * Sections:
- *   1 (line  20) : Basic functions - set/clear pending, enable, priority
- *   2 (line  80) : Claim/complete - claim returns highest-priority, clears pending
- *   3 (line 140) : Threshold - interrupts below are filtered
- *   4 (line 185) : MMIO - register reads/writes match programmatic API
- *   5 (line 269) : Notification callback - fires on state changes
- *   6 (line 310) : Multi-source - priority ordering with multiple pending
+ * @par Sections
+ * @code
+ *   1 (line  22) : Basic functions
+ *   2 (line  82) : Claim / complete
+ *   3 (line 142) : Threshold
+ *   4 (line 187) : MMIO register access
+ *   5 (line 271) : Notification callback
+ *   6 (line 312) : Multi-source priority ordering
+ * @endcode
  */
 
 #include "core/plic.hpp"
@@ -115,7 +117,7 @@ TEST(plic_complete_allows_re_trigger)
     u32 src = plic.claim();
     ASSERT_EQ(src, 3u);
     plic.complete(src);
-    
+
     // Now the source can fire again
     plic.set_pending(3);
     ASSERT(plic.interrupt_pending());
@@ -190,7 +192,7 @@ TEST(plic_mmio_priority)
     PLIC plic;
 
     // Write priority for source 1 via MMIO (offset = source * 4)
-    (void)plic.write32(1 * 4, 5);
+    plic.write32(1 * 4, 5);
     ASSERT_EQ(plic.priority(1), 5u & 0x7);
 
     // Read it back
@@ -205,7 +207,7 @@ TEST(plic_mmio_enable)
     PLIC plic;
 
     // Enable bits at offset 0x2000
-    (void)plic.write32(0x2000, (1u << 1) | (1u << 5));
+    plic.write32(0x2000, (1u << 1) | (1u << 5));
     ASSERT(plic.enabled(1));
     ASSERT(plic.enabled(5));
     ASSERT(!plic.enabled(2));
@@ -219,7 +221,7 @@ TEST(plic_mmio_threshold)
 {
     PLIC plic;
 
-    (void)plic.write32(0x200000, 4);
+    plic.write32(0x200000, 4);
     ASSERT_EQ(plic.threshold(), 4u);
 
     auto r = plic.read32(0x200000);
@@ -241,7 +243,7 @@ TEST(plic_mmio_claim_complete)
     ASSERT(!plic.interrupt_pending());
 
     // Complete via MMIO write to 0x200004
-    (void)plic.write32(0x200004, 2);
+    plic.write32(0x200004, 2);
 
     // Can re-trigger
     plic.set_pending(2);
@@ -259,7 +261,7 @@ TEST(plic_mmio_pending_read_only)
     ASSERT_EQ(r.value & (1u << 3), 1u << 3);
 
     // Write to pending is ignored
-    (void)plic.write32(0x1000, 0);
+    plic.write32(0x1000, 0);
     r = plic.read32(0x1000);
     ASSERT_EQ(r.value & (1u << 3), 1u << 3);
     return true;
@@ -340,7 +342,7 @@ TEST(plic_equal_priority_lower_id_wins)
     plic.set_enable(5, true);
     plic.set_pending(2);
     plic.set_pending(5);
- 
+
     u32 first = plic.claim();
     ASSERT(first == 2u || first == 5u);
 

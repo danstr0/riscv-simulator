@@ -143,7 +143,6 @@ std::string DecodedInst::disassemble() const
                         op_name(op), reg_name(rd), reg_name(rs2), reg_name(rs1));
             }
             if (is_vector())
-            {
                 switch(op)
                 {
                     case Op::VLE32: // vd, (rs1)
@@ -181,8 +180,11 @@ std::string DecodedInst::disassemble() const
                     case Op::VMV_X_S: // rd, vs2
                         return std::format("{} {}, {}",
                                 op_name(op), reg_name(rd), vreg_name(rs2));
+
+                    // Unreachable
+                    default:
+                        return "???";
                 }
-            }
             return std::format("{} {}, {}, {}",
                 op_name(op), reg_name(rd), reg_name(rs1), reg_name(rs2));
 
@@ -201,16 +203,16 @@ std::string DecodedInst::disassemble() const
         case Format::B:
             return std::format("{} {}, {}, 0x{:x}",
                 op_name(op), reg_name(rs1), reg_name(rs2),
-                static_cast<u32>(pc + imm));
+                pc + static_cast<u32>(imm));
 
         case Format::U:
-            /* U-type immediates are displayed as shifted 20-bit hex values. */
+            // U-type immediates are displayed as shifted 20-bit hex values.
             return std::format("{} {}, 0x{:x}",
                 op_name(op), reg_name(rd), static_cast<u32>(imm) >> 12);
 
         case Format::J:
             return std::format("{} {}, 0x{:x}",
-                op_name(op), reg_name(rd), static_cast<u32>(pc + imm));
+                op_name(op), reg_name(rd), pc + static_cast<u32>(imm));
     }
     return "???";
 }
@@ -219,21 +221,21 @@ std::string DecodedInst::disassemble() const
 
 i32 Decoder::extract_i_imm(u32 inst)
 {
-    /* I-type: imm[11:0] = inst[31:20] */
+    // I-type: imm[11:0] = inst[31:20]
     return sign_extend<12>(inst >> 20);
 }
 
 i32 Decoder::extract_s_imm(u32 inst)
 {
-    /* S-type: imm[11:5]=inst[31:25], imm[4:0]=inst[11:7] */
+    // S-type: imm[11:5]=inst[31:25], imm[4:0]=inst[11:7]
     u32 imm = (bits(inst, 31, 25) << 5) | bits(inst, 11, 7);
     return sign_extend<12>(imm);
 }
 
 i32 Decoder::extract_b_imm(u32 inst)
 {
-    /* B-type: imm[12]=inst[31], imm[11]=inst[7], imm[10:5]=inst[30:25], imm[4:1]=inst[11:8] */
-    /* Bit 0 is implicitly 0. */
+    // B-type: imm[12]=inst[31], imm[11]=inst[7], imm[10:5]=inst[30:25], imm[4:1]=inst[11:8]
+    // Bit 0 is implicitly 0
     u32 imm = (bit(inst, 31)      << 12)
             | (bit(inst, 7)       << 11)
             | (bits(inst, 30, 25) << 5)
@@ -243,14 +245,14 @@ i32 Decoder::extract_b_imm(u32 inst)
 
 i32 Decoder::extract_u_imm(u32 inst)
 {
-    /* U-type: imm[31:12] = inst[31:12], lower 12 bits zeroed. */
-    return static_cast<i32>(inst & 0xFFFFF000u);
+    // U-type: imm[31:12] = inst[31:12], lower 12 bits zeroed
+    return static_cast<i32>(inst & 0xFFFF'F000u);
 }
 
 i32 Decoder::extract_j_imm(u32 inst)
 {
-    /* J-type: imm[20]=inst[31], imm[19:12]=inst[19:12], imm[11]=inst[20], imm[10:1]=inst[30:21] */
-    /* Bit 0 is implicitly 0. */
+    // J-type: imm[20]=inst[31], imm[19:12]=inst[19:12], imm[11]=inst[20], imm[10:1]=inst[30:21]
+    // Bit 0 is implicitly 0
     u32 imm = (bit(inst, 31)      << 20)
             | (bits(inst, 19, 12) << 12)
             | (bit(inst, 20)      << 11)
@@ -266,8 +268,8 @@ DecodedInst Decoder::decode_load(u32 inst, addr_t pc)
     d.format = Format::I;
     d.raw    = inst;
     d.pc     = pc;
-    d.rd     = bits(inst, 11, 7);
-    d.rs1    = bits(inst, 19, 15);
+    d.rd     = static_cast<reg_idx_t>(bits(inst, 11, 7));
+    d.rs1    = static_cast<reg_idx_t>(bits(inst, 19, 15));
     d.imm    = extract_i_imm(inst);
 
     u32 funct3 = bits(inst, 14, 12);
@@ -290,8 +292,8 @@ DecodedInst Decoder::decode_store(u32 inst, addr_t pc)
     d.format = Format::S;
     d.raw    = inst;
     d.pc     = pc;
-    d.rs1    = bits(inst, 19, 15);
-    d.rs2    = bits(inst, 24, 20);
+    d.rs1    = static_cast<reg_idx_t>(bits(inst, 19, 15));
+    d.rs2    = static_cast<reg_idx_t>(bits(inst, 24, 20));
     d.imm    = extract_s_imm(inst);
 
     u32 funct3 = bits(inst, 14, 12);
@@ -312,8 +314,8 @@ DecodedInst Decoder::decode_branch(u32 inst, addr_t pc)
     d.format = Format::B;
     d.raw    = inst;
     d.pc     = pc;
-    d.rs1    = bits(inst, 19, 15);
-    d.rs2    = bits(inst, 24, 20);
+    d.rs1    = static_cast<reg_idx_t>(bits(inst, 19, 15));
+    d.rs2    = static_cast<reg_idx_t>(bits(inst, 24, 20));
     d.imm    = extract_b_imm(inst);
 
     u32 funct3 = bits(inst, 14, 12);
@@ -337,8 +339,8 @@ DecodedInst Decoder::decode_op_imm(u32 inst, addr_t pc)
     d.format = Format::I;
     d.raw    = inst;
     d.pc     = pc;
-    d.rd     = bits(inst, 11, 7);
-    d.rs1    = bits(inst, 19, 15);
+    d.rd     = static_cast<reg_idx_t>(bits(inst, 11, 7));
+    d.rs1    = static_cast<reg_idx_t>(bits(inst, 19, 15));
     d.imm    = extract_i_imm(inst);
 
     u32 funct3 = bits(inst, 14, 12);
@@ -352,18 +354,19 @@ DecodedInst Decoder::decode_op_imm(u32 inst, addr_t pc)
         case 0b100: d.op = Op::XORI;  break;
         case 0b110: d.op = Op::ORI;   break;
         case 0b111: d.op = Op::ANDI;  break;
-        
+
         case 0b001: // SLLI
             if (funct7 == 0b0000000)
             {
                 d.op  = Op::SLLI;
-                d.imm = bits(inst, 24, 20); // shamt
-            } else
+                d.imm = static_cast<i32>(bits(inst, 24, 20)); // shamt
+            }
+            else
                 d.op = Op::INVALID;
             break;
 
         case 0b101: // SRLI / SRAI
-            d.imm = bits(inst, 24, 20); // shamt
+            d.imm = static_cast<i32>(bits(inst, 24, 20)); // shamt
             if (funct7 == 0b0000000)      d.op = Op::SRLI;
             else if (funct7 == 0b0100000) d.op = Op::SRAI;
             else                          d.op = Op::INVALID;
@@ -380,9 +383,9 @@ DecodedInst Decoder::decode_op(u32 inst, addr_t pc)
     d.format = Format::R;
     d.raw    = inst;
     d.pc     = pc;
-    d.rd     = bits(inst, 11, 7);
-    d.rs1    = bits(inst, 19, 15);
-    d.rs2    = bits(inst, 24, 20);
+    d.rd     = static_cast<reg_idx_t>(bits(inst, 11, 7));
+    d.rs1    = static_cast<reg_idx_t>(bits(inst, 19, 15));
+    d.rs2    = static_cast<reg_idx_t>(bits(inst, 24, 20));
 
     u32 funct3 = bits(inst, 14, 12);
     u32 funct7 = bits(inst, 31, 25);
@@ -432,14 +435,14 @@ DecodedInst Decoder::decode_amo(u32 inst, addr_t pc)
     d.format = Format::R;
     d.raw    = inst;
     d.pc     = pc;
-    d.rd     = bits(inst, 11, 7);
-    d.rs1    = bits(inst, 19, 15);
-    d.rs2    = bits(inst, 24, 20);
+    d.rd     = static_cast<reg_idx_t>(bits(inst, 11, 7));
+    d.rs1    = static_cast<reg_idx_t>(bits(inst, 19, 15));
+    d.rs2    = static_cast<reg_idx_t>(bits(inst, 24, 20));
 
     u32 funct3 = bits(inst, 14, 12);
     u32 funct5 = bits(inst, 31, 27);
 
-    /* Only .W is supported in RV32A */
+    // Only .W is supported in RV32A
     if (funct3 != 0b010)
     {
         d.op = Op::INVALID;
@@ -474,15 +477,15 @@ DecodedInst Decoder::decode_vector(u32 inst, addr_t pc)
     d.format = Format::R;
     d.raw    = inst;
     d.pc     = pc;
-    d.rd     = bits(inst, 11, 7);   // vd (or rd for VMV.X.S / VSETVLI)
-    d.rs1    = bits(inst, 19, 15);  // vs1 or rs1
-    d.rs2    = bits(inst, 24, 20);  // vs2 or rs2
+    d.rd     = static_cast<reg_idx_t>(bits(inst, 11, 7));   // vd (or rd for VMV.X.S / VSETVLI)
+    d.rs1    = static_cast<reg_idx_t>(bits(inst, 19, 15));  // vs1 or rs1
+    d.rs2    = static_cast<reg_idx_t>(bits(inst, 24, 20));  // vs2 or rs2
 
     u32 opcode = bits(inst, 6, 0);
     u32 funct3 = bits(inst, 14, 12);
     u32 funct6 = bits(inst, 31, 26);
 
-    /* Vector load */
+    // Vector load
     if (opcode == 0b0000111)
     {
         /* 
@@ -496,7 +499,7 @@ DecodedInst Decoder::decode_vector(u32 inst, addr_t pc)
         return d;
     }
 
-    /* Vector store */
+    // Vector store
     if (opcode == 0b0100111)
     {
         if (funct3 == 0b110 && d.rs2 == 0b00000)
@@ -506,12 +509,12 @@ DecodedInst Decoder::decode_vector(u32 inst, addr_t pc)
         return d;
     }
 
-    /* OP-V (opcode = 1010111) */
+    // OP-V (opcode = 1010111)
 
     if (funct3 == 0b111 && bit(inst, 31) == 0)
     {
         d.op  = Op::VSETVLI;
-        d.imm = bits(inst, 30, 20);  // zimm[10:0] encodes type
+        d.imm = static_cast<i32>(bits(inst, 30, 20));  // zimm[10:0] encodes type
         return d;
     }
     switch(funct3)
@@ -546,7 +549,7 @@ DecodedInst Decoder::decode_vector(u32 inst, addr_t pc)
                 default:       d.op = Op::INVALID;  break;
             }
             break;
-        
+
         case 0b010:  // OPMVV: vector-vector (mask/reduction/move)
             switch (funct6)
             {
@@ -578,8 +581,8 @@ DecodedInst Decoder::decode_system(u32 inst, addr_t pc)
     d.format = Format::I;
     d.raw    = inst;
     d.pc     = pc;
-    d.rd     = bits(inst, 11, 7);
-    d.rs1    = bits(inst, 19, 15);
+    d.rd     = static_cast<reg_idx_t>(bits(inst, 11, 7));
+    d.rs1    = static_cast<reg_idx_t>(bits(inst, 19, 15));
     d.imm    = extract_i_imm(inst);
 
     u32 funct3 = bits(inst, 14, 12);
@@ -598,7 +601,7 @@ DecodedInst Decoder::decode_system(u32 inst, addr_t pc)
     } 
     else
     {
-        /* CSR instructions */
+        // CSR instructions
         switch (funct3)
         {
             case 0b001: d.op = Op::CSRRW;   break;
@@ -638,14 +641,14 @@ DecodedInst Decoder::decode(u32 inst, addr_t pc)
         case Opcode::AUIPC:
             d.format = Format::U;
             d.op     = (opcode == Opcode::LUI) ? Op::LUI : Op::AUIPC;
-            d.rd     = bits(inst, 11, 7);
+            d.rd     = static_cast<reg_idx_t>(bits(inst, 11, 7));
             d.imm    = extract_u_imm(inst);
             return d;
 
         case Opcode::JAL:
             d.format = Format::J;
             d.op     = Op::JAL;
-            d.rd     = bits(inst, 11, 7);
+            d.rd     = static_cast<reg_idx_t>(bits(inst, 11, 7));
             d.imm    = extract_j_imm(inst);
             return d;
 
@@ -653,16 +656,16 @@ DecodedInst Decoder::decode(u32 inst, addr_t pc)
             if (bits(inst, 14, 12) != 0b000) { d.op = Op::INVALID; return d; }
             d.format = Format::I;
             d.op     = Op::JALR;
-            d.rd     = bits(inst, 11, 7);
-            d.rs1    = bits(inst, 19, 15);
+            d.rd     = static_cast<reg_idx_t>(bits(inst, 11, 7));
+            d.rs1    = static_cast<reg_idx_t>(bits(inst, 19, 15));
             d.imm    = extract_i_imm(inst);
             return d;
 
         case Opcode::MISC_MEM:
             d.format = Format::I;
             d.op     = Op::FENCE;
-            d.rd     = bits(inst, 11, 7);
-            d.rs1    = bits(inst, 19, 15);
+            d.rd     = static_cast<reg_idx_t>(bits(inst, 11, 7));
+            d.rs1    = static_cast<reg_idx_t>(bits(inst, 19, 15));
             d.imm    = extract_i_imm(inst);
             return d;
 

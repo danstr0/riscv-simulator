@@ -24,9 +24,9 @@ Executor::Executor(Memory& memory)
 void Executor::dump_regs() const
 {
     std::cout << std::format("--- Architectural State (PC: 0x{:08x}) ---\n", pc_);
-    for (int i = 0; i < 32; i += 4)
+    for (size_t i = 0; i < 32; i += 4)
     {
-        for (int j = 0; j < 4; ++j)
+        for (size_t j = 0; j < 4; ++j)
             std::cout << std::format("{:>4s}: 0x{:08x}  ",
                                      reg_name(static_cast<reg_idx_t>(i + j)),
                                      regs_[i + j]);
@@ -109,7 +109,7 @@ ExecuteResult Executor::execute_store(const DecodedInst& inst)
 
     result.ok     = mem.ok;
     result.cycles = mem.cycles;
-        
+
     if (trace_)
         std::cout << std::format("[STORE] addr={:08x} <- 0x{:08x}\n",
                                  addr, memory_.read32(addr).value);
@@ -117,7 +117,7 @@ ExecuteResult Executor::execute_store(const DecodedInst& inst)
     // Any store to the reserved address invalidates the reservation
     if (reservation_.has_value())
     {
-    	addr_t res = reservation_.value();
+        addr_t res = reservation_.value();
         addr_t store_size;
         switch(inst.op)
         {
@@ -125,7 +125,7 @@ ExecuteResult Executor::execute_store(const DecodedInst& inst)
             case Op::SH: store_size = 2; break;
             case Op::SW: store_size = 4; break;
             default:     store_size = 0; break;
-	    }
+        }
         // Check if [addr, addr+store_size) overlaps [res, res+4)
         if (addr < res + 4 && addr + store_size > res)
         {
@@ -177,13 +177,13 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
     {
         const u32 csr_addr = uimm & 0xFFF;
         const u32 old_val  = csrs_.read(csr_addr);
-        
+
         if (do_write)
         {
             const u32 new_val = compute_new_val(old_val);
 
             csrs_.write(csr_addr, new_val);
-        
+
             if (trace_)
                 std::cout << std::format("[CSR] csr=0x{:03x} | "
                                          "old=0x{:08x} | new=0x{:08x}\n",
@@ -315,7 +315,7 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
         case Op::DIVU:   exec_alu(alu_divu,   rs1, rs2); break;
         case Op::REM:    exec_alu(alu_rem,    rs1, rs2); break;
         case Op::REMU:   exec_alu(alu_remu,   rs1, rs2); break;
-        
+
         // ── RV32A instructions ──────────────────────────
         case Op::LR_W:
         {
@@ -387,13 +387,13 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
                                     break;
                 case Op::AMOMINU_W: new_val = (old_val < rs2) ? old_val : rs2; break;
                 case Op::AMOMAXU_W: new_val = (old_val > rs2) ? old_val : rs2; break;
-                default: new_val = old_val; break;
+                default: [[unlikely]] new_val = old_val; break;
             }
             memory_.write32(rs1, new_val);
             set_reg(inst.rd, old_val);
             result.rd_value = old_val;
             result.cycles = mem.cycles;
-            
+
             if (trace_)
                 std::cout << std::format("[AMO] addr=0x{:08x} | "
                                          "old=0x{:08x} | new=0x{:08x}\n",
@@ -444,8 +444,8 @@ ExecuteResult Executor::execute(const DecodedInst& inst)
         case Op::VSLL_VX:  case Op::VSRL_VX:
         case Op::VMSEQ_VV: case Op::VMSEQ_VX:
         case Op::VMSLT_VV: case Op::VMSLTU_VV:
-	    case Op::VMAND_MM: case Op::VMNAND_MM: case Op::VMANDN_MM:
-	    case Op::VMXOR_MM: case Op::VMOR_MM:   case Op::VMNOR_MM:
+        case Op::VMAND_MM: case Op::VMNAND_MM: case Op::VMANDN_MM:
+        case Op::VMXOR_MM: case Op::VMOR_MM:   case Op::VMNOR_MM:
         case Op::VMORN_MM: case Op::VMXNOR_MM:
         case Op::VREDSUM_VS:
         case Op::VMV_V_X:  case Op::VMV_X_S:
@@ -523,13 +523,13 @@ ExecuteResult Executor::execute_vector(const DecodedInst& inst,
                     : (inst.rs1 == 0)
                     ? ~u32{0}          // set vl=VLMAX 
                     : rs1;
-            
+
             u32 new_vl = vs.vsetvli(avl, uimm);
             set_reg(inst.rd, new_vl);
             result.rd_value = new_vl;
             break;
         }
-        
+
         // ── Vector load (unit-stride, SEW=32) ───────────
         case Op::VLE32:
         {
@@ -655,7 +655,7 @@ ExecuteResult Executor::execute_vector(const DecodedInst& inst,
                     case Op::VMNOR_MM:  bit_result = !(bit2 | bit1); break;
                     case Op::VMORN_MM:  bit_result = bit2 | (!bit1); break;
                     case Op::VMXNOR_MM: bit_result = !(bit2 ^ bit1); break;
-                    default:            bit_result = false;          break;
+                    default: [[unlikely]] bit_result = false;        break;
                 }
                 u32 dst_elem = vregs.get_elem32(vd, i / 32);
 
@@ -689,7 +689,7 @@ ExecuteResult Executor::execute_vector(const DecodedInst& inst,
             result.rd_value = regs_[inst.rd];
             break;
 
-        default:
+        default: [[unlikely]]
             result.ok = false;
             break;
     }

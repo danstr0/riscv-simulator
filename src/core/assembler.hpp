@@ -16,10 +16,14 @@
  * @endcode
  *
  * @subsection asm_comments Comments
- * Everything after @c #, @c ;, or @c // is ignored.
+ * Everything after:
+ * - #,
+ * - ;,
+ * - or //
+ * is ignored.
  *
  * @subsection asm_registers Registers
- * - Integer: @c x0-x31 or ABI names (@c zero, @c ra, @c sp, @c gp, @tp,
+ * - Integer: @c x0-x31 or ABI names (@c zero, @c ra, @c sp, @c gp, @c tp,
  *   @c t0-t6, @c s0-s11, @c a0-a7, @c fp).
  * - Vector: @c v0-v31.
  * - CSR: named (@c mstatus, @c mie, @c mtvec, @c mepc, @c mcause, @c mip)
@@ -29,6 +33,7 @@
  * Decimal (@c 42), hexadecimal (@c 0xFF), or negative (@c -10, @c -0x10).
  *
  * @subsection asm_instructions Supported Instructions
+ * @code
  * ┏━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
  * ┃ Category    ┃ Mnemonics                                                  ┃
  * ┣━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
@@ -63,6 +68,7 @@
  * ┃ Pseudo-ops  │ nop, li, mv, j, jr, ret, not, neg, beqz, bnez, seqz, snez, ┃
  * ┃             │ vmmv.m, vmclr.m, vmset.m, vmnot.m                          ┃
  * ┗━━━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+ * @endcode
  *
  * @subsection asm_encoding Encoding
  * The assembler is two-pass: pass 1 collects labels and computes instruction
@@ -82,22 +88,20 @@
 
 namespace riscv {
 
-/**
- * @brief Single assembly error with source location.
- */
-struct AsmError {
+/// Single assembly error with source location.
+struct AsmError
+{
     u32         line; ///< 1-based line number.
     std::string message;
 };
 
-/**
- * @brief Result of an assembly operation.
- */
-struct AsmResult {
+/// Result of an assembly operation.
+struct AsmResult
+{
     bool                  ok = false;
     std::vector<u8>       code;   ///< Assembled machine code (little-endian).
     std::vector<AsmError> errors;
-    std::unordered_map<std::string, addr_t> labels; ///< Label -> address map.
+    std::unordered_map<std::string, addr_t> labels; ///< Label → address map.
 
     /// @brief Total assembled code size in bytes.
     [[nodiscard]] u32 size() const noexcept { return static_cast<u32>(code.size()); }
@@ -107,7 +111,7 @@ struct AsmResult {
  * @brief Stateless two-pass RISC-V assembler.
  *
  * All parsing and encoding helpers are static. The public entry points
- * (assemble(), assemble_lines()) are const and produce an AsmResult
+ * (@c assemble(), @c assemble_lines()) are const and produce an @c AsmResult
  * containing either the assembled byte stream or a list of errors.
  *
  * @par Parse helper convention
@@ -117,45 +121,42 @@ struct AsmResult {
  */
 class Assembler {
 public:
-    /// @brief Assemble a source string into machine code.
+    /// Assemble a source string into machine code.
     [[nodiscard]] AsmResult assemble(std::string_view source) const;
 
-    /// @brief Assemble from a pre-split vector of source lines.
+    /// Assemble from a pre-split vector of source lines.
     [[nodiscard]] AsmResult assemble_lines(const std::vector<std::string>& lines) const;
 
 private:
-    /**
-     * @brief Intermediate representation of a single source line.
-     */
-    struct ParsedLine {
+    /// Intermediate representation of a single source line.
+    struct ParsedLine
+    {
         std::string              label;    ///< Empty if no label on this line.
         std::string              mnemonic; ///< Lowercase. Empty if label-only or blank.
         std::vector<std::string> operands; ///< Trimmed operand strings.
         u32                      line_num = 0; ///< 1-based source line number.
     };
 
-    /// @brief Parse one source line into label, mnemonic, and operands.
+    /// Parse one source line into label, mnemonic, and operands.
     [[nodiscard]] static ParsedLine parse_line(std::string_view line, u32 line_num);
 
-    /// @brief Resolve an integer register name (x0-x31 or ABI) to its index.
+    /// Resolve an integer register name (x0-x31 or ABI) to its index.
     [[nodiscard]] static bool parse_register(std::string_view name, u32& out);
 
-    /// @brief Resolve a vector register name (v0-v31) to its index.
+    /// Resolve a vector register name (v0-v31) to its index.
     [[nodiscard]] static bool parse_vreg(std::string_view name, u32& out);
 
-    /// @brief Parse a numeric literal or label reference into a signed immediate.
+    /// Parse a numeric literal or label reference into a signed immediate.
     [[nodiscard]] static bool parse_immediate(std::string_view token,
                                               const std::unordered_map<std::string, addr_t>& labels,
-                                              addr_t pc,
                                               i32& out);
 
-    /// @brief Parse "offset(reg)" or "(reg)". Rejects trailing characters.
+    /// Parse @c offset(reg) or @c (reg). Rejects trailing characters.
     [[nodiscard]] static bool parse_mem_operand(std::string_view token,
                                                 const std::unordered_map<std::string, addr_t>& labels,
-                                                addr_t pc,
                                                 i32& offset, u32& reg);
 
-    /// @brief Resolve a CSR name or hex address (0x000-0xFFF) to its 12-bit address.
+    /// Resolve a CSR name or hex address (0x000-0xFFF) to its 12-bit address.
     [[nodiscard]] static bool parse_csr(std::string_view name, u32& out);
 
     /**
@@ -167,7 +168,7 @@ private:
                        const std::unordered_map<std::string, addr_t>& labels,
                        addr_t pc);
 
-    /// @brief Append a 32-bit word to a byte vector in little-endian order.
+    /// Append a 32-bit word to a byte vector in little-endian order.
     static void emit_word(std::vector<u8>& code, u32 word);
 };
 

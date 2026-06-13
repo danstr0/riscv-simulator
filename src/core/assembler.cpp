@@ -35,7 +35,7 @@ bool Assembler::parse_register(std::string_view name, u32& out)
 {
     auto n = to_lower(name);
 
-    /* x0-x31 */
+    // x0-x31
     if (n.size() >= 2 && n[0] == 'x')
     {
         u32 v = 0;
@@ -48,8 +48,9 @@ bool Assembler::parse_register(std::string_view name, u32& out)
         }
     }
 
-    /* ABI names */
-    static const std::unordered_map<std::string, u32> abi = {
+    // ABI names
+    static const std::unordered_map<std::string, u32> abi =
+    {
         {"zero", 0}, {"ra", 1}, {"sp", 2}, {"gp", 3}, {"tp", 4},
         {"t0", 5}, {"t1", 6}, {"t2", 7},
         {"s0", 8}, {"fp", 8}, {"s1", 9},
@@ -77,7 +78,7 @@ bool Assembler::parse_vreg(std::string_view name, u32& out)
     {
         u32 v = 0;
         auto [ptr, ec] = std::from_chars(n.data() + 1, n.data() + n.size(), v);
-        
+
         if (ec == std::errc{} && ptr == n.data() + n.size() && v < 32)
         {
             out = v;
@@ -90,7 +91,8 @@ bool Assembler::parse_vreg(std::string_view name, u32& out)
 bool Assembler::parse_csr(std::string_view name, u32& out)
 {
     auto n = to_lower(name);
-    static const std::unordered_map<std::string, u32> csrs = {
+    static const std::unordered_map<std::string, u32> csrs =
+    {
         {"mstatus", 0x300}, {"mie", 0x304}, {"mtvec", 0x305},
         {"mepc", 0x341}, {"mcause", 0x342}, {"mip", 0x344},
     };
@@ -101,12 +103,12 @@ bool Assembler::parse_csr(std::string_view name, u32& out)
         return true;
     }
 
-    /* Numeric */
+    // Numeric
     u32 v = 0;
     if (n.size() > 2 && n[0] == '0' && n[1] == 'x')
     {
         auto [ptr, ec] = std::from_chars(n.data() + 2, n.data() + n.size(), v, 16);
-        
+
         if (ec == std::errc{} && ptr == n.data() + n.size() && v <= 0xFFF)
         {
             out = static_cast<u32>(v);
@@ -118,17 +120,17 @@ bool Assembler::parse_csr(std::string_view name, u32& out)
 }
 
 /**
- * Hex literals are parsed as u32 and reinterpreted as i32, so 0x80000000
+ * Hex literals are parsed as u32 and reinterpreted as i32, so 0x8000'0000
  * yields INT32_MIN. Decimal literals are parsed directly as i32.
  */
 bool Assembler::parse_immediate(std::string_view token,
                                 const std::unordered_map<std::string, addr_t>& labels,
-                                addr_t pc, i32& out)
+                                i32& out)
 {
     auto s = trim(token);
     if (s.empty()) return false;
 
-    /* Label reference */
+    // Label reference
     auto key = std::string(s);
     auto it = labels.find(key);
     if (it != labels.end())
@@ -137,7 +139,7 @@ bool Assembler::parse_immediate(std::string_view token,
         return true;
     }
 
-    /* Hex */
+    // Hex
     if (s.size() > 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X'))
     {
         u32 v = 0;
@@ -150,7 +152,7 @@ bool Assembler::parse_immediate(std::string_view token,
         }
     }
 
-    /* Negative hex */
+    // Negative hex
     if (s.size() > 3 && s[0] == '-' && s[1] == '0' && (s[2] == 'x' || s[2] == 'X'))
     {
         u32 v = 0;
@@ -158,13 +160,13 @@ bool Assembler::parse_immediate(std::string_view token,
 
         if (ec == std::errc{} && ptr == s.data() + s.size())
         {
-            /* Unsigned negation avoids UB on -INT32_MIN */
+            // Unsigned negation avoids UB on -INT32_MIN
             out = static_cast<i32>(0u - v);
             return true;
         }
     }
 
-    /* Decimal */
+    // Decimal
     i32 v = 0;
     auto [ptr, ec] = std::from_chars(s.data(), s.data() + s.size(), v);
 
@@ -179,7 +181,6 @@ bool Assembler::parse_immediate(std::string_view token,
 
 bool Assembler::parse_mem_operand(std::string_view token,
                                   const std::unordered_map<std::string, addr_t>& labels,
-                                  addr_t pc,
                                   i32& offset, u32& reg)
 {
     auto s = trim(token);
@@ -194,7 +195,7 @@ bool Assembler::parse_mem_operand(std::string_view token,
 
     if (off_str.empty())
         offset = 0;
-    else if (!parse_immediate(off_str, labels, pc, offset))
+    else if (!parse_immediate(off_str, labels, offset))
         return false;
 
     return parse_register(reg_str, reg);
@@ -207,7 +208,7 @@ Assembler::ParsedLine Assembler::parse_line(std::string_view line, u32 line_num)
     ParsedLine result;
     result.line_num = line_num;
 
-    /* Strip comments */
+    // Strip comments
     for (size_t i = 0; i < line.size(); ++i)
     {
         if (line[i] == '#' || line[i] == ';')
@@ -225,17 +226,17 @@ Assembler::ParsedLine Assembler::parse_line(std::string_view line, u32 line_num)
     line = trim(line);
     if (line.empty()) return result;
 
-    /* Check for label */
+    // Check for label
     auto colon = line.find(':');
     if (colon != std::string_view::npos)
     {
         result.label = std::string(trim(line.substr(0, colon)));
-        
+
         line = trim(line.substr(colon + 1));
         if (line.empty()) return result;
     }
 
-    /* Split into mnemonic + operands */
+    // Split into mnemonic + operands
     size_t mend = 0;
     while (mend < line.size() && !std::isspace(static_cast<unsigned char>(line[mend])))
         ++mend;
@@ -243,7 +244,7 @@ Assembler::ParsedLine Assembler::parse_line(std::string_view line, u32 line_num)
     result.mnemonic = to_lower(line.substr(0, mend));
     line = trim(line.substr(mend));
 
-    /* Parse comma-separated operands */
+    // Parse comma-separated operands
     while (!line.empty())
     {
         size_t end = 0;
@@ -316,7 +317,7 @@ static u32 enc_j(i32 offset, u32 rd, u32 opcode)
          | (bit_19_12 << 12) | (rd << 7) | opcode;
 }
 
-/* Opcodes */
+// Opcodes
 static constexpr u32 OP_LUI    = 0b0110111;
 static constexpr u32 OP_AUIPC  = 0b0010111;
 static constexpr u32 OP_JAL    = 0b1101111;
@@ -347,7 +348,7 @@ Assembler::encode_instruction(const ParsedLine& line,
     const auto& ops = line.operands;
     auto nops = static_cast<u32>(ops.size());
 
-    /* Helper lambdas for common operand patterns */
+    // Helper lambdas for common operand patterns
     auto reg = [&](u32 idx, u32& r) -> bool
     {
         return idx < nops && parse_register(ops[idx], r);
@@ -358,11 +359,11 @@ Assembler::encode_instruction(const ParsedLine& line,
     };
     auto imm = [&](u32 idx, i32& v) -> bool
     {
-        return idx < nops && parse_immediate(ops[idx], labels, pc, v);
+        return idx < nops && parse_immediate(ops[idx], labels, v);
     };
     auto mem = [&](u32 idx, i32& off, u32& r) -> bool
     {
-        return idx < nops && parse_mem_operand(ops[idx], labels, pc, off, r);
+        return idx < nops && parse_mem_operand(ops[idx], labels, off, r);
     };
     auto amo_funct7 = [&](u32 funct5, u32 aq = 0, u32 rl = 0)
     {
@@ -397,7 +398,7 @@ Assembler::encode_instruction(const ParsedLine& line,
     {
         u32 rd, rs;
         if (nops != 2 || !reg(0, rd) || !reg(1, rs)) return err("mv rd, rs");
-        
+
         return ok1(enc_i(0, rs, 0, rd, OP_OPIMM));  // addi rd, rs, 0
     }
     if (m == "not")
@@ -405,20 +406,20 @@ Assembler::encode_instruction(const ParsedLine& line,
         u32 rd, rs;
         if (nops != 2 || !reg(0, rd) || !reg(1, rs)) return err("not rd, rs");
 
-        return ok1(enc_i(-1, rs, 4, rd, OP_OPIMM));  // xori rd, rs, -1
+        return ok1(enc_i(0xFFF, rs, 4, rd, OP_OPIMM));  // xori rd, rs, -1
     }
     if (m == "neg")
     {
         u32 rd, rs;
         if (nops != 2 || !reg(0, rd) || !reg(1, rs)) return err("neg rd, rs");
-        
+
         return ok1(enc_r(0b0100000, rs, 0, 0, rd, OP_OP));  // sub rd, x0, rs
     }
     if (m == "j")
     {
         i32 target;
         if (nops != 1 || !imm(0, target)) return err("j target");
-        
+
         i32 offset = target - static_cast<i32>(pc);
         if (offset < -1048576 || offset > 1048575)
             return err("j offset out of range");
@@ -439,22 +440,23 @@ Assembler::encode_instruction(const ParsedLine& line,
         u32 rd; i32 v;
         if (nops != 2 || !reg(0, rd) || !imm(1, v)) return err("li rd, imm");
 
-        if (v >= -2048 && v <= 2047)
-            return ok1(enc_i(v, 0, 0, rd, OP_OPIMM));  // addi rd, x0, imm
-    
-        /* lui + addi for large values */
         u32 uv = static_cast<u32>(v);
+
+        if (v >= -2048 && v <= 2047)
+            return ok1(enc_i(uv, 0, 0, rd, OP_OPIMM));  // addi rd, x0, imm
+
+        // lui + addi for large values
         u32 hi = uv + 0x800;  // compensate for addi sign-extending bit 11
         u32 lo = uv & 0xFFF;
 
         return ok2(enc_u(hi, rd, OP_LUI),
-                   enc_i(static_cast<i32>(lo), rd, 0, rd, OP_OPIMM));
+                   enc_i(lo, rd, 0, rd, OP_OPIMM));
     }
     if (m == "beqz")
     {
         u32 rs; i32 target;
         if (nops != 2 || !reg(0, rs) || !imm(1, target)) return err("beqz rs, target");
-        
+
         i32 offset = target - static_cast<i32>(pc);
         if (offset < -4096 || offset > 4095)
             return err("beqz offset out of range");
@@ -467,7 +469,7 @@ Assembler::encode_instruction(const ParsedLine& line,
     {
         u32 rs; i32 target;
         if (nops != 2 || !reg(0, rs) || !imm(1, target)) return err("bnez rs, target");
-        
+
         i32 offset = target - static_cast<i32>(pc);
         if (offset < -4096 || offset > 4095)
             return err("bnez offset out of range");
@@ -496,19 +498,19 @@ Assembler::encode_instruction(const ParsedLine& line,
     auto try_r_type = [&]() -> std::variant<std::vector<u32>, std::string>
     {
         struct REntry { const char* name; u32 funct7; u32 funct3; };
-        static const REntry table[] = {
+        static const REntry table[] =
+        {
             {"add", 0b0000000, 0b000}, {"sub", 0b0100000, 0b000},
             {"sll", 0b0000000, 0b001}, {"slt", 0b0000000, 0b010}, {"sltu", 0b0000000, 0b011},
             {"xor", 0b0000000, 0b100}, {"srl", 0b0000000, 0b101}, {"sra",  0b0100000, 0b101},
             {"or",  0b0000000, 0b110}, {"and", 0b0000000, 0b111},
-            /* M extension */
+            // M extension
             {"mul",     0b0000001, 0b000}, {"mulh",  0b0000001, 0b001},
             {"mulhsu",  0b0000001, 0b010}, {"mulhu", 0b0000001, 0b011},
             {"div",     0b0000001, 0b100}, {"divu",  0b0000001, 0b101},
             {"rem",     0b0000001, 0b110}, {"remu",  0b0000001, 0b111},
         };
         for (auto& e : table)
-        {
             if (m == e.name)
             {
                 u32 rd, rs1, rs2;
@@ -517,7 +519,6 @@ Assembler::encode_instruction(const ParsedLine& line,
 
                 return ok1(enc_r(e.funct7, rs2, rs1, e.funct3, rd, OP_OP));
             }
-        }
         return err("");
     };
 
@@ -529,57 +530,60 @@ Assembler::encode_instruction(const ParsedLine& line,
 
     {
         struct IEntry { const char* name; u32 funct3; bool is_shift; u32 funct7; };
-        static const IEntry table[] = {
+        static const IEntry table[] =
+        {
             {"addi", 0b000, false, 0}, {"slti", 0b010, false, 0}, {"sltiu", 0b011, false, 0},
             {"xori", 0b100, false, 0}, {"ori",  0b110, false, 0}, {"andi",  0b111, false, 0},
             {"slli", 0b001, true, 0}, {"srli", 0b101, true, 0},
             {"srai", 0b101, true, 0b0100000},
         };
         for (auto& e : table)
-        {
             if (m == e.name)
             {
-                u32 rd, rs1; i32 iv;
-                if (nops != 3 || !reg(0, rd) || !reg(1, rs1) || !imm(2, iv))
+                u32 rd, rs1; i32 v;
+                if (nops != 3 || !reg(0, rd) || !reg(1, rs1) || !imm(2, v))
                     return err(std::format("{} rd, rs1, imm", m));
 
                 if (e.is_shift)
                 {
-                    if (iv < 0 || iv > 31) return err(std::format("{} shift amount out of range", m));
-                    u32 shamt = static_cast<u32>(iv);
-                    return ok1(enc_i(static_cast<i32>((e.funct7 << 5) | shamt), rs1, e.funct3, rd, OP_OPIMM));
+                    if (v < 0 || v > 31) return err(std::format("{} shamt out of range", m));
+                    u32 shamt = static_cast<u32>(v);
+                    return ok1(enc_i(e.funct7 << 5 | shamt, rs1, e.funct3, rd, OP_OPIMM));
                 }
 
-                if (iv < -2048 || iv > 2047)
+                if (v < -2048 || v > 2047)
                     return err(std::format("{} immediate out of range", m));
 
-                return ok1(enc_i(iv, rs1, e.funct3, rd, OP_OPIMM));
+                u32 uv = static_cast<u32>(v);
+
+                return ok1(enc_i(uv, rs1, e.funct3, rd, OP_OPIMM));
             }
-        }
     }
 
     // ── LUI / AUIPC ─────────────────────────────────────
 
     if (m == "lui" || m == "auipc")
     {
-        u32 rd; i32 iv;
-        if (nops != 2 || !reg(0, rd) || !imm(1, iv))
+        u32 rd; i32 v;
+        if (nops != 2 || !reg(0, rd) || !imm(1, v))
             return err(std::format("{} rd, imm", m));
-        if (iv < -0x80000 || iv > 0xFFFFF)
+        if (v < -0x80000 || v > 0xFFFFF)
             return err(std::format("{} immediate out of range", m));
 
-        return ok1(enc_u(static_cast<u32>(iv) << 12, rd, (m == "lui") ? OP_LUI : OP_AUIPC));
+        u32 uv = static_cast<u32>(v);
+
+        return ok1(enc_u(uv << 12, rd, (m == "lui") ? OP_LUI : OP_AUIPC));
     }
 
     // ── Loads ───────────────────────────────────────────
 
     {
         struct LEntry { const char* name; u32 funct3; };
-        static const LEntry table[] = {
+        static const LEntry table[] =
+        {
             {"lb", 0b000}, {"lh", 0b001}, {"lw", 0b010}, {"lbu", 0b100}, {"lhu", 0b101},
         };
         for (auto& e : table)
-        {
             if (m == e.name)
             {
                 u32 rd, rs1; i32 off;
@@ -587,10 +591,11 @@ Assembler::encode_instruction(const ParsedLine& line,
                     return err(std::format("{} rd, offset(rs1)", m));
                 if (off < -2048 || off > 2047)
                     return err(std::format("{} offset out of range", m));
-                
-                return ok1(enc_i(off, rs1, e.funct3, rd, OP_LOAD));
+
+                u32 uoff = static_cast<u32>(off);
+
+                return ok1(enc_i(uoff, rs1, e.funct3, rd, OP_LOAD));
             }
-        }
     }
 
     // ── Stores ──────────────────────────────────────────
@@ -599,7 +604,6 @@ Assembler::encode_instruction(const ParsedLine& line,
         struct SEntry { const char* name; u32 funct3; };
         static const SEntry table[] = {{"sb", 0b000}, {"sh", 0b001}, {"sw", 0b010}};
         for (auto& e : table)
-        {
             if (m == e.name)
             {
                 u32 rs2, rs1; i32 off;
@@ -610,19 +614,18 @@ Assembler::encode_instruction(const ParsedLine& line,
 
                 return ok1(enc_s(static_cast<u32>(off), rs2, rs1, e.funct3, OP_STORE));
             }
-        }
     }
 
     // ── Branches ────────────────────────────────────────
 
     {
         struct BEntry { const char* name; u32 funct3; };
-        static const BEntry table[] = {
+        static const BEntry table[] =
+        {
             {"beq", 0b000}, {"bne",  0b001}, {"blt",  0b100},
             {"bge", 0b101}, {"bltu", 0b110}, {"bgeu", 0b111},
         };
         for (auto& e : table)
-        {
             if (m == e.name)
             {
                 u32 rs1, rs2; i32 target;
@@ -637,7 +640,6 @@ Assembler::encode_instruction(const ParsedLine& line,
 
                 return ok1(enc_b(offset, rs2, rs1, e.funct3, OP_BRANCH));
             }
-        }
     }
 
     // ── JAL / JALR ──────────────────────────────────────
@@ -668,7 +670,9 @@ Assembler::encode_instruction(const ParsedLine& line,
         if (off < -2048 || off > 2047)
             return err("jalr offset out of range");
 
-        return ok1(enc_i(off, rs1, 0, rd, OP_JALR));
+        u32 uoff = static_cast<u32>(off);
+
+        return ok1(enc_i(uoff, rs1, 0, rd, OP_JALR));
     }
 
     // ── System instructions ─────────────────────────────
@@ -682,12 +686,12 @@ Assembler::encode_instruction(const ParsedLine& line,
 
     {
         struct CEntry { const char* name; u32 funct3; bool is_imm; };
-        static const CEntry table[] = {
+        static const CEntry table[] =
+        {
             {"csrrw",  0b001, false}, {"csrrs",  0b010, false}, {"csrrc",  0b011, false},
             {"csrrwi", 0b101, true},  {"csrrsi", 0b110, true},  {"csrrci", 0b111, true},
         };
         for (auto& e : table)
-        {
             if (m == e.name)
             {
                 if (nops != 3) return err(std::format("{} requires 3 operands", m));
@@ -703,16 +707,15 @@ Assembler::encode_instruction(const ParsedLine& line,
                     if (zimm < 0 || zimm > 31)
                         return err(std::format("{} zimm out of range", m));
 
-                    return ok1(enc_i(static_cast<i32>(csr_addr),
+                    return ok1(enc_i(csr_addr,
                                      static_cast<u32>(zimm),
                                      e.funct3, rd, OP_SYSTEM));
                 }
                 u32 rs1;
                 if (!reg(2, rs1)) return err(std::format("{} rd, csr, rs1", m));
 
-                return ok1(enc_i(static_cast<i32>(csr_addr), rs1, e.funct3, rd, OP_SYSTEM));
+                return ok1(enc_i(csr_addr, rs1, e.funct3, rd, OP_SYSTEM));
             }
-        }
     }
 
     // ── A extension ─────────────────────────────────────
@@ -720,7 +723,7 @@ Assembler::encode_instruction(const ParsedLine& line,
     if (m == "lr.w")
     {
         u32 rd; i32 off; u32 rs1;
-        if (nops != 2 || !reg(0, rd) || !parse_mem_operand(ops[1], labels, pc, off, rs1))
+        if (nops != 2 || !reg(0, rd) || !parse_mem_operand(ops[1], labels, off, rs1))
             return err("lr.w rd, (rs1)");
         if (off != 0)
             return err("lr.w does not accept an offset");
@@ -731,7 +734,7 @@ Assembler::encode_instruction(const ParsedLine& line,
     {
         u32 rd, rs1, rs2; i32 off;
         if (nops != 3 || !reg(0, rd) || !reg(1, rs2)
-            || !parse_mem_operand(ops[2], labels, pc, off, rs1))
+            || !parse_mem_operand(ops[2], labels, off, rs1))
             return err("sc.w rd, rs2, (rs1)");
         if (off != 0)
             return err("sc.w does not accept an offset");
@@ -740,7 +743,8 @@ Assembler::encode_instruction(const ParsedLine& line,
     }
     {
         struct AEntry { const char* name; u32 funct5; };
-        static const AEntry amo_table[] = {
+        static const AEntry amo_table[] =
+        {
             {"amoswap.w", 0b00001}, {"amoadd.w",  0b00000},
             {"amoand.w",  0b01100}, {"amoor.w",   0b01000},
             {"amoxor.w",  0b00100}, {"amomin.w",  0b10000},
@@ -748,19 +752,17 @@ Assembler::encode_instruction(const ParsedLine& line,
             {"amomaxu.w", 0b11100},
         };
         for (auto& e : amo_table)
-        {
             if (m == e.name)
             {
                 u32 rd, rs2, rs1; i32 off;
                 if (nops != 3 || !reg(0, rd) || !reg(1, rs2)
-                    || !parse_mem_operand(ops[2], labels, pc, off, rs1))
+                    || !parse_mem_operand(ops[2], labels, off, rs1))
                     return err(std::format("{} rd, rs2, (rs1)", m));
                 if (off != 0)
                     return err(std::format("{} does not accept an offset", m));
-                
+
                 return ok1(enc_r(amo_funct7(e.funct5), rs2, rs1, 2, rd, OP_AMO));
             }
-        }
     }
 
     // ── V extension ─────────────────────────────────────
@@ -777,7 +779,7 @@ Assembler::encode_instruction(const ParsedLine& line,
                 | (rs1 << 15) | (0b111u << 12) | (rd << 7) | OP_V;
         return ok1(enc);
     }
-    // ── VLE32.V / VSE32.V ────────────────
+    // ── VLE32.V / VSE32.V ───────────────────────────────
     if (m == "vle32.v")
     {
         u32 vd, rs1; i32 off;
@@ -802,10 +804,11 @@ Assembler::encode_instruction(const ParsedLine& line,
                 | (0b00000u << 20) | (rs1 << 15) | (0b110u << 12) | (vs3 << 7) | 0b010'0111u;
         return ok1(enc);
     }
-    // ── .VV / .MM instructions ───────────
+    // ── .VV / .MM instructions ──────────────────────────
     {
         struct VVEntry { const char* name; u32 funct6; u32 funct3; };
-        static const VVEntry vv_table[] = {
+        static const VVEntry vv_table[] =
+        {
             {"vadd.vv",   0b000000, 0b000}, {"vsub.vv",   0b000010, 0b000},
             {"vand.vv",   0b001001, 0b000}, {"vor.vv",    0b001010, 0b000},
             {"vxor.vv",   0b001011, 0b000},
@@ -818,7 +821,6 @@ Assembler::encode_instruction(const ParsedLine& line,
             {"vmxor.mm",  0b011011, 0b010}, {"vmxnor.mm", 0b011111, 0b010},
         };
         for (auto& e : vv_table)
-        {
             if (m == e.name)
             {
                 u32 vd, vs2, vs1;
@@ -829,19 +831,18 @@ Assembler::encode_instruction(const ParsedLine& line,
                         | (vs1 << 15) | (e.funct3 << 12) | (vd << 7) | OP_V;
                 return ok1(enc);
             }
-        }
     }
-    // ── .VX instructions ─────────────────
+    // ── .VX instructions ────────────────────────────────
     {
         struct VXEntry { const char* name; u32 funct6; };
-        static const VXEntry vx_table[] = {
+        static const VXEntry vx_table[] =
+        {
             {"vadd.vx",  0b000000}, {"vsub.vx", 0b000010},
             {"vand.vx",  0b001001}, {"vor.vx",  0b001010}, {"vxor.vx", 0b001011},
             {"vsll.vx",  0b100101}, {"vsrl.vx", 0b101000},
             {"vmseq.vx", 0b011000},
         };
         for (auto& e : vx_table)
-        {
             if (m == e.name)
             {
                 u32 vd, vs2, rs1;
@@ -852,15 +853,14 @@ Assembler::encode_instruction(const ParsedLine& line,
                         | (rs1 << 15) | (0b100u << 12) | (vd << 7) | OP_V;
                 return ok1(enc);
             }
-        }
     }
-    // ── Mask pseudo-instructions ─────────
+    // ── Mask pseudo-instructions ────────────────────────
     if (m == "vmmv.m")
     {
         u32 vd, vs;
         if (nops != 2 || !vreg(0, vd) || !vreg(1, vs)) return err("vmmv.m vd, vs");
 
-        /* vmand.mm vd, vs, vs */
+        // vmand.mm vd, vs, vs
         u32 enc = (0b011001 << 26) | (1u << 25) | (vs << 20) | (vs << 15)
                 | (0b010u << 12) | (vd << 7) | OP_V;
         return ok1(enc);
@@ -870,7 +870,7 @@ Assembler::encode_instruction(const ParsedLine& line,
         u32 vd;
         if (nops != 1 || !vreg(0, vd)) return err("vmclr.m vd");
 
-        /* vmxor.mm vd, vd, vd */
+        // vmxor.mm vd, vd, vd
         u32 enc = (0b011011 << 26) | (1u << 25) | (vd << 20) | (vd << 15)
                 | (0b010u << 12) | (vd << 7) | OP_V;
         return ok1(enc);
@@ -881,7 +881,7 @@ Assembler::encode_instruction(const ParsedLine& line,
         if (nops != 1 || !vreg(0, vd))
             return err("vmset.m vd");
 
-        /* vmxnor.mm vd, vd, vd */
+        // vmxnor.mm vd, vd, vd
         u32 enc = (0b011111 << 26) | (1u << 25) | (vd << 20) | (vd << 15)
                 | (0b010u << 12) | (vd << 7) | OP_V;
         return ok1(enc);
@@ -892,12 +892,12 @@ Assembler::encode_instruction(const ParsedLine& line,
         if (nops != 2 || !vreg(0, vd) || !vreg(1, vs))
             return err("vmnot.m vd, vs");
 
-        /* vmnand.mm vd, vs, vs */    
+        // vmnand.mm vd, vs, vs    
         u32 enc = (0b011101 << 26) | (1u << 25) | (vs << 20) | (vs << 15)
                 | (0b010u << 12) | (vd << 7) | OP_V;
         return ok1(enc);
     }
-    // ── Reduction and move instructions ──
+    // ── Reduction and move instructions ─────────────────
     if (m == "vredsum.vs")
     {
         u32 vd, vs2, vs1;
@@ -993,7 +993,7 @@ AsmResult Assembler::assemble_lines(const std::vector<std::string>& lines) const
         {
             i32 v = 0;
             bool resolved = pl.operands.size() >= 2
-                && parse_immediate(pl.operands[1], result.labels, pc, v);
+                && parse_immediate(pl.operands[1], result.labels, v);
 
             pc += (!resolved || v < -2048 || v > 2047) ? 8 : 4;
         }
@@ -1013,13 +1013,11 @@ AsmResult Assembler::assemble_lines(const std::vector<std::string>& lines) const
 
         auto enc = encode_instruction(pl, result.labels, pc);
         if (auto* words = std::get_if<std::vector<u32>>(&enc))
-        {
             for (u32 w : *words)
             {
                 emit_word(result.code, w);
                 pc += 4;
             }
-        }
         else
         {
             auto& msg = std::get<std::string>(enc);

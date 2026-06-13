@@ -104,7 +104,7 @@ public:
     /// Attch a nic: maps into the address space and wires its interrupt to the PLIC.
     void attach_nic(std::shared_ptr<NIC> nic);
     [[nodiscard]] NIC* nic() noexcept { return nic_.get(); }
-    
+
     /// Get the computed device MMIO base address.
     [[nodiscard]] addr_t device_base() const noexcept { return device_base_; }
     /// @}

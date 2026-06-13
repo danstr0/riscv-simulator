@@ -7,8 +7,8 @@
  *
  * @par Trap mechanics
  * On trap entry: MIE is saved to MPIE, MIE is cleared, PC is saved
- * to mepc, and the cause is written to mcause. On mret: MPIE is
- * restored to MIE and execution resumes at mepc.
+ * to @c mepc, and the cause is written to @c mcause. On @c mret: MPIE
+ * is restored to MIE and execution resumes at @c mepc.
  *
  * @see RISC-V Privileged Architecture Specification, Section 2.1 (Control
  * and Status Registers).
@@ -21,7 +21,8 @@
 namespace riscv {
 
 /// Standard RISC-V machine-mode CSR addresses.
-namespace CSRAddr {
+namespace CSRAddr
+{
     constexpr u32 MSTATUS = 0x300;  ///< Machine status register.
     constexpr u32 MIE     = 0x304;  ///< Machine interrupt-enable register.
     constexpr u32 MTVEC   = 0x305;  ///< Machine trap-handler base address.
@@ -31,20 +32,23 @@ namespace CSRAddr {
 }
 
 /// Bitmasks for the mstatus register.
-namespace MStatus {
+namespace MStatus
+{
     constexpr u32 MIE  = 1u << 3;  ///< Machine Interrupt Enable (global).
     constexpr u32 MPIE = 1u << 7;  ///< Machine Previous Interrupt Enable.
 }
 
-/// Interrupt-pending bit positions for mie and mip registers.
-namespace MInterrupt {
+/// Interrupt-pending bit positions for @c mie and @c mip registers.
+namespace MInterrupt
+{
     constexpr u32 MSIE = 1u << 3;   ///< Machine software interrupt.
     constexpr u32 MTIE = 1u << 7;   ///< Machine timer interrupt.
     constexpr u32 MEIE = 1u << 11;  ///< Machine external interrupt.
 }
 
-/// Exception and interrupt cause codes for mcause.
-namespace MCause {
+/// Exception and interrupt cause codes for @c mcause.
+namespace MCause
+{
     constexpr u32 INTERRUPT_BIT = 1u << 31;  ///< Bit 31 distinguishes interrupts from exceptions.
 
     constexpr u32 M_SOFTWARE    = INTERRUPT_BIT | 3;   ///< Machine software interrupt.
@@ -52,7 +56,7 @@ namespace MCause {
     constexpr u32 M_EXTERNAL    = INTERRUPT_BIT | 11;  ///< Machine external interrupt.
 
     constexpr u32 ECALL_M       = 11;  ///< Environment call from M-mode.
-    constexpr u32 BREAKPOINT    = 3;   ///< ebreak instruction.
+    constexpr u32 BREAKPOINT    = 3;   ///< @c ebreak instruction.
 }
 
 /**
@@ -79,7 +83,7 @@ public:
     /// @name Architectural interface - software-driven CSR access
     /// @{
 
-    /// Reads a CSR value. Returns 0 for unimplemented addresses.
+    /// Reads a CSR value. Returns @c 0 for unimplemented addresses.
     [[nodiscard]] u32 read(u32 addr) const noexcept
     {
         switch (addr)
@@ -124,7 +128,7 @@ public:
         }
     }
 
-    /// @return True if @p addr is implemented in this CSR file.
+    /// @return @c true if @p addr is implemented in this CSR file.
     [[nodiscard]] bool valid(u32 addr) const noexcept
     {
         switch (addr)
@@ -140,7 +144,6 @@ public:
                 return false;
         }
     }
-    
     /// @}
 
     /// @name Trap management
@@ -148,14 +151,14 @@ public:
 
     /**
      * @brief Check if any enabled interrupt is pending.
-     * @return True if mstatus.MIE is set and a bit is set in both mip and mie.
+     * @return True if mstatus.MIE is set and a bit is set in both @c mip and @c mie.
      */
     [[nodiscard]] bool interrupt_pending() const noexcept
     {
         return (mstatus_ & MStatus::MIE) && (mip_ & mie_);
     }
 
-    /// @return The mcause code for the highest-priority pending interrupt, or 0 if none.
+    /// @return The @c mcause code for the highest-priority pending interrupt, or @c 0 if none.
     [[nodiscard]] u32 pending_cause() const noexcept
     {
         if (!(mstatus_ & MStatus::MIE)) return 0;
@@ -170,7 +173,7 @@ public:
     /**
      * @brief Enter a trap: save MIE to MPIE, disable interrupts, record PC and cause.
      * @param pc    Address of the faulting or interrupted instruction.
-     * @param cause The mcause value (see MCause namespace).
+     * @param cause The @c mcause value (see MCause namespace).
      */
     void enter_trap(addr_t pc, u32 cause) noexcept
     {
@@ -186,7 +189,7 @@ public:
 
     /**
      * @brief Execute mret: restore MIE from MPIE, set MPIE, return saved PC.
-     * @return The mepc address to resume execution at.
+     * @return The @c mepc address to resume execution at.
      */
     [[nodiscard]] addr_t mret() noexcept
     {
@@ -198,15 +201,14 @@ public:
         mstatus_ |= MStatus::MPIE;
         return mepc_;
     }
-
     /// @}
 
     /// @name Hardware signal integration
     /// @{
 
-    /// Assert an interrupt-pending bit in mip.
+    /// Assert an interrupt-pending bit in @c mip.
     void set_mip_bit(u32 bit)   noexcept { mip_ |= bit; }
-    /// Deassert an interrupt-pending bit in mip.
+    /// Deassert an interrupt-pending bit in @c mip.
     void clear_mip_bit(u32 bit) noexcept { mip_ &= ~bit; }
 
     [[nodiscard]] u32 mstatus() const noexcept { return mstatus_; }
@@ -215,7 +217,6 @@ public:
     [[nodiscard]] u32 mtvec()   const noexcept { return mtvec_; }
     [[nodiscard]] u32 mepc()    const noexcept { return mepc_; }
     [[nodiscard]] u32 mcause()  const noexcept { return mcause_; }
-    
     /// @}
 
 private:

@@ -2,10 +2,12 @@
  * @file test_programs.cpp
  * @brief Multi-instruction RV32I program tests.
  *
- * Sections:
- *   1 (line 34) : Sum 1..10, Fibonacci
- *   2 (line ) : memory copy, array swap
- *   3 (line ) : Function call / return, nested calls with stack
+ * @par Sections
+ * @code
+ *   1 (line  19) : Arithmetic programs - sum 1 to 10; fibonacci
+ *   2 (line 103) : Memory programs - copy; array swap; load at negative offset
+ *   3 (line 205) : Function calling programs
+ * @endcode
  */
 
 #include "test_framework.hpp"
@@ -98,7 +100,7 @@ TEST(prog_fibonacci_cpu)  { return run_fibonacci<CPUH>(); }
 TEST(prog_fibonacci_pipe) { return run_fibonacci<PipeH>(); }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  2. Memory Programs
+//  2. Memory programs
 // ═══════════════════════════════════════════════════════════════════════
 
 template <typename Harness>
@@ -200,7 +202,7 @@ TEST(prog_load_neg_offset_cpu)  { return run_load_neg_offset<CPUH>(); }
 TEST(prog_load_neg_offset_pipe) { return run_load_neg_offset<PipeH>(); }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  3. Function call programs
+//  3. Function calling programs
 // ═══════════════════════════════════════════════════════════════════════
 
 template <typename Harness>

@@ -51,10 +51,8 @@ MESIState CoherenceController::line_state(u32 core_id, addr_t addr) const
 i32 CoherenceController::find_modified_owner(const DirectoryEntry& entry) const
 {
     for (u32 i = 0; i < num_cores_; ++i)
-    {
         if (entry.core_states[i] == MESIState::Modified)
             return static_cast<i32>(i);
-    }
     return -1;
 }
 
@@ -85,7 +83,7 @@ u32 CoherenceController::invalidate_others(u32 requesting_core, addr_t line_addr
 
         if (s == MESIState::Modified)
         {
-            /* Other core has dirty data; force writeback */
+            // Other core has dirty data; force writeback
             l1_caches_[i]->snoop_invalidate(line_addr);
             stats_.writebacks_forced++;
             latency += kTransferLatency;
@@ -114,13 +112,14 @@ u32 CoherenceController::handle_read_miss(u32 core_id, addr_t addr)
 
     u32 latency = kSnoopLatency;
 
-    /* Check if another core has the line Modified */
+    // Check if another core has the line Modified
     i32 mod_owner = find_modified_owner(entry);
-    if (mod_owner >= 0 && static_cast<u32>(mod_owner) != core_id)
+    u32 u_mod_owner = static_cast<u32>(mod_owner);
+    if (mod_owner >= 0 && u_mod_owner != core_id)
     {
         std::vector<u8> line_data(line_size_);
-        l1_caches_[mod_owner]->snoop_share_line(la, line_data.data(), line_size_);
-        entry.core_states[mod_owner] = MESIState::Shared;
+        l1_caches_[u_mod_owner]->snoop_share_line(la, line_data.data(), line_size_);
+        entry.core_states[u_mod_owner] = MESIState::Shared;
 
         l1_caches_[core_id]->load(la, std::span<const u8>(line_data.data(), line_size_));
 
@@ -132,19 +131,21 @@ u32 CoherenceController::handle_read_miss(u32 core_id, addr_t addr)
         return latency;
     }
 
-    /* Check if another core has the line Shared or Exclusive */
+    // Check if another core has the line Shared or Exclusive
     i32 sharer = find_any_sharer(entry, core_id);
     if (sharer >= 0)
     {
-        if (entry.core_states[sharer] == MESIState::Exclusive)
-            entry.core_states[sharer] = MESIState::Shared;
+        u32 u_sharer = static_cast<u32>(sharer);
+
+        if (entry.core_states[u_sharer] == MESIState::Exclusive)
+            entry.core_states[u_sharer] = MESIState::Shared;
 
         entry.core_states[core_id] = MESIState::Shared;
         stats_.l2_fetches++;
         return latency;
     }
 
-    /* No other core has it → fetch from L2/memory */
+    // No other core has it - fetch from L2/memory
     entry.core_states[core_id] = MESIState::Exclusive;
     stats_.l2_fetches++;
     return latency;
@@ -167,12 +168,12 @@ u32 CoherenceController::handle_write_miss(u32 core_id, addr_t addr)
     {
         entry.core_states[core_id] = MESIState::Modified;
         stats_.upgrades++;
-        return 0;  /* no additional latency */
+        return 0;  // no additional latency
     }
 
     stats_.write_misses++;
     u32 latency = kSnoopLatency;
-    
+
     if (current == MESIState::Shared)
     {
         latency += invalidate_others(core_id, la, entry);
@@ -181,7 +182,7 @@ u32 CoherenceController::handle_write_miss(u32 core_id, addr_t addr)
         return latency;
     }
 
-    /* Invalid */
+    // Invalid
     latency += invalidate_others(core_id, la, entry);
     entry.core_states[core_id] = MESIState::Modified;
     stats_.l2_fetches++;

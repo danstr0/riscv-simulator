@@ -2,10 +2,12 @@
  * @file test_cpu.cpp
  * @brief Tests for the CPU API.
  *
- * Sections:
- *   1 (line 18) : Basic functions
- *   2 (line 58) : Lifecycle
- *   3 (line 83) : Statistics
+ * @par Sections
+ * @code
+ *   1 (line 20) : Basic functions
+ *   2 (line 60) : Lifecycle
+ *   3 (line 85) : Statistics
+ * @endcode
  */
 
 #include "test_framework.hpp"

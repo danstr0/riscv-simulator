@@ -55,7 +55,7 @@ MultiCoreCPU::MultiCoreCPU(MultiCoreConfig config)
         l1d_caches_.reserve(config_.num_cores);
         for (u32 i = 0; i < config_.num_cores; ++i)
             l1d_caches_.push_back(std::make_shared<Cache>(config_.l1d, l2_cache_));
-    
+
         // Coherence controller
         std::vector<Cache*> l1_ptrs;
         l1_ptrs.reserve(config_.num_cores);
@@ -75,7 +75,7 @@ MultiCoreCPU::MultiCoreCPU(MultiCoreConfig config)
             {
                 return ctrl->handle_read_miss(core_id, line_addr);
             });
-        
+
             l1d_caches_[i]->set_on_write([ctrl, core_id](addr_t line_addr) -> u32
             {
                 return ctrl->handle_write_miss(core_id, line_addr);
@@ -84,7 +84,7 @@ MultiCoreCPU::MultiCoreCPU(MultiCoreConfig config)
     }
 
     // ── Create cores with per-core MMIO buses ───────────
-    
+
     auto plic_ptr  = std::shared_ptr<Memory>(std::shared_ptr<void>{}, &plic_);
     auto timer_ptr = std::shared_ptr<Memory>(std::shared_ptr<void>{}, &timer_);
 

@@ -1,0 +1,18 @@
+name: docs
+on:
+  push:
+    branches: [main]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get install -y doxygen
+      - run: pip install -r docs/requirements.txt
+      - run: doxygen Doxyfile
+      - run: sphinx-build docs docs/_build/html
+      - run: mv docs/doxygen/html docs/_build/html/api
+      - uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: docs/_build/html

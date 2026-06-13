@@ -2,16 +2,18 @@
  * @file test_decoder.cpp
  * @brief Decoder tests covering all RV32I instruction encodings.
  *
- * Sections:
- *   1 (line  79) : R-type (register–register)
- *   2 (line 183) : I-type (immediate ALU, loads, JALR)
- *   3 (line 441) : S-type (stores)
- *   4 (line 495) : B-type (branches)
- *   5 (line 579) : U-type (LUI, AUIPC)
- *   6 (line 621) : J-type (JAL)
- *   7 (line 661) : System (ECALL, EBREAK, FENCE)
- *   8 (line 689) : DecodedInst query helpers
- *   9 (line 756) : Edge cases and error paths
+ * @par Sections
+ * @code
+ *   1 (line  25) : R-type (register–register)
+ *   2 (line 139) : I-type (immediate ALU, loads, JALR)
+ *   3 (line 422) : S-type (stores)
+ *   4 (line 481) : B-type (branches)
+ *   5 (line 573) : U-type (LUI, AUIPC)
+ *   6 (line 619) : J-type (JAL)
+ *   7 (line 663) : System (ECALL, EBREAK, FENCE)
+ *   8 (line 695) : DecodedInst query helpers
+ *   9 (line 767) : Edge cases and error paths
+ * @endcode
  */
 
 #include "core/decoder.hpp"
@@ -23,7 +25,8 @@ using namespace riscv;
 //  1. R-type instructions
 // ═══════════════════════════════════════════════════════════════════════
 
-TEST(decode_add) {
+TEST(decode_add)
+{
     auto inst = Decoder::decode(0x0031'00b3u); // add x1, x2, x3
     ASSERT_EQ(inst.op, Op::ADD);
     ASSERT_EQ(inst.rd, 1);
@@ -33,7 +36,8 @@ TEST(decode_add) {
     return true;
 }
 
-TEST(decode_sub) {
+TEST(decode_sub)
+{
     auto inst = Decoder::decode(0x4073'02b3u); // sub x5, x6, x7
     ASSERT_EQ(inst.op, Op::SUB);
     ASSERT_EQ(inst.rd, 5);
@@ -43,7 +47,8 @@ TEST(decode_sub) {
     return true;
 }
 
-TEST(decode_and) {
+TEST(decode_and)
+{
     auto inst = Decoder::decode(0x00c5'f533u); // and x10, x11, x12
     ASSERT_EQ(inst.op, Op::AND);
     ASSERT_EQ(inst.rd, 10);
@@ -53,7 +58,8 @@ TEST(decode_and) {
     return true;
 }
 
-TEST(decode_or) {
+TEST(decode_or)
+{
     auto inst = Decoder::decode(0x00f7'66b3u); // or x13, x14, x15
     ASSERT_EQ(inst.op, Op::OR);
     ASSERT_EQ(inst.rd, 13);
@@ -63,7 +69,8 @@ TEST(decode_or) {
     return true;
 }
 
-TEST(decode_xor) {
+TEST(decode_xor)
+{
     auto inst = Decoder::decode(0x0128'c833u); // xor x16, x17, x18
     ASSERT_EQ(inst.op, Op::XOR);
     ASSERT_EQ(inst.rd, 16);
@@ -73,7 +80,8 @@ TEST(decode_xor) {
     return true;
 }
 
-TEST(decode_sll) {
+TEST(decode_sll)
+{
     auto inst = Decoder::decode(0x015a'19b3u); // sll x19, x20, x21
     ASSERT_EQ(inst.op, Op::SLL);
     ASSERT_EQ(inst.rd, 19);
@@ -83,7 +91,8 @@ TEST(decode_sll) {
     return true;
 }
 
-TEST(decode_srl) {
+TEST(decode_srl)
+{
     auto inst = Decoder::decode(0x018b'db33u); // srl x22, x23, x24
     ASSERT_EQ(inst.op, Op::SRL);
     ASSERT_EQ(inst.rd, 22);
@@ -93,7 +102,8 @@ TEST(decode_srl) {
     return true;
 }
 
-TEST(decode_sra) {
+TEST(decode_sra)
+{
     auto inst = Decoder::decode(0x41bd'5cb3u); // sra x25, x26, x27
     ASSERT_EQ(inst.op, Op::SRA);
     ASSERT_EQ(inst.rd, 25);
@@ -103,7 +113,8 @@ TEST(decode_sra) {
     return true;
 }
 
-TEST(decode_slt) {
+TEST(decode_slt)
+{
     auto inst = Decoder::decode(0x01ee'ae33u); // slt x28, x29, x30
     ASSERT_EQ(inst.op, Op::SLT);
     ASSERT_EQ(inst.rd, 28);
@@ -113,7 +124,8 @@ TEST(decode_slt) {
     return true;
 }
 
-TEST(decode_sltu) {
+TEST(decode_sltu)
+{
     auto inst = Decoder::decode(0x0020'bfb3u); // sltu x31, x1, x2
     ASSERT_EQ(inst.op, Op::SLTU);
     ASSERT_EQ(inst.rd, 31);
@@ -127,7 +139,8 @@ TEST(decode_sltu) {
 //  2. I-type instructions (ALU, loads, JALR)
 // ═══════════════════════════════════════════════════════════════════════
 
-TEST(decode_addi) {
+TEST(decode_addi)
+{
     auto inst = Decoder::decode(0x02a0'0093u); // addi x1, x0, 42
     ASSERT_EQ(inst.op, Op::ADDI);
     ASSERT_EQ(inst.rd, 1);
@@ -137,7 +150,8 @@ TEST(decode_addi) {
     return true;
 }
 
-TEST(decode_addi_negative) {
+TEST(decode_addi_negative)
+{
     auto inst = Decoder::decode(0xffb1'8113u); // addi x2, x3, -5
     ASSERT_EQ(inst.op, Op::ADDI);
     ASSERT_EQ(inst.rd, 2);
@@ -147,7 +161,8 @@ TEST(decode_addi_negative) {
     return true;
 }
 
-TEST(decode_addi_max_imm) {
+TEST(decode_addi_max_imm)
+{
     auto inst = Decoder::decode(0x7ff0'0093u); // addi x1, x0, 2047
     ASSERT_EQ(inst.op, Op::ADDI);
     ASSERT_EQ(inst.rd, 1);
@@ -157,7 +172,8 @@ TEST(decode_addi_max_imm) {
     return true;
 }
 
-TEST(decode_addi_min_imm) {
+TEST(decode_addi_min_imm)
+{
     auto inst = Decoder::decode(0x8000'0093u); // addi x1, x0, -2048
     ASSERT_EQ(inst.op, Op::ADDI);
     ASSERT_EQ(inst.rd, 1);
@@ -167,7 +183,8 @@ TEST(decode_addi_min_imm) {
     return true;
 }
 
-TEST(decode_slti) {
+TEST(decode_slti)
+{
     auto inst = Decoder::decode(0x0642'a213u); // slti x4, x5, 100
     ASSERT_EQ(inst.op, Op::SLTI);
     ASSERT_EQ(inst.rd, 4);
@@ -177,7 +194,8 @@ TEST(decode_slti) {
     return true;
 }
 
-TEST(decode_sltiu) {
+TEST(decode_sltiu)
+{
     auto inst = Decoder::decode(0x0c83'b313u); // sltiu x6, x7, 200
     ASSERT_EQ(inst.op, Op::SLTIU);
     ASSERT_EQ(inst.rd, 6);
@@ -187,7 +205,8 @@ TEST(decode_sltiu) {
     return true;
 }
 
-TEST(decode_xori) {
+TEST(decode_xori)
+{
     auto inst = Decoder::decode(0x0ff4'c413u); // xori x8, x9, 0xFF
     ASSERT_EQ(inst.op, Op::XORI);
     ASSERT_EQ(inst.rd, 8);
@@ -197,7 +216,8 @@ TEST(decode_xori) {
     return true;
 }
 
-TEST(decode_ori) {
+TEST(decode_ori)
+{
     auto inst = Decoder::decode(0x1235'e513u); // ori x10, x11, 0x123
     ASSERT_EQ(inst.op, Op::ORI);
     ASSERT_EQ(inst.rd, 10);
@@ -207,7 +227,8 @@ TEST(decode_ori) {
     return true;
 }
 
-TEST(decode_andi) {
+TEST(decode_andi)
+{
     auto inst = Decoder::decode(0x7ff6'f613u); // andi x12, x13, 0x7FF
     ASSERT_EQ(inst.op, Op::ANDI);
     ASSERT_EQ(inst.rd, 12);
@@ -217,7 +238,8 @@ TEST(decode_andi) {
     return true;
 }
 
-TEST(decode_slli) {
+TEST(decode_slli)
+{
     auto inst = Decoder::decode(0x0057'9713u); // slli x14, x15, 5
     ASSERT_EQ(inst.op, Op::SLLI);
     ASSERT_EQ(inst.rd, 14);
@@ -227,7 +249,8 @@ TEST(decode_slli) {
     return true;
 }
 
-TEST(decode_slli_zero) {
+TEST(decode_slli_zero)
+{
     auto inst = Decoder::decode(0x0001'1093u); // slli x1, x2, 0
     ASSERT_EQ(inst.op, Op::SLLI);
     ASSERT_EQ(inst.rd, 1);
@@ -237,7 +260,8 @@ TEST(decode_slli_zero) {
     return true;
 }
 
-TEST(decode_slli_max) {
+TEST(decode_slli_max)
+{
     auto inst = Decoder::decode(0x01f1'1093u); // slli x1, x2, 31
     ASSERT_EQ(inst.op, Op::SLLI);
     ASSERT_EQ(inst.rd, 1);
@@ -247,7 +271,8 @@ TEST(decode_slli_max) {
     return true;
 }
 
-TEST(decode_srli) {
+TEST(decode_srli)
+{
     auto inst = Decoder::decode(0x00a8'd813u); // srli x16, x17, 10
     ASSERT_EQ(inst.op, Op::SRLI);
     ASSERT_EQ(inst.rd, 16);
@@ -257,7 +282,8 @@ TEST(decode_srli) {
     return true;
 }
 
-TEST(decode_srai) {
+TEST(decode_srai)
+{
     auto inst = Decoder::decode(0x40f9'd913u); // srai x18, x19, 15
     ASSERT_EQ(inst.op, Op::SRAI);
     ASSERT_EQ(inst.rd, 18);
@@ -267,7 +293,8 @@ TEST(decode_srai) {
     return true;
 }
 
-TEST(decode_srai_max) {
+TEST(decode_srai_max)
+{
     auto inst = Decoder::decode(0x41f1'5093u); // srai x1, x2, 31
     ASSERT_EQ(inst.op, Op::SRAI);
     ASSERT_EQ(inst.rd, 1);
@@ -279,7 +306,8 @@ TEST(decode_srai_max) {
 
 // ── Loads ──────────────────────────────────────────────────────────────
 
-TEST(decode_lw) {
+TEST(decode_lw)
+{
     auto inst = Decoder::decode(0x0081'2083u); // lw x1, 8(x2)
     ASSERT_EQ(inst.op, Op::LW);
     ASSERT_EQ(inst.rd, 1);
@@ -289,7 +317,8 @@ TEST(decode_lw) {
     return true;
 }
 
-TEST(decode_lh) {
+TEST(decode_lh)
+{
     auto inst = Decoder::decode(0xffc2'1183u); // lh x3, -4(x4)
     ASSERT_EQ(inst.op, Op::LH);
     ASSERT_EQ(inst.rd, 3);
@@ -299,7 +328,8 @@ TEST(decode_lh) {
     return true;
 }
 
-TEST(decode_lb) {
+TEST(decode_lb)
+{
     auto inst = Decoder::decode(0x0003'0283u); // lb x5, 0(x6)
     ASSERT_EQ(inst.op, Op::LB);
     ASSERT_EQ(inst.rd, 5);
@@ -309,7 +339,8 @@ TEST(decode_lb) {
     return true;
 }
 
-TEST(decode_lhu) {
+TEST(decode_lhu)
+{
     auto inst = Decoder::decode(0x0104'5383u); // lhu x7, 16(x8)
     ASSERT_EQ(inst.op, Op::LHU);
     ASSERT_EQ(inst.rd, 7);
@@ -319,7 +350,8 @@ TEST(decode_lhu) {
     return true;
 }
 
-TEST(decode_lbu) {
+TEST(decode_lbu)
+{
     auto inst = Decoder::decode(0x0015'4483u); // lbu x9, 1(x10)
     ASSERT_EQ(inst.op, Op::LBU);
     ASSERT_EQ(inst.rd, 9);
@@ -329,7 +361,8 @@ TEST(decode_lbu) {
     return true;
 }
 
-TEST(decode_load_max_imm) {
+TEST(decode_load_max_imm)
+{
     auto inst = Decoder::decode(0x7ff1'2083u); // lw x1, 2047(x2)
     ASSERT_EQ(inst.op, Op::LW);
     ASSERT_EQ(inst.rd, 1);
@@ -339,7 +372,8 @@ TEST(decode_load_max_imm) {
     return true;
 }
 
-TEST(decode_load_min_imm) {
+TEST(decode_load_min_imm)
+{
     auto inst = Decoder::decode(0x8001'2083u); // lw x1, -2048(x2)
     ASSERT_EQ(inst.op, Op::LW);
     ASSERT_EQ(inst.rd, 1);
@@ -351,7 +385,8 @@ TEST(decode_load_min_imm) {
 
 // ── JALR ────────────────────────────────────────────────────────────────────
 
-TEST(decode_jalr) {
+TEST(decode_jalr)
+{
     auto inst = Decoder::decode(0x0081'00e7u); // jalr x1, 8(x2)
     ASSERT_EQ(inst.op, Op::JALR);
     ASSERT_EQ(inst.rd, 1);
@@ -361,7 +396,8 @@ TEST(decode_jalr) {
     return true;
 }
 
-TEST(decode_jalr_max_imm) {
+TEST(decode_jalr_max_imm)
+{
     auto inst = Decoder::decode(0x7ff1'00e7u); // jalr x1, 2047(x2)
     ASSERT_EQ(inst.op, Op::JALR);
     ASSERT_EQ(inst.rd, 1);
@@ -371,7 +407,8 @@ TEST(decode_jalr_max_imm) {
     return true;
 }
 
-TEST(decode_jalr_min_imm) {
+TEST(decode_jalr_min_imm)
+{
     auto inst = Decoder::decode(0x8001'00e7u); // jalr x1, -2048(x2)
     ASSERT_EQ(inst.op, Op::JALR);
     ASSERT_EQ(inst.rd, 1);
@@ -385,7 +422,8 @@ TEST(decode_jalr_min_imm) {
 //  3. S-type instructions
 // ═══════════════════════════════════════════════════════════════════════
 
-TEST(decode_sw) {
+TEST(decode_sw)
+{
     auto inst = Decoder::decode(0x0011'2623u); // sw x1, 12(x2)
     ASSERT_EQ(inst.op, Op::SW);
     ASSERT_EQ(inst.rs1, 2);
@@ -395,7 +433,8 @@ TEST(decode_sw) {
     return true;
 }
 
-TEST(decode_sh) {
+TEST(decode_sh)
+{
     auto inst = Decoder::decode(0xfe32'1c23u); // sh x3, -8(x4)
     ASSERT_EQ(inst.op, Op::SH);
     ASSERT_EQ(inst.rs1, 4);
@@ -405,7 +444,8 @@ TEST(decode_sh) {
     return true;
 }
 
-TEST(decode_sb) {
+TEST(decode_sb)
+{
     auto inst = Decoder::decode(0x0053'03a3u); // sb x5, 7(x6)
     ASSERT_EQ(inst.op, Op::SB);
     ASSERT_EQ(inst.rs1, 6);
@@ -415,7 +455,8 @@ TEST(decode_sb) {
     return true;
 }
 
-TEST(decode_store_max_imm) {
+TEST(decode_store_max_imm)
+{
     auto inst = Decoder::decode(0x7e11'2fa3u); // sw x1, 2047(x2)
     ASSERT_EQ(inst.op, Op::SW);
     ASSERT_EQ(inst.rs1, 2);
@@ -425,7 +466,8 @@ TEST(decode_store_max_imm) {
     return true;
 }
 
-TEST(decode_store_min_imm) {
+TEST(decode_store_min_imm)
+{
     auto inst = Decoder::decode(0x8011'2023u); // sw x1, -2048(x2)
     ASSERT_EQ(inst.op, Op::SW);
     ASSERT_EQ(inst.rs1, 2);
@@ -439,7 +481,8 @@ TEST(decode_store_min_imm) {
 //  4. B-type instructions
 // ═══════════════════════════════════════════════════════════════════════
 
-TEST(decode_beq) {
+TEST(decode_beq)
+{
     auto inst = Decoder::decode(0x0020'8863u); // beq x1, x2, 16
     ASSERT_EQ(inst.op, Op::BEQ);
     ASSERT_EQ(inst.rs1, 1);
@@ -449,7 +492,8 @@ TEST(decode_beq) {
     return true;
 }
 
-TEST(decode_bne) {
+TEST(decode_bne)
+{
     auto inst = Decoder::decode(0xfe41'9ce3u); // bne x3, x4, -8
     ASSERT_EQ(inst.op, Op::BNE);
     ASSERT_EQ(inst.rs1, 3);
@@ -459,7 +503,8 @@ TEST(decode_bne) {
     return true;
 }
 
-TEST(decode_blt) {
+TEST(decode_blt)
+{
     auto inst = Decoder::decode(0x0262'c063u); // blt x5, x6, 32
     ASSERT_EQ(inst.op, Op::BLT);
     ASSERT_EQ(inst.rs1, 5);
@@ -469,7 +514,8 @@ TEST(decode_blt) {
     return true;
 }
 
-TEST(decode_bge) {
+TEST(decode_bge)
+{
     auto inst = Decoder::decode(0x0083'dc63u); // bge x7, x8, 24
     ASSERT_EQ(inst.op, Op::BGE);
     ASSERT_EQ(inst.rs1, 7);
@@ -479,7 +525,8 @@ TEST(decode_bge) {
     return true;
 }
 
-TEST(decode_bltu) {
+TEST(decode_bltu)
+{
     auto inst = Decoder::decode(0x02a4'e463u); // bltu x9, x10, 40
     ASSERT_EQ(inst.op, Op::BLTU);
     ASSERT_EQ(inst.rs1, 9);
@@ -489,7 +536,8 @@ TEST(decode_bltu) {
     return true;
 }
 
-TEST(decode_bgeu) {
+TEST(decode_bgeu)
+{
     auto inst = Decoder::decode(0x02c5'f863u); // bgeu x11, x12, 48
     ASSERT_EQ(inst.op, Op::BGEU);
     ASSERT_EQ(inst.rs1, 11);
@@ -499,7 +547,8 @@ TEST(decode_bgeu) {
     return true;
 }
 
-TEST(decode_branch_min_imm) {
+TEST(decode_branch_min_imm)
+{
     auto inst = Decoder::decode(0x8000'8063u); // beq x1, x0, -4096
     ASSERT_EQ(inst.op, Op::BEQ);
     ASSERT_EQ(inst.rs1, 1);
@@ -509,7 +558,8 @@ TEST(decode_branch_min_imm) {
     return true;
 }
 
-TEST(decode_branch_max_imm) {
+TEST(decode_branch_max_imm)
+{
     auto inst = Decoder::decode(0x7e00'8fe3u); // beq x1, x0, 4094
     ASSERT_EQ(inst.op, Op::BEQ);
     ASSERT_EQ(inst.rs1, 1);
@@ -523,7 +573,8 @@ TEST(decode_branch_max_imm) {
 //  5. U-type instructions
 // ═══════════════════════════════════════════════════════════════════════
 
-TEST(decode_lui) {
+TEST(decode_lui)
+{
     auto inst = Decoder::decode(0x1234'50b7u); // lui x1, 0x12345
     ASSERT_EQ(inst.op, Op::LUI);
     ASSERT_EQ(inst.rd, 1);
@@ -532,16 +583,18 @@ TEST(decode_lui) {
     return true;
 }
 
-TEST(decode_auipc) {
-    auto inst = Decoder::decode(0xabcde117u); // auipc x2, 0xABCDE
+TEST(decode_auipc)
+{
+    auto inst = Decoder::decode(0xabcd'e117u); // auipc x2, 0xABCDE
     ASSERT_EQ(inst.op, Op::AUIPC);
     ASSERT_EQ(inst.rd, 2);
-    ASSERT_EQ(inst.imm, static_cast<i32>(0xABCDE000));
+    ASSERT_EQ(inst.imm, static_cast<i32>(0xABCD'E000));
     ASSERT_EQ(inst.format, Format::U);
     return true;
 }
 
-TEST(decode_utype_max_imm) {
+TEST(decode_utype_max_imm)
+{
     auto inst = Decoder::decode(0x7fff'f0b7u); // lui x1, 0x7ffff
     ASSERT_EQ(inst.op, Op::LUI);
     ASSERT_EQ(inst.rd, 1);
@@ -551,7 +604,8 @@ TEST(decode_utype_max_imm) {
     return true;
 }
 
-TEST(decode_utype_min_imm) {
+TEST(decode_utype_min_imm)
+{
     auto inst = Decoder::decode(0x8000'00b7u); // lui x1, 0x80000
     ASSERT_EQ(inst.op, Op::LUI);
     ASSERT_EQ(inst.rd, 1);
@@ -565,7 +619,8 @@ TEST(decode_utype_min_imm) {
 //  6. J-type (JAL)
 // ═══════════════════════════════════════════════════════════════════════
 
-TEST(decode_jal) {
+TEST(decode_jal)
+{
     auto inst = Decoder::decode(0x0640'00efu); // jal x1, 100
     ASSERT_EQ(inst.op, Op::JAL);
     ASSERT_EQ(inst.rd, 1);
@@ -574,7 +629,8 @@ TEST(decode_jal) {
     return true;
 }
 
-TEST(decode_jal_negative) {
+TEST(decode_jal_negative)
+{
     auto inst = Decoder::decode(0xfedf'f06fu); // jal x0, -20
     ASSERT_EQ(inst.op, Op::JAL);
     ASSERT_EQ(inst.rd, 0);
@@ -583,7 +639,8 @@ TEST(decode_jal_negative) {
     return true;
 }
 
-TEST(decode_jal_max_imm) {
+TEST(decode_jal_max_imm)
+{
     auto inst = Decoder::decode(0x7fff'f06fu); // jal x0, 1048574
     ASSERT_EQ(inst.op, Op::JAL);
     ASSERT_EQ(inst.rd, 0);
@@ -592,7 +649,8 @@ TEST(decode_jal_max_imm) {
     return true;
 }
 
-TEST(decode_jal_min_imm) {
+TEST(decode_jal_min_imm)
+{
     auto inst = Decoder::decode(0x8000'006fu); // jal x0, -1048576
     ASSERT_EQ(inst.op, Op::JAL);
     ASSERT_EQ(inst.rd, 0);
@@ -605,25 +663,29 @@ TEST(decode_jal_min_imm) {
 //  7. System instructions
 // ═══════════════════════════════════════════════════════════════════════
 
-TEST(decode_ecall) {
+TEST(decode_ecall)
+{
     auto inst = Decoder::decode(0x0000'0073u);
     ASSERT_EQ(inst.op, Op::ECALL);
     return true;
 }
 
-TEST(decode_ebreak) {
+TEST(decode_ebreak)
+{
     auto inst = Decoder::decode(0x0010'0073u);
     ASSERT_EQ(inst.op, Op::EBREAK);
     return true;
 }
 
-TEST(decode_fence) {
+TEST(decode_fence)
+{
     auto inst = Decoder::decode(0x0ff0'000fu); // fence iorw, iorw
     ASSERT_EQ(inst.op, Op::FENCE);
     return true;
 }
 
-TEST(decode_mret) {
+TEST(decode_mret)
+{
     auto inst = Decoder::decode(0x3020'0073u);
     ASSERT_EQ(inst.op, Op::MRET);
     return true;
@@ -633,7 +695,8 @@ TEST(decode_mret) {
 //  8. DecodedInst query helpers
 // ═══════════════════════════════════════════════════════════════════════
 
-TEST(decoded_writes_rd) {
+TEST(decoded_writes_rd)
+{
     auto expects_no_rd_write = [](u32 raw) -> bool
     {
         auto inst = Decoder::decode(raw);
@@ -645,25 +708,13 @@ TEST(decoded_writes_rd) {
     ASSERT(add.writes_rd());
 
     ASSERT(expects_no_rd_write(0x0031'0033u)); // add x0, x2, x3  - x0 is always 0
-
-    // auto add_x0 = Decoder::decode(0x0031'0033u);
-    // ASSERT(!add_x0.writes_rd());
-
     ASSERT(expects_no_rd_write(0x0011'2623u)); // sw  x1, 12(x2)
-    
-    // auto sw = Decoder::decode(0x0011'2623u);
-    // ASSERT(!sw.writes_rd());
-    
     ASSERT(expects_no_rd_write(0x0020'8863u)); // beq x1, x2, 16
-
-    // auto beq = Decoder::decode(0x0020'8863u);
-    // ASSERT(!beq.writes_rd());
-
     return true;
 }
 
-
-TEST(decoded_reads_rs1) {
+TEST(decoded_reads_rs1)
+{
     auto add = Decoder::decode(0x0031'00b3u); // add x1, x2, x3
     ASSERT(add.reads_rs1());
 
@@ -676,7 +727,8 @@ TEST(decoded_reads_rs1) {
     return true;
 }
 
-TEST(decoded_reads_rs2) {
+TEST(decoded_reads_rs2)
+{
     auto add = Decoder::decode(0x0031'00b3u);  // add x1, x2, x3
     ASSERT(add.reads_rs2());
 
@@ -689,7 +741,8 @@ TEST(decoded_reads_rs2) {
     return true;
 }
 
-TEST(disassemble) {
+TEST(disassemble)
+{
     auto inst = Decoder::decode(0x0031'00b3u); // add x1, x2, x3
     auto dis = inst.disassemble();
     ASSERT(dis.find("add") != std::string::npos);
@@ -697,15 +750,16 @@ TEST(disassemble) {
     return true;
 }
 
-TEST(disassemble_formats) {
+TEST(disassemble_formats)
+{
     // Smoke-test that disassembly doesn't crash for each format
-    Decoder::decode(0x0031'00b3u).disassemble();         // R
-    Decoder::decode(0x02a0'0093u).disassemble();         // I (ALU)
-    Decoder::decode(0x0081'2083u).disassemble();         // I (load)
-    Decoder::decode(0x0011'2623u).disassemble();         // S
-    Decoder::decode(0x0020'8863u, 0x1000).disassemble(); // B (with PC)
-    Decoder::decode(0x1234'50b7u).disassemble();         // U
-    Decoder::decode(0x0640'00efu, 0x2000).disassemble(); // J (with PC)
+    (void)Decoder::decode(0x0031'00b3u).disassemble();         // R
+    (void)Decoder::decode(0x02a0'0093u).disassemble();         // I (ALU)
+    (void)Decoder::decode(0x0081'2083u).disassemble();         // I (load)
+    (void)Decoder::decode(0x0011'2623u).disassemble();         // S
+    (void)Decoder::decode(0x0020'8863u, 0x1000).disassemble(); // B (with PC)
+    (void)Decoder::decode(0x1234'50b7u).disassemble();         // U
+    (void)Decoder::decode(0x0640'00efu, 0x2000).disassemble(); // J (with PC)
     return true;
 }
 
@@ -713,21 +767,24 @@ TEST(disassemble_formats) {
 //  9. Edge cases and error paths
 // ═══════════════════════════════════════════════════════════════════════
 
-TEST(decode_invalid_opcode) {
+TEST(decode_invalid_opcode)
+{
     // All-zeros has opcode 0b0000000 which is not assigned
     auto inst = Decoder::decode(0x0000'0000u);
     ASSERT_EQ(inst.op, Op::INVALID);
     return true;
 }
 
-TEST(decode_invalid_all_ones) {
+TEST(decode_invalid_all_ones)
+{
     // All-ones (0xffff'ffff) has opcode 0b1111111 which is not assigned
     auto inst = Decoder::decode(0xffff'ffffu);
     ASSERT_EQ(inst.op, Op::INVALID);
     return true;
 }
 
-TEST(decode_invalid_r_type_funct7) {
+TEST(decode_invalid_r_type_funct7)
+{
     // An R-type instruction with funct3=000 but funct7=0000010
     // Not assigned to any standard extension - should decode as INVALID
     auto inst = Decoder::decode(0x0420'81b3u);
@@ -735,35 +792,40 @@ TEST(decode_invalid_r_type_funct7) {
     return true;
 }
 
-TEST(decode_invalid_load_funct3) {
+TEST(decode_invalid_load_funct3)
+{
     // LOAD opcode with funct3=011 (not assigned)
     auto inst = Decoder::decode(0x0001'b083u);
     ASSERT_EQ(inst.op, Op::INVALID);
     return true;
 }
 
-TEST(decode_invalid_jalr_funct3) {
+TEST(decode_invalid_jalr_funct3)
+{
     // JALR opcode (0b1100111) but with funct3=001 instead of 000
     auto inst = Decoder::decode(0x0000'9167u);
     ASSERT_EQ(inst.op, Op::INVALID);
     return true;
 }
 
-TEST(decode_invalid_store_funct3) {
+TEST(decode_invalid_store_funct3)
+{
     // STORE opcode with funct3=011 (not assigned)
     auto inst = Decoder::decode(0x0021'b023u);
     ASSERT_EQ(inst.op, Op::INVALID);
     return true;
 }
 
-TEST(decode_invalid_branch_funct3) {
+TEST(decode_invalid_branch_funct3)
+{
     // BRANCH opcode with funct3=010 (not assigned)
     auto inst = Decoder::decode(0x0021'2063u);
     ASSERT_EQ(inst.op, Op::INVALID);
     return true;
 }
 
-TEST(decode_rd_field_is_zero) {
+TEST(decode_rd_field_is_zero)
+{
     // addi x0, x1, 5 -> NOP-like
     auto inst = Decoder::decode(0x0050'8013u);
     ASSERT_EQ(inst.op, Op::ADDI);
@@ -772,7 +834,8 @@ TEST(decode_rd_field_is_zero) {
     return true;
 }
 
-TEST(decode_preserves_raw_and_pc) {
+TEST(decode_preserves_raw_and_pc)
+{
     const u32 encoding = 0x0031'00b3u;
     const addr_t pc    = 0xDEAD'BEE0u;
     auto inst = Decoder::decode(encoding, pc);
@@ -781,7 +844,8 @@ TEST(decode_preserves_raw_and_pc) {
     return true;
 }
 
-TEST(decode_nop) {
+TEST(decode_nop)
+{
     // The canonical NOP is addi x0, x0, 0
     auto inst = Decoder::decode(0x0000'0013u);
     ASSERT_EQ(inst.op, Op::ADDI);

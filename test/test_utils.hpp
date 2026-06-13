@@ -66,8 +66,8 @@ using PipeH = TestHarness<PipelinedCPU>;
 //  Encoding helpers
 // ═══════════════════════════════════════════════════════════════════════
 
-// ── RV32I I-type encoding ──────────────────────────────────────────────
-
+/// @name RV32I I-type encoding
+/// @{
 constexpr u32 encode_i_type(
     i32 imm,
     u32 rs1,
@@ -144,9 +144,10 @@ constexpr u32 SRAI(u32 rd, u32 rs1, u32 shamt)
            ((rd    & 0x1Fu) << 7)  |
            0b0010011u;
 }
+/// @}
 
-// ── RV32I R-type encoding ──────────────────────────────────────────────
-
+/// @name RV32I R-type encoding
+/// @{
 constexpr u32 encode_r_type(
     u32 funct7,
     u32 rs2,
@@ -213,9 +214,10 @@ constexpr u32 SRA(u32 rd, u32 rs1, u32 rs2)
 {
     return encode_r_type(0b0100000, rs2, rs1, 0b101, rd, 0b0110011);
 }
+/// @}
 
-// ── RV32I load encoding ────────────────────────────────────────────────
-
+/// @name RV32I load encoding
+/// @{
 constexpr u32 encode_rv32i_load(u32 rd, i32 imm, u32 rs1, u32 funct3)
 {
     return encode_i_type(imm, rs1, funct3, rd, 0b0000011);
@@ -226,9 +228,10 @@ constexpr u32 LH(u32 rd, i32 imm, u32 rs1)  { return encode_rv32i_load(rd, imm, 
 constexpr u32 LHU(u32 rd, i32 imm, u32 rs1) { return encode_rv32i_load(rd, imm, rs1, 0b101); }
 constexpr u32 LB(u32 rd, i32 imm, u32 rs1)  { return encode_rv32i_load(rd, imm, rs1, 0b000); }
 constexpr u32 LBU(u32 rd, i32 imm, u32 rs1) { return encode_rv32i_load(rd, imm, rs1, 0b100); }
+/// @}
 
-// ── RV32I S-type encoding ──────────────────────────────────────────────
-
+/// @name RV32I S-type encoding
+/// @{
 constexpr u32 encode_s_type(
     i32 imm,
     u32 rs2,
@@ -255,9 +258,10 @@ constexpr u32 encode_rv32i_store(u32 rs2, i32 imm, u32 rs1, u32 funct3)
 constexpr u32 SB(u32 rs2, i32 imm, u32 rs1) { return encode_rv32i_store(rs2, imm, rs1, 0b000); }
 constexpr u32 SH(u32 rs2, i32 imm, u32 rs1) { return encode_rv32i_store(rs2, imm, rs1, 0b001); }
 constexpr u32 SW(u32 rs2, i32 imm, u32 rs1) { return encode_rv32i_store(rs2, imm, rs1, 0b010); }
+/// @}
 
-// ── RV32I B-type encoding ──────────────────────────────────────────────
-
+/// @name RV32I B-type encoding
+/// @{
 constexpr u32 encode_b_type(i32 imm, u32 rs2, u32 rs1, u32 funct3)
 {
     u32 uimm = static_cast<u32>(imm);
@@ -278,9 +282,10 @@ constexpr u32 BLT(u32 rs1, u32 rs2, i32 imm)  { return encode_b_type(imm, rs2, r
 constexpr u32 BGE(u32 rs1, u32 rs2, i32 imm)  { return encode_b_type(imm, rs2, rs1, 0b101); }
 constexpr u32 BLTU(u32 rs1, u32 rs2, i32 imm) { return encode_b_type(imm, rs2, rs1, 0b110); }
 constexpr u32 BGEU(u32 rs1, u32 rs2, i32 imm) { return encode_b_type(imm, rs2, rs1, 0b111); }
+/// @}
 
-// ── RV32I J-type encoding ──────────────────────────────────────────────
-
+/// @name RV32I J-type encoding
+/// @{
 constexpr u32 JAL(u32 rd, i32 imm)
 {
     const u32 uimm = static_cast<u32>(imm) & 0x1FFFFF;
@@ -303,9 +308,10 @@ constexpr u32 JALR(u32 rd, i32 imm, u32 rs1)
         0b1100111
     );
 }
+/// @}
 
-// ── RV32I U-type encoding ────────────────────────────────────────────── 
-
+/// @name RV32I U-type encoding
+/// @{ 
 constexpr u32 encode_u_type(u32 uimm, u32 rd, u32 opcode)
 {
     return (uimm & 0xFFFFF000u) |
@@ -314,13 +320,17 @@ constexpr u32 encode_u_type(u32 uimm, u32 rd, u32 opcode)
 
 constexpr u32 LUI(u32 rd, u32 imm)   { return encode_u_type(imm, rd, 0b0110111); }
 constexpr u32 AUIPC(u32 rd, u32 imm) { return encode_u_type(imm, rd, 0b0010111); }
+/// @}
 
+/// @name RV32I system instruction encoding
+/// @{
 constexpr u32 FENCE  = 0x0ff0'000f;
 constexpr u32 EBREAK = 0x0010'0073;
 constexpr u32 ECALL  = 0x0000'0073;
+/// @}
 
-// ── RV32M encoding ─────────────────────────────────────────────────────
-
+/// @name RV32M encoding
+/// @{
 constexpr u32 encode_m(u32 funct3, u32 rd, u32 rs1, u32 rs2)
 {
     return (0b0000001u << 25) | (rs2 << 20) | (rs1 << 15)
@@ -335,9 +345,10 @@ constexpr u32 DIV(u32 rd, u32 rs1, u32 rs2)    { return encode_m(0b100, rd, rs1,
 constexpr u32 DIVU(u32 rd, u32 rs1, u32 rs2)   { return encode_m(0b101, rd, rs1, rs2); }
 constexpr u32 REM(u32 rd, u32 rs1, u32 rs2)    { return encode_m(0b110, rd, rs1, rs2); }
 constexpr u32 REMU(u32 rd, u32 rs1, u32 rs2)   { return encode_m(0b111, rd, rs1, rs2); }
+/// @}
 
-// ── RV32A encoding ─────────────────────────────────────────────────────
-
+/// @name RV32A encoding
+/// @{
 constexpr u32 encode_amo(u32 funct5, u32 rd, u32 rs1, u32 rs2)
 {
     return (funct5 << 27) | (rs2 << 20) | (rs1 << 15)
@@ -355,9 +366,10 @@ constexpr u32 AMOMIN(u32 rd, u32 rs1, u32 rs2)  { return encode_amo(0b10000u, rd
 constexpr u32 AMOMAX(u32 rd, u32 rs1, u32 rs2)  { return encode_amo(0b10100u, rd, rs1, rs2); }
 constexpr u32 AMOMINU(u32 rd, u32 rs1, u32 rs2) { return encode_amo(0b11000u, rd, rs1, rs2); }
 constexpr u32 AMOMAXU(u32 rd, u32 rs1, u32 rs2) { return encode_amo(0b11100u, rd, rs1, rs2); }
+/// @}
 
-// ── VSETVLI and V(L|S)E32 encoding ─────────────────────────────────────
-
+/// @name VSETVLI and V(L|S)E32 encoding
+/// @{
 constexpr u32 VSETVLI(u32 rd, u32 rs1, u32 zimm)
 {
     return (0u << 31) | ((zimm & 0x7FF) << 20) | (rs1 << 15)
@@ -373,9 +385,10 @@ constexpr u32 VSE32(u32 vs3, u32 rs1)
 }
 
 constexpr u32 VTYPE_SEW32 = 0b00000010000;
+/// @}
 
-// ── OPIVV encoding ────────────────────────────────────────────────────
-
+/// @name OPIVV encoding
+/// @{
 constexpr u32 enc_vv(u32 funct6, u32 vd, u32 vs2, u32 vs1)
 {
     return (funct6 << 26) | (1u << 25) | (vs2 << 20) | (vs1 << 15)
@@ -390,9 +403,10 @@ constexpr u32 VXOR_VV(u32 vd, u32 vs2, u32 vs1)  { return enc_vv(0b001011u, vd, 
 constexpr u32 VMSEQ_VV(u32 vd, u32 vs2, u32 vs1) { return enc_vv(0b011000u, vd, vs2, vs1); }
 constexpr u32 VMSLT_VV(u32 vd, u32 vs2, u32 vs1) { return enc_vv(0b011011u, vd, vs2, vs1); }
 constexpr u32 VMSLTU_VV(u32 vd, u32 vs2, u32 vs1){ return enc_vv(0b011010u, vd, vs2, vs1); }
+/// @}
 
-// ── OPIVX encoding ────────────────────────────────────────────────────
-
+/// @name OPIVX encoding
+/// @{
 constexpr u32 enc_vx(u32 funct6, u32 vd, u32 vs2, u32 rs1)
 {
     return (funct6 << 26) | (1u << 25) | (vs2 << 20) | (rs1 << 15)
@@ -412,9 +426,10 @@ constexpr u32 VMV_V_X(u32 vd, u32 rs1)
     return (0b010111u << 26) | (1u << 25) | (0u << 20) | (rs1 << 15)
          | (0b100u << 12) | (vd << 7) | 0b1010111u;
 }
+/// @}
 
-// ── OPMVV encoding ─────────────────────────────────────────────────────
-
+/// @name OPMVV encoding
+/// @{
 constexpr u32 enc_mvv(u32 funct6, u32 vd, u32 vs2, u32 vs1)
 {
     return (funct6 << 26) | (1u << 25) | (vs2 << 20) | (vs1 << 15)
@@ -431,3 +446,4 @@ constexpr u32 VMORN(u32 vd, u32 vs2, u32 vs1)   { return enc_mvv(0b011100u, vd, 
 constexpr u32 VMXOR(u32 vd, u32 vs2, u32 vs1)   { return enc_mvv(0b011011u, vd, vs2, vs1); }
 constexpr u32 VMXNOR(u32 vd, u32 vs2, u32 vs1)  { return enc_mvv(0b011111u, vd, vs2, vs1); }
 constexpr u32 VMV_X_S(u32 rd, u32 vs2)          { return enc_mvv(0b010000u, rd, vs2, 0); }
+/// @}

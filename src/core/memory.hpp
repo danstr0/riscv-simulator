@@ -6,12 +6,12 @@
  * RAM, ROM, and MMIO devices transparently through a common bus.
  *
  * @par Address translation
- * The MMIOBus routes requests using absolute addresses, then subtracts
+ * The @c MMIOBus routes requests using absolute addresses, then subtracts
  * the region's base to present each device with a zero-based offset.
  *
  * @par Latency modeling
- * MemoryResult includes a @c cycles field for future cycle-accurate
- * timing or cache-miss penalty injection. Currently fixed at 1.
+ * @c MemoryResult includes a @c cycles field for cycle-accurate
+ * timing and cache-miss penalty injection.
  */
 
 #pragma once
@@ -34,14 +34,14 @@ struct MemoryResult
 {
     u32 value  = 0;     ///< Data retrieved on reads; undefined for writes.
     u32 cycles = 1;     ///< Latency of this transaction.
-    bool ok    = true;  ///< False if a fault occurred.
+    bool ok    = true;  ///< @c false if a fault occurred.
 };
 
 /**
  * @brief Abstract interface for all memory-mapped entities.
  *
  * All implementations must be byte-addressable. Multi-byte accesses 
- * use host-native little-endian) byte order.
+ * use host-native (little-endian) byte order.
  */
 class Memory {
 public:
@@ -83,7 +83,7 @@ public:
     {
         u32 cycles = 0;
         for (u32 i = 0; i < size; ++i)
-	{
+        {
             auto r = read8(addr + i);
             dest[i] = static_cast<u8>(r.value);
             cycles = std::max(cycles, r.cycles);
@@ -100,14 +100,14 @@ public:
     {
         u32 cycles = 0;
         for (u32 i = 0; i < size; ++i)
-	{
+        {
             auto r = write8(addr + i, src[i]);
             cycles = std::max(cycles, r.cycles);
         }
         return cycles;
     }
 
-    /// @return True if range [addr, addr+size) is accessible.
+    /// @return @c true if range [addr, addr+size) is accessible.
     [[nodiscard]] virtual bool valid_address(addr_t addr, size_t size = 1) const = 0;
 };
 
@@ -129,7 +129,7 @@ public:
     [[nodiscard]] MemoryResult read32(addr_t addr) const override;
     [[nodiscard]] MemoryResult read16(addr_t addr) const override;
     [[nodiscard]] MemoryResult read8(addr_t addr)  const override;
-    
+
     MemoryResult write32(addr_t addr, u32 value) override;
     MemoryResult write16(addr_t addr, u16 value) override;
     MemoryResult write8(addr_t addr, u8 value)   override;
@@ -170,7 +170,8 @@ private:
 class MMIOBus : public Memory {
 public:
     /// A mapping between an address range and a device.
-    struct Region {
+    struct Region
+    {
         addr_t                  base;    ///< Absolute start address.
         addr_t                  size;    ///< Size in bytes.
         std::shared_ptr<Memory> device;  ///< The memory-mapped device.

@@ -2,17 +2,19 @@
  * @file test_rv32m.cpp
  * @brief Tests for the RV32M extension.
  *
- * Sections:
- *    1 (line  24) : Decoder
- *    2 (line 116) : MUL execution
- *    3 (line 257) : MULH execution
- *    4 (line 364) : MULHU execution
- *    5 (line 433) : MULHSU execution
- *    6 (line 524) : DIV execution
- *    7 (line 648) : DIVU execution
- *    8 (line 734) : REM execution
- *    9 (line 858) : REMU execution
- *   10 (line 944) : Pipeline correctness
+ * @par Sections
+ * @code
+ *    1 (line  26) : Instruction decoding
+ *    2 (line 118) : MUL
+ *    3 (line 259) : MULH
+ *    4 (line 366) : MULHU
+ *    5 (line 435) : MULHSU
+ *    6 (line 526) : DIV
+ *    7 (line 650) : DIVU
+ *    8 (line 736) : REM
+ *    9 (line 860) : REMU
+ *   10 (line 946) : Pipeline correctness
+ * @endcode
  */
 
 #include "test_framework.hpp"
@@ -21,7 +23,7 @@
 using namespace riscv;
 
 // ═══════════════════════════════════════════════════════════════════════
-//  1. Decoder - all 8 M instructions decode correctly
+//  1. Instruction decoding
 // ═══════════════════════════════════════════════════════════════════════
 
 TEST(m_decode_mul)

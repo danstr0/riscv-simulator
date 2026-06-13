@@ -2,13 +2,14 @@
  * @file test_multicore.cpp
  * @brief Tests for the multi-core CPU system.
  *
- * Sections:
- *   1 (line  48) : Construction
- *   2 (line  68) : Independent execution
- *   3 (line 114) : Shared memory
- *   4 (line 145) : Timer interrupt
- *   5 (line 171) : Statistics - per-core and aggregate
- *   6 (line 196) : Reset
+ * @par Sections
+ * @code
+ *   1 (line  49) : Construction
+ *   2 (line  69) : Independent execution
+ *   3 (line 115) : Shared memory
+ *   4 (line 146) : Timer interrupt
+ *   5 (line 172) : Statistics
+ * @endcode
  */
 
 #include "core/multicore.hpp"

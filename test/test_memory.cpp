@@ -2,9 +2,11 @@
  * @file test_memory.cpp
  * @brief Tests for FlatMemory and MMIOBus.
  *
- * Sections:
- *   1 (line  16) : FlatMemory
- *   2 (line 186) : MMIOBus
+ * @par Sections
+ * @code
+ *   1 (line  18) : FlatMemory
+ *   2 (line 201) : MMIOBus
+ * @endcode
  */
 
 #include "core/memory.hpp"
@@ -16,7 +18,8 @@ using namespace riscv;
 //  1. FlatMemory
 // ═══════════════════════════════════════════════════════════════════════
 
-TEST(flat_mem_basic_read_write) {
+TEST(flat_mem_basic_read_write)
+{
     FlatMemory mem(0x1000u, 0x1000u);
 
     auto wr = mem.write32(0x1000u, 0xDEAD'BEEFu);
@@ -29,7 +32,8 @@ TEST(flat_mem_basic_read_write) {
     return true;
 }
 
-TEST(flat_mem_byte_access) {
+TEST(flat_mem_byte_access)
+{
     FlatMemory mem(0x0u, 0x100u);
 
     auto wr = mem.write8(0x10u, 0xABu);
@@ -41,7 +45,8 @@ TEST(flat_mem_byte_access) {
     return true;
 }
 
-TEST(flat_mem_half_access) {
+TEST(flat_mem_half_access)
+{
     FlatMemory mem(0x0u, 0x100u);
 
     auto wr = mem.write16(0x20u, 0x1234u);
@@ -53,7 +58,8 @@ TEST(flat_mem_half_access) {
     return true;
 }
 
-TEST(flat_mem_little_endian_32) {
+TEST(flat_mem_little_endian_32)
+{
     FlatMemory mem(0x0u, 0x100u);
 
     mem.write32(0x0u, 0x0403'0201u);
@@ -66,7 +72,8 @@ TEST(flat_mem_little_endian_32) {
     return true;
 }
 
-TEST(flat_mem_little_endian_16) {
+TEST(flat_mem_little_endian_16)
+{
     FlatMemory mem(0x0u, 0x100u);
 
     mem.write16(0x0u, 0xBEEFu);
@@ -76,7 +83,8 @@ TEST(flat_mem_little_endian_16) {
     return true;
 }
 
-TEST(flat_mem_cross_width_read) {
+TEST(flat_mem_cross_width_read)
+{
     // Write bytes individually, read back as wider types
     FlatMemory mem(0x0u, 0x100u);
 
@@ -90,7 +98,8 @@ TEST(flat_mem_cross_width_read) {
     return true;
 }
 
-TEST(flat_mem_read8_no_sign_extend) {
+TEST(flat_mem_read8_no_sign_extend)
+{
     // read8 must return zero-extended values — upper bits must be 0
     FlatMemory mem(0x0u, 0x100u);
 
@@ -101,7 +110,8 @@ TEST(flat_mem_read8_no_sign_extend) {
     return true;
 }
 
-TEST(flat_mem_read16_no_sign_extend) {
+TEST(flat_mem_read16_no_sign_extend)
+{
     FlatMemory mem(0x0u, 0x100u);
 
     mem.write16(0x0u, 0xFFFFu);
@@ -111,7 +121,8 @@ TEST(flat_mem_read16_no_sign_extend) {
     return true;
 }
 
-TEST(flat_mem_out_of_bounds) {
+TEST(flat_mem_out_of_bounds)
+{
     FlatMemory mem(0x1000u, 0x100u); // 0x1000–0x10FF
 
     // Before range
@@ -127,7 +138,8 @@ TEST(flat_mem_out_of_bounds) {
     return true;
 }
 
-TEST(flat_mem_out_of_bounds_sub_word) {
+TEST(flat_mem_out_of_bounds_sub_word)
+{
     FlatMemory mem(0x0u, 0x10u); // 16 bytes: 0x0–0xF
 
     // read16 at 0xF: needs 2 bytes but only 1 left
@@ -141,7 +153,8 @@ TEST(flat_mem_out_of_bounds_sub_word) {
     return true;
 }
 
-TEST(flat_mem_load_bulk) {
+TEST(flat_mem_load_bulk)
+{
     FlatMemory mem(0x0u, 0x100u);
 
     u8 data[] = {0x11u, 0x22u, 0x33u, 0x44u, 0x55u, 0x66u, 0x77u, 0x88u};
@@ -153,7 +166,8 @@ TEST(flat_mem_load_bulk) {
     return true;
 }
 
-TEST(flat_mem_load_bulk_out_of_range) {
+TEST(flat_mem_load_bulk_out_of_range)
+{
     FlatMemory mem(0x0u, 0x10u);
 
     u8 data[32] = {};
@@ -170,7 +184,8 @@ TEST(flat_mem_load_bulk_out_of_range) {
     return true;
 }
 
-TEST(flat_mem_valid_address) {
+TEST(flat_mem_valid_address)
+{
     FlatMemory mem(0x1000u, 0x100u);
 
     ASSERT(mem.valid_address(0x1000u));
@@ -186,7 +201,8 @@ TEST(flat_mem_valid_address) {
 //  2. MMIOBus
 // ═══════════════════════════════════════════════════════════════════════
 
-TEST(mmio_bus_single_region) {
+TEST(mmio_bus_single_region)
+{
     auto bus = std::make_shared<MMIOBus>();
     auto ram = std::make_shared<FlatMemory>(0x0u, 0x1000u);
 
@@ -200,7 +216,8 @@ TEST(mmio_bus_single_region) {
     return true;
 }
 
-TEST(mmio_bus_multiple_regions) {
+TEST(mmio_bus_multiple_regions)
+{
     auto bus = std::make_shared<MMIOBus>();
     auto ram = std::make_shared<FlatMemory>(0x0u, 0x1000u);
     auto rom = std::make_shared<FlatMemory>(0x0u, 0x1000u);
@@ -217,7 +234,8 @@ TEST(mmio_bus_multiple_regions) {
     return true;
 }
 
-TEST(mmio_bus_region_offset) {
+TEST(mmio_bus_region_offset)
+{
     auto bus    = std::make_shared<MMIOBus>();
     auto device = std::make_shared<FlatMemory>(0x0u, 0x100u);
 
@@ -230,7 +248,8 @@ TEST(mmio_bus_region_offset) {
     return true;
 }
 
-TEST(mmio_bus_region_boundary) {
+TEST(mmio_bus_region_boundary)
+{
     // Verify that the last byte of a region is accessible and the first
     // byte after it falls through to default (or fails)
     auto bus     = std::make_shared<MMIOBus>();
@@ -248,7 +267,8 @@ TEST(mmio_bus_region_boundary) {
     return true;
 }
 
-TEST(mmio_bus_byte_and_half_forwarding) {
+TEST(mmio_bus_byte_and_half_forwarding)
+{
     // Verify 8-bit and 16-bit operations are forwarded correctly through
     // the bus (not just 32-bit)
     auto bus    = std::make_shared<MMIOBus>();
@@ -268,7 +288,8 @@ TEST(mmio_bus_byte_and_half_forwarding) {
     return true;
 }
 
-TEST(mmio_bus_default_memory) {
+TEST(mmio_bus_default_memory)
+{
     auto bus         = std::make_shared<MMIOBus>();
     auto default_mem = std::make_shared<FlatMemory>(0x0u, 0x10000u);
     auto device      = std::make_shared<FlatMemory>(0x0u, 0x100u);
@@ -276,17 +297,18 @@ TEST(mmio_bus_default_memory) {
     bus->set_default(default_mem);
     bus->map(0x1000u, 0x100u, device, "Device");
 
-    // Unmapped region → default
+    // Unmapped region -> default
     bus->write32(0x5000u, 0x1111'1111u);
     ASSERT_HEX_EQ(default_mem->read32(0x5000u).value, 0x1111'1111u);
 
-    // Mapped region → device
+    // Mapped region -> device
     bus->write32(0x1020u, 0x2222'2222u);
     ASSERT_HEX_EQ(device->read32(0x20u).value, 0x2222'2222u);
     return true;
 }
 
-TEST(mmio_bus_unmap) {
+TEST(mmio_bus_unmap)
+{
     auto bus         = std::make_shared<MMIOBus>();
     auto default_mem = std::make_shared<FlatMemory>(0x0u, 0x10000u);
     auto device      = std::make_shared<FlatMemory>(0x0u, 0x100u);
@@ -306,7 +328,8 @@ TEST(mmio_bus_unmap) {
     return true;
 }
 
-TEST(mmio_bus_no_region_fails) {
+TEST(mmio_bus_no_region_fails)
+{
     MMIOBus bus; // No default, no regions
 
     ASSERT(!bus.read32(0x1000u).ok);
@@ -317,10 +340,7 @@ TEST(mmio_bus_no_region_fails) {
 
 // ── Custom MMIO device ─────────────────────────────────────────────────
 
-/**
- * Counter device: read32 at offset 0 returns (and increments) a counter.
- * Demonstrates mutable state behind the const-read interface.
- */
+// Counter device: read32 at offset 0 returns (and increments) a counter
 class CounterDevice : public Memory {
 public:
     mutable u32 counter = 0; // mutable: reads have side effects (MMIO)
@@ -346,7 +366,8 @@ public:
     bool valid_address(addr_t addr, size_t) const override { return addr == 0; }
 };
 
-TEST(mmio_custom_device) {
+TEST(mmio_custom_device)
+{
     auto bus     = std::make_shared<MMIOBus>();
     auto counter = std::make_shared<CounterDevice>();
 

@@ -2,16 +2,18 @@
  * @file test_rvv.cpp
  * @brief Tests for the RVV subset.
  *
- * Sections:
- *  1 (line   24) : Decoder
- *  2 (line  352) : Vector state / VSETVLI
- *  3 (line  411) : Vector load / store
- *  4 (line  445) : Arithmetic ops
- *  5 (line  535) : Bit manipulation
- *  6 (line  778) : Comparisons
- *  7 (line  916) : Mask ops
- *  8 (line  965) : Move and reduction
- *  9 (line 1050) : Program - vectorized checksum
+ * @par Sections
+ * @code
+ *  1 (line   26) : Instruction decoding
+ *  2 (line  354) : Vector state / VSETVLI
+ *  3 (line  413) : Vector load / store
+ *  4 (line  447) : Vector arithmetic
+ *  5 (line  537) : Bit manipulation
+ *  6 (line  780) : Comparisons
+ *  7 (line  918) : Mask instructions
+ *  8 (line  967) : Move and reduction
+ *  9 (line 1052) : Program - vectorized checksum
+ * @endcode
  */
 
 #include "core/vector_state.hpp"
@@ -21,7 +23,7 @@
 using namespace riscv;
 
 // ═══════════════════════════════════════════════════════════════════════
-//  1. Decoder
+//  1. Instruction decoding
 // ═══════════════════════════════════════════════════════════════════════
 
 // ── VSETVLI, VLE32, VSE32 ──────────────────────────────────────────────
@@ -442,7 +444,7 @@ TEST(v_exec_vle32_vse32_cpu)  { return run_vle32_vse32<CPUH>(); }
 TEST(v_exec_vle32_vse32_pipe) { return run_vle32_vse32<PipeH>(); }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  4. Arithmetic
+//  4. Vector arithmetic
 // ═══════════════════════════════════════════════════════════════════════
 
 template <typename Harness>
@@ -921,7 +923,7 @@ bool run_mask_op(u32 mask_instruction, u16 expected)
 {
     Harness h;
     auto& cpu = h.get();
-    
+
     cpu.set_reg(1, 4);
     cpu.set_reg(5, 0b1010);
     cpu.set_reg(6, 0b1100);

@@ -69,7 +69,7 @@ struct MemInitEntry
 
     enum class Kind { WORDS, BYTES, FILL, STRING } kind;
 
-    std::vector<u32> words;       ///< For @c Kind::WORDS - u32 values.
+    std::vector<u32> words;       ///< For @c Kind::WORDS - @c u32 values.
     std::vector<u8>  bytes;       ///< For @c Kind::BYTES - raw bytes.
     u8               fill_val;    ///< For @c Kind::FILL - fill byte.
     u32              fill_count;  ///< For @c Kind::FILL - number of bytes.

@@ -2,15 +2,17 @@
  * @file test_executor.cpp
  * @brief Tests for RV32I instruction execution.
  *
- * Sections:
- *   1 (line   22) : I-type instructions
- *   2 (line  867) : R-type instructions
- *   3 (line 1885) : Loads
- *   4 (line 2453) : Stores
- *   5 (line 2816) : Branches
- *   6 (line 3386) : x0 hardwired to zero
- *   7 (line 3594) : Upper immediates
- *   8 (line 3733) : System instructions
+ * @par Sections
+ * @code
+ *   1 (line   24) : I-type instructions
+ *   2 (line  869) : R-type instructions
+ *   3 (line 1887) : Loads
+ *   4 (line 2455) : Stores
+ *   5 (line 2818) : Branches
+ *   6 (line 3388) : Jumps
+ *   7 (line 3596) : Upper immediates
+ *   8 (line 3735) : System instructions
+ * @endcode
  */
 
 #include "test_framework.hpp"
@@ -63,10 +65,10 @@ bool run_addi_wraparound()
 {
     Harness h;
     auto& cpu = h.get();
-    
+
     cpu.set_reg(1, 0xFFFF'FFFF);
     cpu.load_instruction(0, ADDI(1, 1, 1));
-    
+
     h.step();
     ASSERT_EQ(cpu.reg(1), 0u);
     return true;
@@ -80,7 +82,7 @@ bool run_exec_addi_x0()
 {
     Harness h;
     auto& cpu = h.get();
-    
+
     cpu.load_instruction(0, ADDI(1, 0, 42));
     cpu.load_instruction(4, ADDI(0, 0, 123));
 
@@ -173,7 +175,7 @@ bool run_andi_x0()
 {
     Harness h;
     auto& cpu = h.get();
-    
+
     cpu.set_reg(1, 0xABCD);
     cpu.load_instruction(0, ANDI(0, 1, 0xFF));
     cpu.load_instruction(4, ANDI(1, 0, 0xFF));
@@ -325,11 +327,11 @@ bool run_xori_neg_imm()
 {
     Harness h;
     auto& cpu = h.get();
-    
+
     cpu.set_reg(1, 0x1234'5678);
     // -256 sign-extends to 0xFFFF'FF00
     cpu.load_instruction(0, XORI(2, 1, -256));
-    
+
     h.step();
     ASSERT_HEX_EQ(cpu.reg(2), 0xEDCB'A978u);
     return true;
@@ -366,10 +368,10 @@ bool run_slti_true()
 {
     Harness h;
     auto& cpu = h.get();
-    
+
     cpu.set_reg(1, static_cast<u32>(-10));
     cpu.load_instruction(0, SLTI(2, 1, 5)); // -10 < 5
-    
+
     h.step();
     ASSERT_EQ(cpu.reg(2), 1u);
     return true;
@@ -400,11 +402,11 @@ bool run_slti_signed_neg()
 {
     Harness h;
     auto& cpu = h.get();
-    
+
     cpu.set_reg(1, static_cast<u32>(-5));
     cpu.load_instruction(0, SLTI(2, 1, -1)); // -5 < -1
     cpu.load_instruction(4, SLTI(2, 1, -7)); // -6 < -7
-    
+
     h.step();
     ASSERT_EQ(cpu.reg(2), 1u);
 
@@ -453,7 +455,7 @@ bool run_slti_x0()
 
     h.step();
     ASSERT_EQ(cpu.reg(0), 0u);
-    
+
     h.step();
     ASSERT_EQ(cpu.reg(2), 1u);
 
@@ -543,10 +545,10 @@ bool run_sltiu_equal()
 {
     Harness h;
     auto& cpu = h.get();
-    
+
     cpu.set_reg(1, static_cast<u32>(-1));
     cpu.load_instruction(0, SLTIU(2, 1, -1));
-    
+
     h.step();
     ASSERT_EQ(cpu.reg(2), 0u);
     return true;
@@ -560,13 +562,13 @@ bool run_sltiu_x0()
 {
     Harness h;
     auto& cpu = h.get();
-    
+
     cpu.set_reg(1, 1);
     cpu.load_instruction(0,  SLTIU(0, 1, 2));  // 1 < 2
     cpu.load_instruction(4,  SLTIU(2, 0, 0));  // 0 < 0
     cpu.load_instruction(8,  SLTIU(3, 0, 1));  // 0 < 1
     cpu.load_instruction(12, SLTIU(4, 0, -1)); // 0 < u32(-1)
-    
+
     h.step();
     ASSERT_EQ(cpu.reg(0), 0u);
 
@@ -591,10 +593,10 @@ bool run_slli()
 {
     Harness h;
     auto& cpu = h.get();
-    
+
     cpu.set_reg(1, 1);
     cpu.load_instruction(0, SLLI(2, 1, 8)); // 1 << 8
-    
+
     h.step();
     ASSERT_EQ(cpu.reg(2), 256u);
     return true;
@@ -864,7 +866,7 @@ TEST(exec_srai_x0_cpu)  { return run_srai_x0<CPUH>(); }
 TEST(exec_srai_x0_pipe) { return run_srai_x0<PipeH>(); }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  2. ALU — Register-Register
+//  2. R-type instructions
 // ═══════════════════════════════════════════════════════════════════════
 
 // ── ADD ────────────────────────────────────────────────────────────────
@@ -1834,7 +1836,7 @@ bool run_sra_masks_shamt()
 {
     Harness h;
     auto& cpu = h.get();
-    
+
     cpu.set_reg(1, 0x8000'0000);
     cpu.set_reg(2, 33);
     cpu.set_reg(4, 0x7000'0000);
@@ -1882,7 +1884,7 @@ TEST(exec_sra_x0_cpu)  { return run_sra_x0<CPUH>(); }
 TEST(exec_sra_x0_pipe) { return run_sra_x0<PipeH>(); }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  3. Load
+//  3. Loads
 // ═══════════════════════════════════════════════════════════════════════
 
 // ── LW ─────────────────────────────────────────────────────────────────
@@ -2539,7 +2541,7 @@ bool run_sw_no_corruption()
     cpu.set_reg(1, 0x100);
     cpu.set_reg(2, 0x1234'5678);
     cpu.load_instruction(0, SW(2, 0, 1));
-    
+
     h.step();
     // Neighbors don't get corrupted
     ASSERT_HEX_EQ(cpu.memory().read32(0xFC).value,  0xCAFE'BABEu);
@@ -2565,7 +2567,7 @@ bool run_sw_x0()
 
     h.step();
     ASSERT_EQ(cpu.memory().read32(0x100).value, 0u);
-    
+
     h.step();
     ASSERT_HEX_EQ(cpu.memory().read32(0x200).value, 0x5678'1234u);
     return true;
@@ -2813,7 +2815,7 @@ TEST(exec_sb_truncates_cpu)  { return run_sb_truncates<CPUH>(); }
 TEST(exec_sb_truncates_pipe) { return run_sb_truncates<PipeH>(); }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  4. Branches
+//  5. Branches
 // ═══════════════════════════════════════════════════════════════════════
 
 // ── Common branch logic ────────────────────────────────────────────────
@@ -2867,7 +2869,7 @@ bool run_branch_backward()
 {
     Harness h;
     auto& cpu = h.get();
-    
+
     cpu.set_pc(0x100);
     cpu.set_reg(1, 1);
     cpu.set_reg(2, 1);
@@ -2875,7 +2877,7 @@ bool run_branch_backward()
     cpu.load_instruction(0x100, BEQ(1, 2, -8));
     cpu.load_instruction(0xF8,  ADDI(10, 0, 10));
     cpu.load_instruction(0x104, ADDI(11, 0, 11));
-    
+
     h.run(2);
     ASSERT_EQ(cpu.reg(10), 10u);
     ASSERT_EQ(cpu.reg(11), 0u);
@@ -3078,7 +3080,7 @@ bool run_bne_x0()
 {
     Harness h;
     auto& cpu = h.get();
-    
+
     cpu.set_reg(1, 5);
     cpu.set_reg(2, static_cast<u32>(-5));
 
@@ -3373,7 +3375,7 @@ bool run_bgeu_x0()
     cpu.load_instruction(16, BGEU(0, 1, 16));
     cpu.load_instruction(20, BGEU(0, 2, 16));
     cpu.load_instruction(24, ADDI(13, 0, 13));
-    
+
     h.run(4);
     ASSERT_EQ(cpu.reg(13), 13u);
     return true;
@@ -3383,7 +3385,7 @@ TEST(exec_bgeu_x0_cpu)  { return run_bgeu_x0<CPUH>(); }
 TEST(exec_bgeu_x0_pipe) { return run_bgeu_x0<PipeH>(); }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  5. Jumps
+//  6. Jumps
 // ═══════════════════════════════════════════════════════════════════════
 
 // ── JAL ────────────────────────────────────────────────────────────────
@@ -3591,7 +3593,7 @@ TEST(exec_jalr_misaligned_cpu)  { return run_jalr_misaligned<CPUH>(); }
 TEST(exec_jalr_misaligned_pipe) { return run_jalr_misaligned<PipeH>(); }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  6. Upper Immediate
+//  7. Upper immediates
 // ═══════════════════════════════════════════════════════════════════════
 
 // ── LUI ────────────────────────────────────────────────────────────────
@@ -3718,9 +3720,9 @@ bool run_auipc_x0()
 {
     Harness h;
     auto& cpu = h.get();
-    
+
     cpu.load_instruction(0, AUIPC(0, 0x1000));
-    
+
     h.step();
     ASSERT_EQ(cpu.reg(0), 0u);
     return true;
@@ -3779,7 +3781,7 @@ TEST(exec_run_until_ecall)
     cpu.load_instruction(4, ADDI(1, 1, 1));
     cpu.load_instruction(8, ECALL);
     cpu.load_instruction(12, ADDI(1, 1, 1)); // should not run
- 
+
     u64 count = cpu.run_until_ecall();
     ASSERT_EQ(count, 3u);       // 3 instructions executed (including ecall)
     ASSERT_EQ(cpu.reg(1), 43u); // 42 + 1

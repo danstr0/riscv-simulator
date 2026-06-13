@@ -46,8 +46,8 @@ u32 Cache::index_of(addr_t addr) const noexcept
 
 addr_t Cache::tag_of(addr_t addr) const noexcept
 {
-    unsigned shift = std::countr_zero(config_.line_size)
-                   + std::countr_zero(config_.num_sets());
+    unsigned shift = static_cast<unsigned>(std::countr_zero(config_.line_size)
+                                         + std::countr_zero(config_.num_sets()));
     return addr >> shift;
 }
 
@@ -125,12 +125,12 @@ u32 Cache::find_victim(u32 set_idx) const
         }
 
         case ReplacementPolicy::MRU:
-	    {
+        {
             u32 victim = 0;
             u64 newest = set[0].last_access;
             for (u32 w = 1; w < N; ++w)
                 if (set[w].last_access > newest)
-		        {
+                {
                     newest = set[w].last_access;
                     victim = w;
                 }
@@ -138,20 +138,20 @@ u32 Cache::find_victim(u32 set_idx) const
         }
 
         case ReplacementPolicy::PLRU:
-	    {
+        {
             const auto& bits = plru_bits_[set_idx];
             u32 node = 0;
             u32 way  = 0;
             u32 span = N;  // number of ways in the current subtree
-            
+
             while (span > 1)
-	        {
+            {
                 u32 half = span / 2;
                 if (bits[node] == 0)
                     node = 2 * node + 1;
-		        // way stays the same (leftmost of current subtree)
+                // way stays the same (leftmost of current subtree)
                 else
-		        {
+                {
                     node = 2 * node + 2;
                     way += half;
                 }
@@ -191,7 +191,7 @@ void Cache::touch_way(u32 set_idx, u32 way) const
 
     /*
      * Walk the tree from root to leaf, flipping each bit to point
-     * away from the accessed way.
+     * away from the accessed way
      */
     auto& bits = plru_bits_[set_idx];
     u32 N    = config_.associativity;
@@ -227,7 +227,7 @@ void Cache::writeback_line(u32 set_idx, u32 way)
     if (!meta.valid || !meta.dirty) return;
 
     if (trace_)
-        std::cout << std::format("[WRITEBACK] line=0x{:08x} | set={} | way={}",
+        std::cout << std::format("[WRITEBACK] line=0x{:08x} | set={} | way={}\n",
                                  meta.line_addr, set_idx, way);
 
     const u8* data = line_data(set_idx, way);
@@ -251,7 +251,7 @@ void Cache::evict_line(u32 set_idx, u32 way)
     }
 
     if (trace_)
-        std::cout << std::format("[EVICT] line=0x{:08x} | set={} | way={} | dirty={}",
+        std::cout << std::format("[EVICT] line=0x{:08x} | set={} | way={} | dirty={}\n",
                                  meta.line_addr, set_idx, way, meta.dirty);
 
     meta.valid = false;
@@ -274,7 +274,7 @@ void Cache::fetch_line(addr_t line_addr, u32 set_idx, u32 way)
     meta.fifo_order  = fifo_counters_[set_idx]++;
 
     if (trace_)
-        std::cout << std::format("[REFILL] line=0x{:08x} | set={} | way={}",
+        std::cout << std::format("[REFILL] line=0x{:08x} | set={} | way={}\n",
                                  line_addr, set_idx, way);
 }
 
@@ -289,7 +289,7 @@ Cache::LineRef Cache::allocate_line(addr_t addr)
     fetch_line(line_addr_of(addr), idx, victim);
 
     if (trace_)
-        std::cout << std::format("[ALLOC] line=0x{:08x} | set={} | way={}",
+        std::cout << std::format("[ALLOC] line=0x{:08x} | set={} | way={}\n",
                                  line_addr_of(addr), idx, victim);
 
     return {&sets_[idx][victim], line_data(idx, victim)};
@@ -307,7 +307,7 @@ MemoryResult Cache::read_bytes(addr_t addr, u32 size) const
         u32 first_part = config_.line_size - off;
         if (trace_)
             std::cout << std::format("[READ_SPLIT] addr=0x{:08x} | "
-                                     "size={} -> {}+{} bytes",
+                                     "size={} -> {}+{} bytes\n",
                                      addr, size,
                                      first_part, size - first_part);
 
@@ -339,10 +339,10 @@ MemoryResult Cache::read_bytes(addr_t addr, u32 size) const
     {
         stats_.misses++;
         u32 coherence_latency = 0;
-	    if (on_read_miss_)
+        if (on_read_miss_)
             coherence_latency = on_read_miss_(line_addr_of(addr));
 
-	    auto& self = const_cast<Cache&>(*this);
+        auto& self = const_cast<Cache&>(*this);
         auto ref = self.allocate_line(addr);
         latency = config_.hit_latency + config_.miss_penalty + coherence_latency;
         u32 alloc_way = static_cast<u32>(ref.meta - sets_[index_of(addr)].data());
@@ -356,14 +356,13 @@ MemoryResult Cache::read_bytes(addr_t addr, u32 size) const
     for (u32 i = 0; i < size; ++i)
         value |= static_cast<u32>(data_ptr[off + i]) << (i * 8);
 
-    
     if (trace_)
         std::cout << std::format("[READ] addr=0x{:08x} | set={} | tag=0x{:x} | "
-                                 "{} | latency={}",
+                                 "{} | latency={}\n",
                                  addr, index_of(addr), tag_of(addr),
                                  found ? "HIT" : "MISS",
                                  latency);
-    
+
     return {value, latency, true};
 }
 
@@ -376,7 +375,7 @@ MemoryResult Cache::write_bytes(addr_t addr, const u8* bytes, u32 size)
         u32 first_part = config_.line_size - off;
         if (trace_)
             std::cout << std::format("[WRITE_SPLIT] addr=0x{:08x} | "
-                                     "size={} -> {}+{} bytes",
+                                     "size={} -> {}+{} bytes\n",
                                      addr, size,
                                      first_part, size - first_part);
 
@@ -396,7 +395,7 @@ MemoryResult Cache::write_bytes(addr_t addr, const u8* bytes, u32 size)
     {
         if (trace_)
             std::cout << std::format("[WRITE] addr=0x{:08x} | size={} | "
-                                     "set={} | tag=0x{:x} | {} | latency={}",
+                                     "set={} | tag=0x{:x} | {} | latency={}\n",
                                      addr, size, index_of(addr), tag_of(addr),
                                      hit_or_miss, latency);
     };
@@ -552,7 +551,7 @@ u32 Cache::read_line(addr_t addr, u8* dest, u32 size) const
     u32 way = static_cast<u32>(ref.meta - sets_[idx].data());
     touch_way(idx, way);
     std::memcpy(dest, ref.data, std::min(size, config_.line_size));
-    
+
     u32 latency = config_.hit_latency + config_.miss_penalty;
     stats_.total_latency += latency;
     return latency;
@@ -711,7 +710,7 @@ void Cache::dump() const
             if (meta.valid) ++valid_lines;
             if (meta.valid && meta.dirty) ++dirty_lines;
         }
- 
+
     std::cout << std::format(
         "Cache: {} KB, {}-way, {}-byte lines, {} sets\n"
         "  Hit rate:    {:.2f}%\n"

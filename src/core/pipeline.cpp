@@ -23,7 +23,7 @@ PipelinedCPU::PipelinedCPU(std::shared_ptr<Memory> memory, PipelineConfig config
     , bht_(config.bht_size, 0)
 {
     assert(memory_ != nullptr);
-    
+
     regs_.fill(0);
     pc_ = 0;
     for (auto& s : stages_) s.clear();
@@ -85,7 +85,7 @@ bool PipelinedCPU::tick()
             if (wb.reg_write && wb.inst.rd != 0)
             {
                 regs_[wb.inst.rd] = wb.rd_val;
-            
+
                 if (trace_)
                     std::cout << std::format("[WB] x{} <= 0x{:08x} ({})\n",
                                              wb.inst.rd, wb.rd_val,
@@ -104,10 +104,10 @@ bool PipelinedCPU::tick()
             addr_t trap_pc = pc_;
 
             // for (int i = kNumStages - 1; i >= 0; --i)
-            for (auto i = kNumStages - 1; i >= 0; --i)
-                if (cur[i].valid)
+            for (size_t i = kNumStages; i > 0; --i)
+                if (cur[i - 1].valid)
                 {
-                    trap_pc = cur[i].pc;
+                    trap_pc = cur[i - 1].pc;
                     break;
                 }
 
@@ -261,7 +261,7 @@ bool PipelinedCPU::tick()
 
                     if (trace_)
                         std::cout << std::format("[AMO] {} | addr=0x{:08x} | "
-                                                 "old=0x{:08x} | new=0x{:08x}",
+                                                 "old=0x{:08x} | new=0x{:08x}\n",
                                                  mem_in.inst.disassemble(), addr,
                                                  old_val, new_val);
                     break;
@@ -353,7 +353,7 @@ bool PipelinedCPU::tick()
                 wb_out.rd_val = mem_in.alu_result;
         }
     }
-   
+
     // ── 4. Hazard detection and interlock logic ──────────────
     const auto& id_stage = cur[static_cast<int>(Stage::ID)];
     bool stall = detect_data_stall(cur);
@@ -362,11 +362,11 @@ bool PipelinedCPU::tick()
     {
         const auto& ex_in = cur[static_cast<int>(Stage::EX)];
         auto& mem_out = next[static_cast<int>(Stage::MEM)];
-        
+
         if (ex_in.valid)
         {
             mem_out = ex_in;
-            
+
             u32 rs1 = resolve_rs1(ex_in, cur, next);
             u32 rs2 = resolve_rs2(ex_in, cur, next);
 
@@ -612,9 +612,9 @@ bool PipelinedCPU::tick()
                     break;
                 }
 
-                default: break;
+                default: [[unlikely]] break;
             }
-            
+
             // Default: rd_val = ALU result (loads overwrite in MEM stage)
             if (!mem_out.mem_read)
                 mem_out.rd_val = mem_out.alu_result;
@@ -703,7 +703,7 @@ bool PipelinedCPU::tick()
         next[static_cast<int>(Stage::EX)].clear();
         pc_ = flush_target_;
         flush_pipeline_ = false;
-    	halted_ = false;
+        halted_ = false;
     }
 
     // ── 9. Commit next state ─────────────────────────────────
@@ -1009,9 +1009,9 @@ u32 PipelinedCPU::alu_execute(Op op, u32 rs1, u32 rs2, i32 imm)
             return rs2 == 0 ? rs1 : rs1 % rs2;
 
         case Op::LUI:   return uimm;
-        case Op::AUIPC: return 0;  // caller adds PC
-    
-        default: return 0;
+        case Op::AUIPC: return 0; // caller adds PC
+
+        default: [[unlikely]] return 0;
     }
 }
 
@@ -1055,7 +1055,7 @@ void PipelinedCPU::execute_vector(Op op, VectorState& vs,
         case Op::VAND_VV: exec_vv([](u32 a, u32 b) { return a & b; }); break;
         case Op::VOR_VV:  exec_vv([](u32 a, u32 b) { return a | b; }); break;
         case Op::VXOR_VV: exec_vv([](u32 a, u32 b) { return a ^ b; }); break;
-    
+
         // ── VX arithmetic ────────────────────────────────
         case Op::VADD_VX: exec_vx([](u32 a, u32 b) { return a + b; }); break;
         case Op::VSUB_VX: exec_vx([](u32 a, u32 b) { return a - b; }); break;
@@ -1064,7 +1064,7 @@ void PipelinedCPU::execute_vector(Op op, VectorState& vs,
         case Op::VXOR_VX: exec_vx([](u32 a, u32 b) { return a ^ b; }); break;
         case Op::VSLL_VX: exec_vx([](u32 a, u32 b) { return a << (b & 0x1F); }); break;
         case Op::VSRL_VX: exec_vx([](u32 a, u32 b) { return a >> (b & 0x1F); }); break;
-    
+
         // ── Comparisons ─────────────────────────────────
         case Op::VMSEQ_VV:
             exec_mask([&](u32 i)
@@ -1118,7 +1118,7 @@ void PipelinedCPU::execute_vector(Op op, VectorState& vs,
                     case Op::VMNOR_MM:  bit_result = !(bit2 | bit1); break;
                     case Op::VMORN_MM:  bit_result = bit2 | (!bit1); break;
                     case Op::VMXNOR_MM: bit_result = !(bit2 ^ bit1); break;
-                    default:            bit_result = false;          break;
+                    default: [[unlikely]] bit_result = false;        break;
                 }
 
                 u32 dst_elem = vregs.get_elem32(vd, i / 32);
@@ -1159,7 +1159,7 @@ bool PipelinedCPU::branch_check(Op op, u32 rs1, u32 rs2)
         case Op::BGE:  return static_cast<i32>(rs1) >= static_cast<i32>(rs2);
         case Op::BLTU: return rs1 < rs2;
         case Op::BGEU: return rs1 >= rs2;
-        default:       return false;
+        default: [[unlikely]] return false;
     }
 }
 
@@ -1185,9 +1185,9 @@ void PipelinedCPU::dump_stats() const
 void PipelinedCPU::dump_regs() const
 {
     std::cout << std::format("PC: 0x{:08x}\n", pc_);
-    for (int i = 0; i < 32; i += 4)
+    for (size_t i = 0; i < 32; i += 4)
     {
-        for (int j = 0; j < 4; ++j)
+        for (size_t j = 0; j < 4; ++j)
             std::cout << std::format("{:>4s}: 0x{:08x}  ",
                                      reg_name(static_cast<reg_idx_t>(i + j)),
                                      regs_[i + j]);

@@ -15,8 +15,8 @@ bool Timer::tick(cycle_t cycle)
     bool was_pending = pending_;
     check();
 
-    if (!was_pending && pending_)
-        std::cout << std::format("[TIMER] Interrupt raised | cycle={}", cycle);
+    if (trace_ && !was_pending && pending_)
+        std::cout << std::format("[TIMER] Interrupt raised | cycle={}\n", cycle);
 
     return !was_pending && pending_;
 }
@@ -24,11 +24,11 @@ bool Timer::tick(cycle_t cycle)
 void Timer::check()
 {
     bool new_pending = (mtime_ >= mtimecmp_);
- 
+
     if (new_pending != pending_)
     {
         if (trace_)
-            std::cout << std::format("[TIMER] {} mtime={} | mtimecmp={}",
+            std::cout << std::format("[TIMER] {} mtime={} | mtimecmp={}\n",
                                      new_pending ? "ASSERT" : "CLEAR",
                                      mtime_,
                                      mtimecmp_);
@@ -65,10 +65,10 @@ MemoryResult Timer::write32(addr_t addr, u32 value)
         {
             auto old = mtimecmp_;
             mtimecmp_ = (mtimecmp_ & 0xFFFF'FFFF'0000'0000ULL) | value;
-            
+
             if (trace_)
                 std::cout << std::format("[TIMER] MTIMECMP_LO write value=0x{:08x} | "
-                                         "old=0x{:016x} | new=0x{:016x}",
+                                         "old=0x{:016x} | new=0x{:016x}\n",
                                          value, old, mtimecmp_);
             check();
             return {value, 1, true};
@@ -78,10 +78,10 @@ MemoryResult Timer::write32(addr_t addr, u32 value)
             auto old = mtimecmp_;
             mtimecmp_ = (mtimecmp_ & 0x0000'0000'FFFF'FFFFULL)
                       | (static_cast<u64>(value) << 32);
-            
+
             if (trace_)
                 std::cout << std::format("[TIMER] MTIMECMP_HI write value=0x{:08x} |"
-                                         "old=0x{:016x} | new=0x{:016x}",
+                                         "old=0x{:016x} | new=0x{:016x}\n",
                                          value, old, mtimecmp_);
             check();
             return {value, 1, true};
