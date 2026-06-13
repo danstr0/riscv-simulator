@@ -18,7 +18,8 @@
 build/
 benchmark/
 benchmark_scripts/
-doc/
+docs/_build/
+docs/doxygen
 
 # Binaries / Core Dumps
 .bin
