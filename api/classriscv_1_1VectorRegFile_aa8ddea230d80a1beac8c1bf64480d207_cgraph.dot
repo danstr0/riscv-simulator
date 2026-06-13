@@ -1,0 +1,13 @@
+digraph "riscv::VectorRegFile::get_mask_bit"
+{
+ // LATEX_PDF_SIZE
+  bgcolor="transparent";
+  edge [fontname=Helvetica,fontsize=10,labelfontname=Helvetica,labelfontsize=10];
+  node [fontname=Helvetica,fontsize=10,shape=box,height=0.2,width=0.4];
+  rankdir="LR";
+  Node1 [id="Node000001",label="riscv::VectorRegFile\l::get_mask_bit",height=0.2,width=0.4,color="gray40", fillcolor="grey60", style="filled", fontcolor="black",tooltip="Read mask bit elem from register vreg."];
+  Node1 -> Node2 [id="edge1_Node000001_Node000002",color="steelblue1",style="solid",tooltip=" "];
+  Node2 [id="Node000002",label="riscv::VectorRegFile\l::vlenb",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$classriscv_1_1VectorRegFile.html#a771b557eeb5c125f8a8115d35e6a65d8",tooltip=" "];
+  Node2 -> Node3 [id="edge2_Node000002_Node000003",color="steelblue1",style="solid",tooltip=" "];
+  Node3 [id="Node000003",label="riscv::VectorConfig\l::vlenb",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$structriscv_1_1VectorConfig.html#a090eeba4a321935f5359e5b94cd54d41",tooltip=" "];
+}

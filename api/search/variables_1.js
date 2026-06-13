@@ -1,0 +1,21 @@
+var searchData=
+[
+  ['base_0',['base',['../structriscv_1_1MMIOBus_1_1Region.html#adc44435a4e3c87c738fde355b244b4d6',1,'riscv::MMIOBus::Region']]],
+  ['base_5faddr_1',['base_addr',['../structriscv_1_1DescriptorRing.html#ad0d7b2376f3a05985608f0db9742c37c',1,'riscv::DescriptorRing']]],
+  ['base_5faddr_5f_2',['base_addr_',['../classriscv_1_1FlatMemory.html#a2e431a858327c2458cc2ead1058a8062',1,'riscv::FlatMemory']]],
+  ['bht_5f_3',['bht_',['../classriscv_1_1PipelinedCPU.html#ab492aa53e1fb189db449ba69b6b98db7',1,'riscv::PipelinedCPU']]],
+  ['bht_5fsize_4',['bht_size',['../structriscv_1_1PipelineConfig.html#a582fe3af686b83c90b82bfbf2cad7d6f',1,'riscv::PipelineConfig']]],
+  ['branch_5fmispred_5fpenalty_5',['branch_mispred_penalty',['../structriscv_1_1PipelineConfig.html#ab678fb5d04ccc5a05538b8fd99a4f4ec',1,'riscv::PipelineConfig']]],
+  ['branch_5fmispredicts_6',['branch_mispredicts',['../structriscv_1_1PipelineStats.html#aecd425ed16a15cb30bc99c6399e38d32',1,'riscv::PipelineStats']]],
+  ['branch_5fpred_7',['branch_pred',['../structriscv_1_1SimConfig.html#a1e15c46213c4e7ef1592321ec95a68fe',1,'riscv::SimConfig']]],
+  ['branch_5ftaken_8',['branch_taken',['../structriscv_1_1ExecuteResult.html#a0c55bd8c4f5c3691023012ee7a520156',1,'riscv::ExecuteResult::branch_taken'],['../structriscv_1_1PipelineReg.html#a638536e4f200613837cacb1a01f48abb',1,'riscv::PipelineReg::branch_taken']]],
+  ['branch_5ftarget_9',['branch_target',['../structriscv_1_1PipelineReg.html#ac2c1f7a478210e2078d683dab99d45b9',1,'riscv::PipelineReg']]],
+  ['branches_10',['branches',['../structriscv_1_1CpuStats.html#aa18bd7a60b7fea5f7ee8c75176c12f69',1,'riscv::CpuStats::branches'],['../structriscv_1_1PipelineStats.html#a8a6edc9ec2849e41e6469a8251c70a47',1,'riscv::PipelineStats::branches']]],
+  ['branches_5ftaken_11',['branches_taken',['../structriscv_1_1CpuStats.html#a9d3b4bd89e0a1a3d4d010c2d798dd836',1,'riscv::CpuStats::branches_taken'],['../structriscv_1_1PipelineStats.html#a22afc5512e14f082a9f467fabf6d6fbe',1,'riscv::PipelineStats::branches_taken']]],
+  ['breakpoint_12',['BREAKPOINT',['../namespaceriscv_1_1MCause.html#ad5d5d14a853b64ebcbc053853b335a26',1,'riscv::MCause']]],
+  ['bubbles_13',['bubbles',['../structriscv_1_1PipelineStats.html#a4a910b1fcb0deedd8442d28ad8383f19',1,'riscv::PipelineStats']]],
+  ['buffer_5faddr_14',['buffer_addr',['../structriscv_1_1RxDescriptor.html#af5b850891418ffd808b1315d88d3c84c',1,'riscv::RxDescriptor::buffer_addr'],['../structriscv_1_1TxDescriptor.html#a6d5ee709f5691cd370b960feba229656',1,'riscv::TxDescriptor::buffer_addr']]],
+  ['buffer_5faddr_5fhi_15',['buffer_addr_hi',['../structriscv_1_1RxDescriptor.html#af10db1625a9130e3b9f8aca275495b36',1,'riscv::RxDescriptor::buffer_addr_hi'],['../structriscv_1_1TxDescriptor.html#adceda37995c38a73c806cd4b93ddd312',1,'riscv::TxDescriptor::buffer_addr_hi']]],
+  ['buses_5f_16',['buses_',['../classriscv_1_1MultiCoreCPU.html#a28e13eb993b2f113a9afd43d7e9ee6c7',1,'riscv::MultiCoreCPU']]],
+  ['bytes_17',['bytes',['../structriscv_1_1MemInitEntry.html#afe7c1823b8b852e37199095d23f09c10',1,'riscv::MemInitEntry']]]
+];

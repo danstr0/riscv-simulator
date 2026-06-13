@@ -1,0 +1,13 @@
+digraph "riscv::NIC::write_tx_desc"
+{
+ // LATEX_PDF_SIZE
+  bgcolor="transparent";
+  edge [fontname=Helvetica,fontsize=10,labelfontname=Helvetica,labelfontsize=10];
+  node [fontname=Helvetica,fontsize=10,shape=box,height=0.2,width=0.4];
+  rankdir="RL";
+  Node1 [id="Node000001",label="riscv::NIC::write_tx_desc",height=0.2,width=0.4,color="gray40", fillcolor="grey60", style="filled", fontcolor="black",tooltip=" "];
+  Node1 -> Node2 [id="edge1_Node000001_Node000002",dir="back",color="steelblue1",style="solid",tooltip=" "];
+  Node2 [id="Node000002",label="riscv::NIC::complete_dma",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$classriscv_1_1NIC.html#aba15f821a23f7938934afb6c180ad567",tooltip=" "];
+  Node2 -> Node3 [id="edge2_Node000002_Node000003",dir="back",color="steelblue1",style="solid",tooltip=" "];
+  Node3 [id="Node000003",label="riscv::NIC::tick",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$classriscv_1_1NIC.html#a326f052d58b50905858a9bd8f96a6061",tooltip="Advance internal state by one cycle."];
+}

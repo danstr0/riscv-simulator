@@ -1,0 +1,237 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Future Work &mdash; RISC-V Microarchitecture Engine  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Research Platform" href="research_platform.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            RISC-V Microarchitecture Engine
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config.html">Configuration File</a></li>
+<li class="toctree-l1"><a class="reference internal" href="research_platform.html">Research Platform</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Future Work</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#pipeline-model-refinement">Pipeline Model Refinement</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#isa-extension-to-rv32g">ISA Extension to RV32G</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#device-memory-region-and-multicorecpu-integration">Device Memory Region and MultiCoreCPU integration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#multicore-research-platform">Multicore Research Platform</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#out-of-order-execution">Out-of-Order Execution</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#other-improvements">Other Improvements</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">RISC-V Microarchitecture Engine</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Future Work</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/future_work.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="future-work">
+<h1>Future Work<a class="headerlink" href="#future-work" title="Link to this heading"></a></h1>
+<p>This document lists known limitations, planned improvements, and
+architectural extensions that would meaningfully expand the
+simulator’s capabilities.</p>
+<section id="pipeline-model-refinement">
+<h2>Pipeline Model Refinement<a class="headerlink" href="#pipeline-model-refinement" title="Link to this heading"></a></h2>
+<p><strong>True EX→EX forwarding</strong></p>
+<p>The current forwarding implementation covers MEM→EX bypass, but does
+not fully model the timing of multi-cycle operations.  In real
+hardware, a multiply instruction occupies the EX stage for multiple
+cycles, and the forwarding path from EX to the next instruction’s EX
+input must account for this latency. The current model treats all ALU
+operations as single-cycle in EX, which overestimates IPC for
+multiply-heavy workloads.</p>
+<p>Fixing this requires modeling functional unit latency in the EX
+stage: MUL/MULH take 3–5 cycles, DIV/REM take 10–30 cycles, and
+the pipeline stalls or uses a scoreboard to track when results are
+ready for forwarding.</p>
+</section>
+<section id="isa-extension-to-rv32g">
+<h2>ISA Extension to RV32G<a class="headerlink" href="#isa-extension-to-rv32g" title="Link to this heading"></a></h2>
+<p>The simulator currently implements RV32IMAV (integer, multiply,
+atomics, vector subset) + Zicsr. RV32G adds:</p>
+<ul class="simple">
+<li><p><strong>F extension</strong> — single-precision floating-point (32 registers,
+fadd, fmul, fdiv, fmadd, fcvt, fmv, comparison, classification).</p></li>
+<li><p><strong>D extension</strong> — double-precision floating-point (reuses the F
+register file widened to 64 bits).</p></li>
+<li><p><strong>Zifencei</strong> — FENCE.I instruction (instruction cache flush).</p></li>
+</ul>
+<p>The F and D extensions would require adding a floating-point
+register file, floating-point ALU operations in the executor, and
+FP-aware forwarding in the pipeline.  The vector extension would
+also benefit from SEW=64 support for double-precision vector
+arithmetic.</p>
+</section>
+<section id="device-memory-region-and-multicorecpu-integration">
+<h2>Device Memory Region and MultiCoreCPU integration<a class="headerlink" href="#device-memory-region-and-multicorecpu-integration" title="Link to this heading"></a></h2>
+<p><strong>Device support for single-core CPU types</strong></p>
+<p>The PLIC, timer, and NIC are currently only available in multi-core
+mode (<code class="docutils literal notranslate"><span class="pre">MultiCoreCPU</span></code>).  The <code class="docutils literal notranslate"><span class="pre">PipelinedCPU</span></code> and <code class="docutils literal notranslate"><span class="pre">CPU</span></code> types
+have no MMIO bus and cannot access devices via load/store
+instructions.  Adding device support to these CPU types would
+require wrapping them in an <code class="docutils literal notranslate"><span class="pre">MMIOBus</span></code> (which <code class="docutils literal notranslate"><span class="pre">MultiCoreCPU</span></code>
+already does internally) and computing a device base address.</p>
+<p>This would enable interrupt-driven programs on single-core systems,
+which is useful for benchmarking interrupt latency without the
+added complexity of cache coherence and multi-core contention.</p>
+</section>
+<section id="multicore-research-platform">
+<h2>Multicore Research Platform<a class="headerlink" href="#multicore-research-platform" title="Link to this heading"></a></h2>
+<p>The research platform (<code class="docutils literal notranslate"><span class="pre">rvsim</span></code>) currently uses only <code class="docutils literal notranslate"><span class="pre">PipelinedCPU</span></code>
+for sweep benchmarking.  Adding multicore sweep support would enable
+questions like “how does L1 size affect contention on a shared
+counter?” or “what’s the cache coherence overhead at 2 vs 4 vs 8
+cores?”</p>
+<p>This is blocked on two issues:</p>
+<ol class="arabic simple">
+<li><p><strong>Device region sizing</strong> — the PLIC’s spec-compliant address space
+is too large for the current compact device region, making
+realistic interrupt-driven multicore benchmarks impractical.</p></li>
+<li><p><strong>Heterogeneous multicore</strong> — sweeping multicore configurations
+is most interesting when cores can have different parameters
+(e.g., big.LITTLE with fast/slow cores, or asymmetric cache
+sizes).  The current <code class="docutils literal notranslate"><span class="pre">MultiCoreCPU</span></code> applies the same pipeline
+and L1 config to all cores.  Supporting heterogeneous configs
+would require per-core pipeline parameters in the config file
+and independent <code class="docutils literal notranslate"><span class="pre">PipelineConfig</span></code> objects per core.</p></li>
+</ol>
+<p>Without heterogeneous support, multicore sweeps would only vary
+shared resources (L2 size, coherence parameters, core count),
+which is too narrow a parameter space.</p>
+</section>
+<section id="out-of-order-execution">
+<h2>Out-of-Order Execution<a class="headerlink" href="#out-of-order-execution" title="Link to this heading"></a></h2>
+<p>The simulator implements an in-order pipeline, which is the standard
+model for educational and embedded RISC-V cores (SiFive E-series,
+BOOM educational core).  Adding out-of-order execution would model
+high-performance cores (SiFive P-series, Ventana Veyron) and enable
+benchmarking of:</p>
+<ul class="simple">
+<li><p><strong>Instruction-level parallelism (ILP):</strong> how much parallelism
+exists in a workload beyond what in-order issue can exploit.</p></li>
+<li><p><strong>Reorder buffer sizing:</strong> how many in-flight instructions are
+needed to hide memory latency.</p></li>
+<li><p><strong>Issue width:</strong> superscalar execution (2-wide, 4-wide) and its
+interaction with branch prediction accuracy.</p></li>
+</ul>
+<p>An OoO implementation would require:</p>
+<ul class="simple">
+<li><p>A reorder buffer (ROB) for in-order commit.</p></li>
+<li><p>A reservation station or issue queue for dynamic scheduling.</p></li>
+<li><p>Register renaming (physical register file + RAT).</p></li>
+<li><p>A load/store queue for memory disambiguation.</p></li>
+<li><p>Speculative execution with rollback on mispredict.</p></li>
+</ul>
+<p>This is a substantial architectural change, but would make the simulator
+applicable to a much broader class of architecture research questions.</p>
+</section>
+<section id="other-improvements">
+<h2>Other Improvements<a class="headerlink" href="#other-improvements" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><strong>Branch predictor enhancements:</strong> tournament predictor (local +
+global history), TAGE, return address stack (RAS) for function
+calls.  The current bimodal predictor is the baseline; more
+sophisticated predictors would better model modern cores.</p></li>
+<li><p><strong>TLB and virtual memory:</strong> page table walks, TLB hit/miss
+modeling, page fault handling.  Currently the simulator uses
+physical addresses only.</p></li>
+<li><p><strong>Non-blocking caches:</strong> the current cache blocks on miss (no
+MSHRs).  Adding miss-status holding registers would allow the
+pipeline to continue executing independent instructions while
+a cache miss is being serviced.</p></li>
+<li><p><strong>Prefetching:</strong> hardware stride prefetcher or next-line
+prefetcher to reduce compulsory misses on sequential access
+patterns.</p></li>
+<li><p><strong>Power/area estimation:</strong> augment cycle counts with rough
+energy-per-operation estimates to enable power-performance
+Pareto analysis, not just performance-only.</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="research_platform.html" class="btn btn-neutral float-left" title="Research Platform" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,35 @@
+digraph "riscv::NIC::tick"
+{
+ // LATEX_PDF_SIZE
+  bgcolor="transparent";
+  edge [fontname=Helvetica,fontsize=10,labelfontname=Helvetica,labelfontsize=10];
+  node [fontname=Helvetica,fontsize=10,shape=box,height=0.2,width=0.4];
+  rankdir="LR";
+  Node1 [id="Node000001",label="riscv::NIC::tick",height=0.2,width=0.4,color="gray40", fillcolor="grey60", style="filled", fontcolor="black",tooltip="Advance internal state by one cycle."];
+  Node1 -> Node2 [id="edge1_Node000001_Node000002",color="steelblue1",style="solid",tooltip=" "];
+  Node2 [id="Node000002",label="riscv::NIC::complete_dma",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$classriscv_1_1NIC.html#aba15f821a23f7938934afb6c180ad567",tooltip=" "];
+  Node2 -> Node3 [id="edge2_Node000002_Node000003",color="steelblue1",style="solid",tooltip=" "];
+  Node3 [id="Node000003",label="riscv::NIC::check_coalescing",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$classriscv_1_1NIC.html#a430e56d5df4196a4397b0099b23c6df2",tooltip=" "];
+  Node3 -> Node4 [id="edge3_Node000003_Node000004",color="steelblue1",style="solid",tooltip=" "];
+  Node4 [id="Node000004",label="riscv::NIC::raise_interrupt",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$classriscv_1_1NIC.html#a86e930d11a383d36ade1489064ebc805",tooltip=" "];
+  Node2 -> Node5 [id="edge4_Node000002_Node000005",color="steelblue1",style="solid",tooltip=" "];
+  Node5 [id="Node000005",label="riscv::NIC::read_rx_desc",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$classriscv_1_1NIC.html#a2ca0441f1f3da62c42b92ff9baa1c620",tooltip=" "];
+  Node2 -> Node6 [id="edge5_Node000002_Node000006",color="steelblue1",style="solid",tooltip=" "];
+  Node6 [id="Node000006",label="riscv::NIC::read_tx_desc",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$classriscv_1_1NIC.html#a1dbcbfffcf1a5ccfdcd1400a1c500bab",tooltip=" "];
+  Node2 -> Node7 [id="edge6_Node000002_Node000007",color="steelblue1",style="solid",tooltip=" "];
+  Node7 [id="Node000007",label="riscv::NIC::write_rx_desc",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$classriscv_1_1NIC.html#a3099b1c2172dcd12eb0eca91598a3933",tooltip=" "];
+  Node2 -> Node8 [id="edge7_Node000002_Node000008",color="steelblue1",style="solid",tooltip=" "];
+  Node8 [id="Node000008",label="riscv::NIC::write_tx_desc",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$classriscv_1_1NIC.html#a13dbb349c1d6091abe77c17319424b45",tooltip=" "];
+  Node1 -> Node9 [id="edge8_Node000001_Node000009",color="steelblue1",style="solid",tooltip=" "];
+  Node9 [id="Node000009",label="riscv::NIC::process\l_rx_queue",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$classriscv_1_1NIC.html#a88138af3432720324e80fd7b51fd84ad",tooltip=" "];
+  Node9 -> Node10 [id="edge9_Node000009_Node000010",color="steelblue1",style="solid",tooltip=" "];
+  Node10 [id="Node000010",label="riscv::NicTiming::dma\l_cycles",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$structriscv_1_1NicTiming.html#a35e3b993880e77bd011edcaa2d8bc6db",tooltip="Total cycles for a DMA transfer of bytes."];
+  Node9 -> Node11 [id="edge10_Node000009_Node000011",color="steelblue1",style="solid",tooltip=" "];
+  Node11 [id="Node000011",label="riscv::NIC::rx_enabled",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$classriscv_1_1NIC.html#a10df6d0e508bb1e95e9d1366e559b204",tooltip=" "];
+  Node9 -> Node12 [id="edge11_Node000009_Node000012",color="steelblue1",style="solid",tooltip=" "];
+  Node12 [id="Node000012",label="riscv::NIC::select\l_rx_queue",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$classriscv_1_1NIC.html#a0f27659c7a58f74bc8097dc77f9dbd59",tooltip=" "];
+  Node12 -> Node13 [id="edge12_Node000012_Node000013",color="steelblue1",style="solid",tooltip=" "];
+  Node13 [id="Node000013",label="riscv::NIC::compute\l_rss_hash",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$classriscv_1_1NIC.html#ae619874922c97302d5ef75ab500dd7db",tooltip=" "];
+  Node1 -> Node4 [id="edge13_Node000001_Node000004",color="steelblue1",style="solid",tooltip=" "];
+  Node1 -> Node11 [id="edge14_Node000001_Node000011",color="steelblue1",style="solid",tooltip=" "];
+}

@@ -1,0 +1,393 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Research Platform &mdash; RISC-V Microarchitecture Engine  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Future Work" href="future_work.html" />
+    <link rel="prev" title="Configuration File" href="config.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            RISC-V Microarchitecture Engine
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config.html">Configuration File</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Research Platform</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#usage">Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#modes">Modes</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#single-run-no-sweep-section">Single run (no [sweep] section)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sweep-mode-config-file-has-sweep-section">Sweep mode (config file has [sweep] section)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#csv-output-format">CSV Output Format</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#cross-axis-geometry-skipping">Cross-Axis Geometry Skipping</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#workflow">Workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#visualization">Visualization</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="future_work.html">Future Work</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">RISC-V Microarchitecture Engine</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Research Platform</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/research_platform.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="research-platform">
+<h1>Research Platform<a class="headerlink" href="#research-platform" title="Link to this heading"></a></h1>
+<p>The research platform (<code class="docutils literal notranslate"><span class="pre">rvsim</span></code>) assembles a RISC-V program, runs
+it under a configurable microarchitecture, and reports performance
+metrics. When sweep axes are defined in the config file, it runs
+the program under every configuration in the Cartesian product and
+outputs CSV data suitable for analysis and visualization.</p>
+<section id="usage">
+<h2>Usage<a class="headerlink" href="#usage" title="Link to this heading"></a></h2>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">rvsim</span> <span class="o">&lt;</span><span class="n">source</span><span class="o">.</span><span class="n">s</span><span class="o">&gt;</span> <span class="p">[</span><span class="o">--</span><span class="n">config</span> <span class="o">&lt;</span><span class="n">file</span><span class="o">.</span><span class="n">cfg</span><span class="o">&gt;</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">csv</span><span class="p">]</span>
+</pre></div>
+</div>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Argument</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">source.s</span></code></p></td>
+<td><p>RISC-V assembly source file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--config</span></code></p></td>
+<td><p>Configuration file</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--csv</span></code></p></td>
+<td><p>Force CSV output for single-run mode.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--version</span></code> / <code class="docutils literal notranslate"><span class="pre">-v</span></code></p></td>
+<td><p>Print version and exit.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--help</span></code> / <code class="docutils literal notranslate"><span class="pre">-h</span></code></p></td>
+<td><p>Print usage and exit.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="modes">
+<h2>Modes<a class="headerlink" href="#modes" title="Link to this heading"></a></h2>
+<section id="single-run-no-sweep-section">
+<h3>Single run (no [sweep] section)<a class="headerlink" href="#single-run-no-sweep-section" title="Link to this heading"></a></h3>
+<p>Assembles the program, executes it once with the configured
+architecture, and prints results in a human-readable box format
+to stderr:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ rvsim programs/sum_to_n.s --config config/sum_to_n.cfg
+
+ -- Architecture --
+  L1: 32768B, 8-way, line=64, replacement=lru, writeback
+  L2: 0B, 8-way (disabled)
+  L3: 0B, 16-way (disabled)
+  Pipeline: forwarding=partial, branch_pred=bimodal_2bit, mispredict_penalty=3
+
+ -- Results --
+  Cycles:           318
+  Instructions:     304
+  IPC:              0.9560
+  Stalls:           9
+  Flushes:          3
+  L1 hit rate:      99.68%  (1 misses)
+  L2 hit rate:      0.00%  (0 misses)
+  L3 hit rate:      0.00%  (0 misses)
+  Branches:         100 (3 mispredicts, 97.0% accuracy)
+</pre></div>
+</div>
+<p>Add <code class="docutils literal notranslate"><span class="pre">--csv</span></code> to get a single CSV row on stdout instead.</p>
+</section>
+<section id="sweep-mode-config-file-has-sweep-section">
+<h3>Sweep mode (config file has [sweep] section)<a class="headerlink" href="#sweep-mode-config-file-has-sweep-section" title="Link to this heading"></a></h3>
+<p>The research platform computes the Cartesian product of all sweep
+axes, runs the program under each configuration, and writes one
+CSV row per configuration to stdout.  Informational messages
+(assembly status, skip reasons, summary) go to stderr.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ rvsim programs/sum_to_n.s --config configs/sum_sweep.cfg &gt; results/sum_to_n.csv
+
+# stderr shows:
+Loaded config from examples/sum_sweep.cfg
+Assembled 28 bytes (1 labels) from examples/sum_to_n.s
+Sweep complete: 6 configurations
+
+# stdout (results.csv) contains:
+pipeline.forwarding,pipeline.branch_pred,cycles,instructions,...
+none,not_taken,807,304,...
+none,backward_taken,519,304,...
+...
+partial,bimodal_2bit,318,304,...
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Always test-run a program with single run mode; an error-producing
+(e.g., misaligned load) program should never be input for sweep mode.</p>
+</div>
+</section>
+</section>
+<section id="csv-output-format">
+<h2>CSV Output Format<a class="headerlink" href="#csv-output-format" title="Link to this heading"></a></h2>
+<p>The CSV has two sections: sweep parameter columns (one per axis),
+followed by metric columns.</p>
+<p><strong>Sweep parameter columns</strong> appear in the order they are defined
+in the <code class="docutils literal notranslate"><span class="pre">[sweep]</span></code> section. Their names are the qualified parameter
+names (e.g., <code class="docutils literal notranslate"><span class="pre">pipeline.forwarding</span></code>, <code class="docutils literal notranslate"><span class="pre">cache.l1.size</span></code>).</p>
+<p><strong>Metric columns</strong> (fixed order):</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Column</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cycles</span></code></p></td>
+<td><p>Total simulation cycles.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">instructions</span></code></p></td>
+<td><p>Instructions retired.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ipc</span></code></p></td>
+<td><p>Instructions per cycle.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">stalls</span></code></p></td>
+<td><p>Total pipeline stalls</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">flushes</span></code></p></td>
+<td><p>Pipeline flushes from branch mispredictions.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">l1_hit_rate</span></code></p></td>
+<td><p>L1 cache hit rate (0.0–1.0). <code class="docutils literal notranslate"><span class="pre">0</span></code> if no L1.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">l1_misses</span></code></p></td>
+<td><p>L1 cache miss count.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">l2_hit_rate</span></code></p></td>
+<td><p>L2 cache hit rate.  0 if no L2.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">l2_misses</span></code></p></td>
+<td><p>L2 cache miss count.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">l3_hit_rate</span></code></p></td>
+<td><p>L3 cache hit rate.  0 if no L3.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">l3_misses</span></code></p></td>
+<td><p>L3 cache miss count.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">branches</span></code></p></td>
+<td><p>Total branch instructions executed.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mispredicts</span></code></p></td>
+<td><p>Branch misprediction count.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">branch_accuracy</span></code></p></td>
+<td><p>Branch prediction accuracy (0.0-1.0)</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="cross-axis-geometry-skipping">
+<h2>Cross-Axis Geometry Skipping<a class="headerlink" href="#cross-axis-geometry-skipping" title="Link to this heading"></a></h2>
+<p>When sweeping multiple cache parameters simultaneously, some
+combinations of values from different axes produce invalid cache
+geometries.  Rather than rejecting the entire config file, the
+research platform skips invalid combinations at runtime.</p>
+<p>Skipped conditions:</p>
+<ul class="simple">
+<li><p>L2 size &lt;= L1 size</p></li>
+<li><p>L3 size &lt;= L2 size</p></li>
+<li><p>L1 enabled without L2</p></li>
+<li><p>Cache <code class="docutils literal notranslate"><span class="pre">size</span> <span class="pre">%</span> <span class="pre">(line_size</span> <span class="pre">×</span> <span class="pre">associativity)</span> <span class="pre">!=</span> <span class="pre">0</span></code></p></li>
+</ul>
+<p>Skipped configurations print a diagnostic to stderr:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">SKIP</span><span class="p">:</span> <span class="n">L1</span> <span class="n">size</span> <span class="ow">not</span> <span class="n">divisible</span> <span class="n">by</span> <span class="n">line</span><span class="o">*</span><span class="n">assoc</span> <span class="p">(</span><span class="n">cache</span><span class="o">.</span><span class="n">l1</span><span class="o">.</span><span class="n">size</span><span class="o">=</span><span class="mi">4</span><span class="n">K</span><span class="p">,</span> <span class="n">cache</span><span class="o">.</span><span class="n">l1</span><span class="o">.</span><span class="n">assoc</span><span class="o">=</span><span class="mi">16</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>No CSV row is emitted for skipped configurations.  This keeps the
+output clean for the visualizer.</p>
+</section>
+<section id="workflow">
+<h2>Workflow<a class="headerlink" href="#workflow" title="Link to this heading"></a></h2>
+<p>A typical research workflow:</p>
+<ol class="arabic simple">
+<li><p><strong>Write the workload</strong> — a <code class="docutils literal notranslate"><span class="pre">.s</span></code> assembly file implementing the
+algorithm you want to benchmark.  Keep it pure: data setup and
+register initialization go in the config file, not in the assembly.</p></li>
+<li><p><strong>Write the config</strong> — a <code class="docutils literal notranslate"><span class="pre">.cfg</span></code> file that pre-loads input data
+via <code class="docutils literal notranslate"><span class="pre">[memory.init]</span></code>, sets initial registers via <code class="docutils literal notranslate"><span class="pre">[registers]</span></code>,
+and defines sweep axes via <code class="docutils literal notranslate"><span class="pre">[sweep]</span></code>.</p></li>
+<li><p><strong>Run the sweep</strong> — <code class="docutils literal notranslate"><span class="pre">rvsim</span> <span class="pre">program.s</span> <span class="pre">--config</span> <span class="pre">sweep.cfg</span> <span class="pre">&gt;</span> <span class="pre">results.csv</span></code></p></li>
+<li><p><strong>Visualize</strong> — <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">tools/visualize.py</span> <span class="pre">results.csv</span></code></p></li>
+<li><p><strong>Interpret</strong> — the plots show which parameters matter, where the
+diminishing returns are, and what the Pareto-optimal configurations
+look like.</p></li>
+</ol>
+</section>
+<section id="visualization">
+<h2>Visualization<a class="headerlink" href="#visualization" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">tools/visualize.py</span></code> script reads the sweep CSV and generates
+PNG plots.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="n">tools</span><span class="o">/</span><span class="n">visualize</span><span class="o">.</span><span class="n">py</span> <span class="n">results</span><span class="o">.</span><span class="n">csv</span> <span class="p">[</span><span class="n">options</span><span class="p">]</span>
+</pre></div>
+</div>
+<table class="docutils align-default" id="id1">
+<caption><span class="caption-text"><strong>Options</strong></span><a class="headerlink" href="#id1" title="Link to this table"></a></caption>
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Flag</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--metric</span> <span class="pre">m1</span> <span class="pre">m2</span> <span class="pre">...</span></code></p></td>
+<td><p>Which metrics to plot (y-axes on charts, axes on parallel coordinates).</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">ipc</span></code>, <code class="docutils literal notranslate"><span class="pre">l1_hit_rate</span></code>, <code class="docutils literal notranslate"><span class="pre">cycles</span></code>.</p>
+</td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--pareto</span> <span class="pre">m1</span> <span class="pre">m2</span> <span class="pre">...</span></code></p></td>
+<td><p>Which metrics define Pareto optimality (the objectives to optimize
+simultaneously).</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">ipc</span></code>, <code class="docutils literal notranslate"><span class="pre">l1_hit_rate</span></code>.</p>
+</td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--output</span> <span class="pre">dir</span></code></p></td>
+<td><p>Output directory for PNGs.  Default: <code class="docutils literal notranslate"><span class="pre">plots/</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
+<table class="docutils align-default" id="id2">
+<caption><span class="caption-text"><strong>Plot types</strong></span><a class="headerlink" href="#id2" title="Link to this table"></a></caption>
+<colgroup>
+<col style="width: 10.0%" />
+<col style="width: 90.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Swept parameters</p></th>
+<th class="head"><p>Plots generated</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>1</p></td>
+<td><p>Bar charts (one per metric, with error bars).</p></td>
+</tr>
+<tr class="row-odd"><td><p>2</p></td>
+<td><p>Heatmaps (param × param, color = metric) + bar charts.</p></td>
+</tr>
+<tr class="row-even"><td><p>3+</p></td>
+<td><p>Pairwise scatter plots per param-metric pair.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Any</p></td>
+<td><p>Pareto front scatter (metric × metric, optimal points circled in red).
+Parallel coordinates (all axes, Pareto-optimal lines in red, others
+grayed out).</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Pareto front:</strong></p>
+<p>A configuration is Pareto-optimal if no other configuration is
+better on every objective simultaneously.  “Better” means higher
+for IPC, hit rates, and accuracy; lower for cycles, misses, and
+stalls.  The Pareto front is the set of non-dominated configurations
+— these represent the best available tradeoffs.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">--metric</span></code> flag controls what you see.  The <code class="docutils literal notranslate"><span class="pre">--pareto</span></code> flag
+controls what gets highlighted.  They can differ: you might plot
+five metrics but define optimality on only two.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="config.html" class="btn btn-neutral float-left" title="Configuration File" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="future_work.html" class="btn btn-neutral float-right" title="Future Work" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

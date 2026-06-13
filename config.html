@@ -1,0 +1,705 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Configuration File &mdash; RISC-V Microarchitecture Engine  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Research Platform" href="research_platform.html" />
+    <link rel="prev" title="Architecture" href="architecture.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            RISC-V Microarchitecture Engine
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Configuration File</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#syntax">Syntax</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sections-reference">Sections Reference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#memory">[memory]</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#memory-init">[memory.init]</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cache-l1">[cache.l1]</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cache-l2">[cache.l2]</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cache-l3">[cache.l3]</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pipeline">[pipeline]</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#system">[system]</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#registers">[registers]</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cores-n">[cores.N]</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sweep">[sweep]</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#validation-summary">Validation Summary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#complete-example">Complete Example</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="research_platform.html">Research Platform</a></li>
+<li class="toctree-l1"><a class="reference internal" href="future_work.html">Future Work</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">RISC-V Microarchitecture Engine</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Configuration File</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/config.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="configuration-file">
+<h1>Configuration File<a class="headerlink" href="#configuration-file" title="Link to this heading"></a></h1>
+<p>The <code class="docutils literal notranslate"><span class="pre">.cfg</span></code> file is the location for setting architecture
+parameters, memory initialization, register values, and sweep axes.</p>
+<p>The file uses a simple INI/TOML-style syntax with dotted section names.
+All parameters have sensible defaults; an empty config file (or no
+config file at all) still produces a working system.</p>
+<section id="syntax">
+<h2>Syntax<a class="headerlink" href="#syntax" title="Link to this heading"></a></h2>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Comments start with # or ;</span>
+<span class="p">[</span><span class="n">section</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+<span class="n">key</span> <span class="o">=</span> <span class="n">value</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>Blank lines are ignored.</p></li>
+<li><p>Comments run from <code class="docutils literal notranslate"><span class="pre">#</span></code> or <code class="docutils literal notranslate"><span class="pre">;</span></code> to end of line.</p></li>
+<li><p>Section headers are enclosed in brackets: <code class="docutils literal notranslate"><span class="pre">[section.name]</span></code>.</p></li>
+<li><p>Key-value pairs use <code class="docutils literal notranslate"><span class="pre">=</span></code> as the separator.</p></li>
+<li><p>Size values accept K and M suffixes: <code class="docutils literal notranslate"><span class="pre">32K</span></code> = 32768, <code class="docutils literal notranslate"><span class="pre">1M</span></code> = 1048576.</p></li>
+<li><p>Numeric values can be decimal (<code class="docutils literal notranslate"><span class="pre">42</span></code>) or hex (<code class="docutils literal notranslate"><span class="pre">0xFF</span></code>).</p></li>
+<li><p>Unknown section names are rejected (catches typos like <code class="docutils literal notranslate"><span class="pre">[cach.l1]</span></code>).</p></li>
+</ul>
+</section>
+<section id="sections-reference">
+<h2>Sections Reference<a class="headerlink" href="#sections-reference" title="Link to this heading"></a></h2>
+<section id="memory">
+<h3>[memory]<a class="headerlink" href="#memory" title="Link to this heading"></a></h3>
+<p>Controls the main memory backing store.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 10.0%" />
+<col style="width: 10.0%" />
+<col style="width: 80.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">size</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">64K</span></code></p></td>
+<td><p>Total memory size. Accepts K/M suffixes.</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example:</strong></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">memory</span><span class="p">]</span>
+<span class="n">size</span> <span class="o">=</span> <span class="mi">128</span><span class="n">K</span>
+</pre></div>
+</div>
+</section>
+<section id="memory-init">
+<h3>[memory.init]<a class="headerlink" href="#memory-init" title="Link to this heading"></a></h3>
+<p>Pre-loads data into memory before execution begins.  Each line is
+an address-value pair.  The address is the key; the value format
+determines how data is written.</p>
+<table class="docutils align-default" id="id1">
+<caption><span class="caption-text"><strong>Value formats</strong></span><a class="headerlink" href="#id1" title="Link to this table"></a></caption>
+<colgroup>
+<col style="width: 50.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Format</p></th>
+<th class="head"><p>Example</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">u32</span></code> array</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0x8000</span> <span class="pre">=</span> <span class="pre">[1,</span> <span class="pre">2,</span> <span class="pre">3,</span> <span class="pre">4]</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Single <code class="docutils literal notranslate"><span class="pre">u32</span></code> value</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0x5000</span> <span class="pre">=</span> <span class="pre">42</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Fill region</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0x9000</span> <span class="pre">=</span> <span class="pre">fill(0xFF,</span> <span class="pre">256)</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>ASCII string (null-term)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0xA000</span> <span class="pre">=</span> <span class="pre">&quot;hello&quot;</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Hex values work in arrays:</strong></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mh">0x1000</span> <span class="o">=</span> <span class="p">[</span><span class="mh">0xDEAD</span><span class="p">,</span> <span class="mh">0xBEEF</span><span class="p">]</span>
+</pre></div>
+</div>
+<p><strong>Validation rules:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">u32</span></code> arrays must be 4-byte aligned.</p></li>
+<li><p>Data must not extend past the configured memory size.</p></li>
+<li><p>In multicore mode, data must not overlap the device MMIO region
+(which starts at <code class="docutils literal notranslate"><span class="pre">align_up(memory_size,</span> <span class="pre">0x1000)</span></code>).</p></li>
+</ul>
+<p><strong>Example:</strong></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">memory</span><span class="o">.</span><span class="n">init</span><span class="p">]</span>
+<span class="mh">0x8000</span> <span class="o">=</span> <span class="p">[</span><span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="mi">50</span><span class="p">,</span> <span class="mi">60</span><span class="p">,</span> <span class="mi">70</span><span class="p">,</span> <span class="mi">80</span><span class="p">]</span>   <span class="c1"># u32 array</span>
+<span class="mh">0x9000</span> <span class="o">=</span> <span class="n">fill</span><span class="p">(</span><span class="mh">0x00</span><span class="p">,</span> <span class="mi">1024</span><span class="p">)</span>                   <span class="c1"># 1 KB of zeros</span>
+<span class="mh">0xA000</span> <span class="o">=</span> <span class="s2">&quot;packet_data&quot;</span>                      <span class="c1"># null-terminated string</span>
+<span class="mh">0xB000</span> <span class="o">=</span> <span class="mh">0xDEADBEEF</span>                         <span class="c1"># single word</span>
+</pre></div>
+</div>
+</section>
+<section id="cache-l1">
+<h3>[cache.l1]<a class="headerlink" href="#cache-l1" title="Link to this heading"></a></h3>
+<p>Per-core L1 data cache.  Set <code class="docutils literal notranslate"><span class="pre">size</span> <span class="pre">=</span> <span class="pre">0</span></code> to disable caching
+entirely (CPU reads/writes go directly to main memory).</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 20.0%" />
+<col style="width: 60.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Values</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">size</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">4K</span></code></p></td>
+<td><p>Power of 2 (or <code class="docutils literal notranslate"><span class="pre">0</span></code> to disable)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">assoc</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">8</span></code></p></td>
+<td><p>Power of 2</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">line</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">64</span></code></p></td>
+<td><p>Power of 2</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">replacement</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">lru</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">lru</span></code>, <code class="docutils literal notranslate"><span class="pre">mru</span></code>, <code class="docutils literal notranslate"><span class="pre">plru</span></code>, <code class="docutils literal notranslate"><span class="pre">fifo</span></code>, <code class="docutils literal notranslate"><span class="pre">random</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">write</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">writeback</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">writeback</span></code> (<code class="docutils literal notranslate"><span class="pre">wb</span></code>), <code class="docutils literal notranslate"><span class="pre">writethrough</span></code> (<code class="docutils literal notranslate"><span class="pre">wt</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">write_alloc</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">allocate</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">allocate</span></code>, <code class="docutils literal notranslate"><span class="pre">no_allocate</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Geometry constraint:</strong>
+<code class="docutils literal notranslate"><span class="pre">size</span></code> must be divisible by <code class="docutils literal notranslate"><span class="pre">line</span> <span class="pre">×</span> <span class="pre">assoc</span></code>.  For example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>size=4K, line=64, assoc=8     → 4096 / (64 × 8) = 8 sets — valid.
+size=4K, line=64, assoc=128   → 4096 / 8192 — rejected.
+</pre></div>
+</div>
+</section>
+<section id="cache-l2">
+<h3>[cache.l2]<a class="headerlink" href="#cache-l2" title="Link to this heading"></a></h3>
+<p>Shared L2 cache.  Required when L1 is enabled in multicore mode.
+Set <code class="docutils literal notranslate"><span class="pre">size</span> <span class="pre">=</span> <span class="pre">0</span></code> to disable.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 20.0%" />
+<col style="width: 60.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Values</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">size</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0</span></code></p></td>
+<td><p>Power of 2 (or <code class="docutils literal notranslate"><span class="pre">0</span></code> to disable)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">assoc</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">8</span></code></p></td>
+<td><p>Power of 2</p></td>
+</tr>
+</tbody>
+</table>
+<p>L2 shares the line size with L1 (set in <code class="docutils literal notranslate"><span class="pre">[cache.l1]</span> <span class="pre">line</span></code>).
+L2 size must be ≥ L1 size.</p>
+</section>
+<section id="cache-l3">
+<h3>[cache.l3]<a class="headerlink" href="#cache-l3" title="Link to this heading"></a></h3>
+<p>Shared L3 cache.  Optional; requires L2 to be enabled.
+Set <code class="docutils literal notranslate"><span class="pre">size</span> <span class="pre">=</span> <span class="pre">0</span></code> to disable (default).</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 20.0%" />
+<col style="width: 60.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Values</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">size</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0</span></code></p></td>
+<td><p>Power of 2 (or <code class="docutils literal notranslate"><span class="pre">0</span></code> to disable)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">assoc</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">16</span></code></p></td>
+<td><p>Power of 2</p></td>
+</tr>
+</tbody>
+</table>
+<p>L3 size must be ≥ L2 size.</p>
+</section>
+<section id="pipeline">
+<h3>[pipeline]<a class="headerlink" href="#pipeline" title="Link to this heading"></a></h3>
+<p>Pipeline configuration. Applies to both pipelined and multicore
+CPU modes (ignored for simple CPU mode).</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 20.0%" />
+<col style="width: 60.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Values</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">forwarding</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">partial</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">none</span></code>, <code class="docutils literal notranslate"><span class="pre">partial</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">branch_pred</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bimodal_2bit</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">not_taken</span></code>, <code class="docutils literal notranslate"><span class="pre">always_taken</span></code>, <code class="docutils literal notranslate"><span class="pre">backward_taken</span></code>,
+<code class="docutils literal notranslate"><span class="pre">bimodal_1bit</span></code>, <code class="docutils literal notranslate"><span class="pre">bimodal_2bit</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mispredict_penalty</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">3</span></code></p></td>
+<td><p>Integer ≥ 1</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="system">
+<h3>[system]<a class="headerlink" href="#system" title="Link to this heading"></a></h3>
+<p>System-level configuration.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 20.0%" />
+<col style="width: 60.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Values</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cpu</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pipelined</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">simple</span></code>, <code class="docutils literal notranslate"><span class="pre">pipelined</span></code>, <code class="docutils literal notranslate"><span class="pre">multicore</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cores</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1</span></code></p></td>
+<td><p>1-16 (must be ≥ 2 for multicore)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">max_cycles</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">10000000</span></code></p></td>
+<td><p>Maximum simulation cycles</p></td>
+</tr>
+</tbody>
+</table>
+<p>The <code class="docutils literal notranslate"><span class="pre">cpu</span></code> field selects the CPU model:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">simple</span></code> — single-cycle execution, no pipeline. Currently unused.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pipelined</span></code> — 5-stage in-order pipeline with configurable
+forwarding and branch prediction. Used by the research platform.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">multicore</span></code> — N pipelined cores with shared memory, cache
+coherence, and MMIO devices. Currently unused.</p></li>
+</ul>
+<p>The research platform, as of writing this, always uses pipelined mode regardless of this
+setting.</p>
+</section>
+<section id="registers">
+<h3>[registers]<a class="headerlink" href="#registers" title="Link to this heading"></a></h3>
+<p>Initial register values applied to all cores.  Register names use
+either ABI names (<code class="docutils literal notranslate"><span class="pre">a0</span></code>, <code class="docutils literal notranslate"><span class="pre">sp</span></code>, <code class="docutils literal notranslate"><span class="pre">t0</span></code>) or numeric names
+(<code class="docutils literal notranslate"><span class="pre">x1</span></code>, <code class="docutils literal notranslate"><span class="pre">x10</span></code>).</p>
+<p>Values can be decimal or hex.  Size suffixes are accepted
+(<code class="docutils literal notranslate"><span class="pre">sp</span> <span class="pre">=</span> <span class="pre">64K</span></code> sets <code class="docutils literal notranslate"><span class="pre">sp</span></code> to <code class="docutils literal notranslate"><span class="pre">65536</span></code>).</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">registers</span><span class="p">]</span>
+<span class="n">a0</span> <span class="o">=</span> <span class="mi">8</span>            <span class="c1"># number of elements</span>
+<span class="n">a1</span> <span class="o">=</span> <span class="mh">0x8000</span>       <span class="c1"># data pointer</span>
+<span class="n">sp</span> <span class="o">=</span> <span class="mh">0xFFF0</span>       <span class="c1"># stack pointer</span>
+</pre></div>
+</div>
+<p><strong>Rules:</strong></p>
+<ul class="simple">
+<li><p>Cannot set <code class="docutils literal notranslate"><span class="pre">x0</span></code> / <code class="docutils literal notranslate"><span class="pre">zero</span></code> (hardwired to zero).</p></li>
+<li><p>Register index must be 0–31.</p></li>
+</ul>
+</section>
+<section id="cores-n">
+<h3>[cores.N]<a class="headerlink" href="#cores-n" title="Link to this heading"></a></h3>
+<p>Per-core configuration for multi-core programs. <code class="docutils literal notranslate"><span class="pre">N</span></code> is the
+zero-based core index.  These sections are currently unused by
+the research platform.</p>
+<p>Each core can have its own program, starting PC, and register
+overrides.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 20.0%" />
+<col style="width: 60.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">program</span></code></p></td>
+<td><p>(none)</p></td>
+<td><p>Path to <code class="docutils literal notranslate"><span class="pre">.s</span></code> source file for this core. If omitted, the
+core uses the main source file passed on the command line.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pc</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0</span></code></p></td>
+<td><p>Address where the program is loaded and where the core
+begins execution.</p></td>
+</tr>
+<tr class="row-even"><td><p>(register)</p></td>
+<td><p>—</p></td>
+<td><p>Any register name (e.g., <code class="docutils literal notranslate"><span class="pre">a0</span> <span class="pre">=</span> <span class="pre">5</span></code>) sets that register for
+this core only.</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Register precedence:</strong></p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">[registers]</span></code> section is applied to all cores (global baseline).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">[cores.N]</span></code> register assignments override per-core.</p></li>
+</ol>
+<p>This means you write global defaults once and specialize per-core
+where needed:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">registers</span><span class="p">]</span>
+<span class="n">sp</span> <span class="o">=</span> <span class="mh">0xFFF0</span>        <span class="c1"># all cores</span>
+<span class="n">a1</span> <span class="o">=</span> <span class="mh">0x8000</span>        <span class="c1"># all cores: shared buffer</span>
+
+<span class="p">[</span><span class="n">cores</span><span class="mf">.0</span><span class="p">]</span>
+<span class="n">program</span> <span class="o">=</span> <span class="n">producer</span><span class="o">.</span><span class="n">s</span>
+<span class="n">pc</span> <span class="o">=</span> <span class="mh">0x0000</span>
+<span class="n">a0</span> <span class="o">=</span> <span class="mi">0</span>             <span class="c1"># core 0: hart_id = 0</span>
+
+<span class="p">[</span><span class="n">cores</span><span class="mf">.1</span><span class="p">]</span>
+<span class="n">program</span> <span class="o">=</span> <span class="n">consumer</span><span class="o">.</span><span class="n">s</span>
+<span class="n">pc</span> <span class="o">=</span> <span class="mh">0x4000</span>
+<span class="n">a0</span> <span class="o">=</span> <span class="mi">1</span>             <span class="c1"># core 1: hart_id = 1</span>
+</pre></div>
+</div>
+<p>Each core’s program is assembled with its own label namespace.
+Shared data is communicated via <code class="docutils literal notranslate"><span class="pre">[memory.init]</span></code> addresses.</p>
+</section>
+<section id="sweep">
+<h3>[sweep]<a class="headerlink" href="#sweep" title="Link to this heading"></a></h3>
+<p>Defines parameter axes for the research platform’s sweep mode.
+Each key is a qualified parameter name; the value is a bracketed
+list of values to try.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">sweep</span><span class="p">]</span>
+<span class="n">cache</span><span class="o">.</span><span class="n">l1</span><span class="o">.</span><span class="n">size</span> <span class="o">=</span> <span class="p">[</span><span class="mi">16</span><span class="n">K</span><span class="p">,</span> <span class="mi">32</span><span class="n">K</span><span class="p">,</span> <span class="mi">64</span><span class="n">K</span><span class="p">]</span>
+<span class="n">pipeline</span><span class="o">.</span><span class="n">forwarding</span> <span class="o">=</span> <span class="p">[</span><span class="n">none</span><span class="p">,</span> <span class="n">partial</span><span class="p">]</span>
+<span class="n">pipeline</span><span class="o">.</span><span class="n">branch_pred</span> <span class="o">=</span> <span class="p">[</span><span class="n">not_taken</span><span class="p">,</span> <span class="n">bimodal_2bit</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>The research platform computes the Cartesian product of all axes
+and runs the assembled program under each configuration. For the
+example above, there’s 3 × 2 × 2 = 12 configurations.</p>
+<p><strong>Valid sweep parameters:</strong></p>
+<p>All parameters from <code class="docutils literal notranslate"><span class="pre">[cache.l1]</span></code>, <code class="docutils literal notranslate"><span class="pre">[cache.l2]</span></code>, <code class="docutils literal notranslate"><span class="pre">[cache.l3]</span></code>,
+<code class="docutils literal notranslate"><span class="pre">[pipeline]</span></code>, and <code class="docutils literal notranslate"><span class="pre">[system]</span></code> can be swept using their qualified
+names:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 50.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Qualified name</p></th>
+<th class="head"><p>Corresponding section key</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cache.l1.size</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[cache.l1]</span> <span class="pre">size</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cache.l1.assoc</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[cache.l1]</span> <span class="pre">assoc</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cache.l1.line</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[cache.l1]</span> <span class="pre">line</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cache.l1.replacement</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[cache.l1]</span> <span class="pre">replacement</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cache.l1.write</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[cache.l1]</span> <span class="pre">write</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cache.l1.write_alloc</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[cache.l1]</span> <span class="pre">write_alloc</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cache.l2.size</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[cache.l2]</span> <span class="pre">size</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cache.l2.assoc</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[cache.l2]</span> <span class="pre">assoc</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cache.l3.size</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[cache.l3]</span> <span class="pre">size</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cache.l3.assoc</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[cache.l3]</span> <span class="pre">assoc</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pipeline.forwarding</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[pipeline]</span> <span class="pre">forwarding</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pipeline.branch_pred</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[pipeline]</span> <span class="pre">branch_pred</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pipeline.mispredict_penalty</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[pipeline]</span> <span class="pre">mispredict_penalty</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">system.cpu</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[system]</span> <span class="pre">cpu</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">system.cores</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[system]</span> <span class="pre">cores</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">system.max_cycles</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[system]</span> <span class="pre">max_cycles</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Validation rules:</strong></p>
+<ul class="simple">
+<li><p>Parameter names must be recognized (rejects typos like
+<code class="docutils literal notranslate"><span class="pre">cache.l1.sizee</span></code>).</p></li>
+<li><p>Each value must be valid for its parameter (e.g., cache sizes
+must be powers of 2).</p></li>
+<li><p>Duplicate values within an axis are rejected.</p></li>
+</ul>
+<p><strong>Cross-axis geometry skipping:</strong></p>
+<p>When sweeping multiple cache parameters simultaneously, some
+combinations are geometrically invalid. The research platform
+skips these at runtime (printing a message to stderr) rather than
+rejecting them at config time.  Skipped combinations include:</p>
+<ul class="simple">
+<li><p>L2 size &lt; L1 size</p></li>
+<li><p>L3 size &lt; L2 size</p></li>
+<li><p>L1 without L2</p></li>
+<li><p>Cache size not divisible by <code class="docutils literal notranslate"><span class="pre">line_size</span> <span class="pre">×</span> <span class="pre">associativity</span></code></p></li>
+</ul>
+</section>
+</section>
+<section id="validation-summary">
+<h2>Validation Summary<a class="headerlink" href="#validation-summary" title="Link to this heading"></a></h2>
+<p>The config parser validates the entire configuration after parsing.
+Here is the complete list of checks, grouped by category.</p>
+<p><strong>Memory:</strong></p>
+<ul class="simple">
+<li><p>Size must be &gt; 0 and fit in a 32-bit address space.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">max_cycles</span></code> must be &gt; 0.</p></li>
+<li><p>Init data must not extend past memory size.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">u32</span></code> arrays must be 4-byte aligned.</p></li>
+</ul>
+<p><strong>Cache geometry (per level):</strong></p>
+<ul class="simple">
+<li><p>Size, associativity, and line size must be powers of 2.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">size</span> <span class="pre">%</span> <span class="pre">(line_size</span> <span class="pre">×</span> <span class="pre">associativity)</span></code> must be 0.</p></li>
+<li><p>Line size must be ≤ cache size.</p></li>
+</ul>
+<p><strong>Cache hierarchy:</strong></p>
+<ul class="simple">
+<li><p>L2 requires L1; L3 requires L2.</p></li>
+<li><p>Sizes must not decrease: L2 &gt; L1, L3 &gt; L2.</p></li>
+<li><p>Multicore with L1 requires L2.</p></li>
+</ul>
+<p><strong>Enum strings:</strong></p>
+<ul class="simple">
+<li><p>Replacement, write policy, write-allocate, forwarding, branch
+predictor, and CPU type must all be recognized values.</p></li>
+</ul>
+<p><strong>Pipeline:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">mispredict_penalty</span></code> must be ≥ 1.</p></li>
+</ul>
+<p><strong>System:</strong></p>
+<ul class="simple">
+<li><p>CPU type must be <code class="docutils literal notranslate"><span class="pre">simple</span></code>, <code class="docutils literal notranslate"><span class="pre">pipelined</span></code>, or <code class="docutils literal notranslate"><span class="pre">multicore</span></code>.</p></li>
+<li><p>Multicore requires ≥ 2 cores.</p></li>
+<li><p>Non-multicore rejects &gt; 1 core.</p></li>
+<li><p>Core count must be 1–16.</p></li>
+</ul>
+<p><strong>Registers:</strong></p>
+<ul class="simple">
+<li><p>Cannot set <code class="docutils literal notranslate"><span class="pre">x0</span></code>.</p></li>
+<li><p>Register index must be 0–31.</p></li>
+</ul>
+<p><strong>Per-core (stepper):</strong></p>
+<ul class="simple">
+<li><p>Core index must not exceed <code class="docutils literal notranslate"><span class="pre">num_cores</span></code>.</p></li>
+<li><p>PC must be within memory.</p></li>
+<li><p>Same <code class="docutils literal notranslate"><span class="pre">x0</span></code> and range checks as global registers.</p></li>
+</ul>
+<p><strong>Sweep:</strong></p>
+<ul class="simple">
+<li><p>Parameter names must be recognized.</p></li>
+<li><p>No duplicate values within an axis.</p></li>
+<li><p>Each value must pass the same validation as its static equivalent.</p></li>
+</ul>
+<p><strong>MMIO (multicore):</strong></p>
+<ul class="simple">
+<li><p>Device MMIO region (<code class="docutils literal notranslate"><span class="pre">device_base</span></code> to <code class="docutils literal notranslate"><span class="pre">device_base</span> <span class="pre">+</span> <span class="pre">0x3000</span></code>)
+must fit in 32-bit address space.</p></li>
+<li><p>Memory init must not overlap the device MMIO region.</p></li>
+</ul>
+</section>
+<section id="complete-example">
+<h2>Complete Example<a class="headerlink" href="#complete-example" title="Link to this heading"></a></h2>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># benchmark.cfg — Full example featuring all sections used by the research platform</span>
+
+<span class="p">[</span><span class="n">memory</span><span class="p">]</span>
+<span class="n">size</span> <span class="o">=</span> <span class="mi">256</span><span class="n">K</span>
+
+<span class="p">[</span><span class="n">memory</span><span class="o">.</span><span class="n">init</span><span class="p">]</span>
+<span class="c1"># Two 8-element vectors for dot product</span>
+<span class="mh">0x8000</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">8</span><span class="p">]</span>
+<span class="mh">0x8100</span> <span class="o">=</span> <span class="p">[</span><span class="mi">8</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+
+<span class="p">[</span><span class="n">cache</span><span class="o">.</span><span class="n">l1</span><span class="p">]</span>
+<span class="n">size</span> <span class="o">=</span> <span class="mi">16</span><span class="n">K</span>
+<span class="n">assoc</span> <span class="o">=</span> <span class="mi">8</span>
+<span class="n">line</span> <span class="o">=</span> <span class="mi">64</span>
+<span class="n">replacement</span> <span class="o">=</span> <span class="n">lru</span>
+<span class="n">write</span> <span class="o">=</span> <span class="n">writeback</span>
+<span class="n">write_alloc</span> <span class="o">=</span> <span class="n">allocate</span>
+
+<span class="p">[</span><span class="n">cache</span><span class="o">.</span><span class="n">l2</span><span class="p">]</span>
+<span class="n">size</span> <span class="o">=</span> <span class="mi">64</span><span class="n">K</span>
+<span class="n">assoc</span> <span class="o">=</span> <span class="mi">8</span>
+
+<span class="c1"># L3 disabled</span>
+
+<span class="p">[</span><span class="n">pipeline</span><span class="p">]</span>
+<span class="n">forwarding</span> <span class="o">=</span> <span class="n">partial</span>
+<span class="n">branch_pred</span> <span class="o">=</span> <span class="n">bimodal_2bit</span>
+<span class="n">mispredict_penalty</span> <span class="o">=</span> <span class="mi">3</span>
+
+<span class="p">[</span><span class="n">system</span><span class="p">]</span>
+<span class="n">cpu</span> <span class="o">=</span> <span class="n">pipelined</span>
+<span class="n">max_cycles</span> <span class="o">=</span> <span class="mi">10000000</span>
+
+<span class="p">[</span><span class="n">registers</span><span class="p">]</span>
+<span class="n">a0</span> <span class="o">=</span> <span class="mi">8</span>          <span class="c1"># vector length</span>
+<span class="n">a1</span> <span class="o">=</span> <span class="mh">0x8000</span>     <span class="c1"># pointer to vector A</span>
+<span class="n">a2</span> <span class="o">=</span> <span class="mh">0x8100</span>     <span class="c1"># pointer to vector B</span>
+
+<span class="p">[</span><span class="n">sweep</span><span class="p">]</span>
+<span class="n">cache</span><span class="o">.</span><span class="n">l1</span><span class="o">.</span><span class="n">size</span> <span class="o">=</span> <span class="p">[</span><span class="mi">8</span><span class="n">K</span><span class="p">,</span> <span class="mi">16</span><span class="n">K</span><span class="p">,</span> <span class="mi">32</span><span class="n">K</span><span class="p">,</span> <span class="mi">64</span><span class="n">K</span><span class="p">]</span>
+<span class="n">pipeline</span><span class="o">.</span><span class="n">forwarding</span> <span class="o">=</span> <span class="p">[</span><span class="n">none</span><span class="p">,</span> <span class="n">partial</span><span class="p">,</span> <span class="n">full</span><span class="p">]</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="architecture.html" class="btn btn-neutral float-left" title="Architecture" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="research_platform.html" class="btn btn-neutral float-right" title="Research Platform" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

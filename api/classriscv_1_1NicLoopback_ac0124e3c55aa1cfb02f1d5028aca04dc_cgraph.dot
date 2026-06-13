@@ -1,0 +1,24 @@
+digraph "riscv::NicLoopback::tick"
+{
+ // LATEX_PDF_SIZE
+  bgcolor="transparent";
+  edge [fontname=Helvetica,fontsize=10,labelfontname=Helvetica,labelfontsize=10];
+  node [fontname=Helvetica,fontsize=10,shape=box,height=0.2,width=0.4];
+  rankdir="LR";
+  Node1 [id="Node000001",label="riscv::NicLoopback\l::tick",height=0.2,width=0.4,color="gray40", fillcolor="grey60", style="filled", fontcolor="black",tooltip=" "];
+  Node1 -> Node2 [id="edge1_Node000001_Node000002",color="steelblue1",style="solid",tooltip=" "];
+  Node2 [id="Node000002",label="riscv::NIC::inject\l_packet",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$classriscv_1_1NIC.html#a2790804e473657202020e1ec9d04036b",tooltip="Inject a packet from the network medium into the RX path."];
+  Node2 -> Node3 [id="edge2_Node000002_Node000003",color="steelblue1",style="solid",tooltip=" "];
+  Node3 [id="Node000003",label="riscv::NIC::process\l_rx_queue",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$classriscv_1_1NIC.html#a88138af3432720324e80fd7b51fd84ad",tooltip=" "];
+  Node3 -> Node4 [id="edge3_Node000003_Node000004",color="steelblue1",style="solid",tooltip=" "];
+  Node4 [id="Node000004",label="riscv::NicTiming::dma\l_cycles",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$structriscv_1_1NicTiming.html#a35e3b993880e77bd011edcaa2d8bc6db",tooltip="Total cycles for a DMA transfer of bytes."];
+  Node3 -> Node5 [id="edge4_Node000003_Node000005",color="steelblue1",style="solid",tooltip=" "];
+  Node5 [id="Node000005",label="riscv::NIC::rx_enabled",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$classriscv_1_1NIC.html#a10df6d0e508bb1e95e9d1366e559b204",tooltip=" "];
+  Node3 -> Node6 [id="edge5_Node000003_Node000006",color="steelblue1",style="solid",tooltip=" "];
+  Node6 [id="Node000006",label="riscv::NIC::select\l_rx_queue",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$classriscv_1_1NIC.html#a0f27659c7a58f74bc8097dc77f9dbd59",tooltip=" "];
+  Node6 -> Node7 [id="edge6_Node000006_Node000007",color="steelblue1",style="solid",tooltip=" "];
+  Node7 [id="Node000007",label="riscv::NIC::compute\l_rss_hash",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$classriscv_1_1NIC.html#ae619874922c97302d5ef75ab500dd7db",tooltip=" "];
+  Node2 -> Node5 [id="edge7_Node000002_Node000005",color="steelblue1",style="solid",tooltip=" "];
+  Node1 -> Node8 [id="edge8_Node000001_Node000008",color="steelblue1",style="solid",tooltip=" "];
+  Node8 [id="Node000008",label="riscv::NIC::poll_tx",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$classriscv_1_1NIC.html#a660e52650ea89028a452c3e2615a7627",tooltip="Pull a transmitted packet from the TX completion queue."];
+}
